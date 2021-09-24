@@ -3437,6 +3437,14 @@ Reserve the d7 register (M68k only)
 
 .. option:: -m68060
 
+M88k
+----
+.. option:: -m88000
+
+.. option:: -m88100
+
+.. option:: -m88100
+
 MIPS
 ----
 .. option:: -mabicalls, -mno-abicalls
