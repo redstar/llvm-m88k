@@ -25,6 +25,7 @@
 #include "Targets/Lanai.h"
 #include "Targets/LoongArch.h"
 #include "Targets/M68k.h"
+#include "Targets/M88k.h"
 #include "Targets/MSP430.h"
 #include "Targets/Mips.h"
 #include "Targets/NVPTX.h"
@@ -358,6 +359,16 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
       return std::make_unique<M68kTargetInfo>(Triple, Opts);
     }
 
+  case llvm::Triple::m88k:
+    switch (os) {
+    case llvm::Triple::OpenBSD:
+      return std::make_unique<LinuxTargetInfo<PPC32TargetInfo>>(
+          OpenBSDTargetInfo<M88kTargetInfo>(Triple, Opts));
+    default:
+      return std::make_unique<LinuxTargetInfo<PPC32TargetInfo>>(
+          M88kTargetInfo(Triple, Opts));
+    }
+
   case llvm::Triple::ppc:
     switch (os) {
     case llvm::Triple::Linux:
@@ -369,7 +380,6 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
     case llvm::Triple::OpenBSD:
       return std::make_unique<OpenBSDTargetInfo<PPC32TargetInfo>>(Triple, Opts);
     case llvm::Triple::RTEMS:
-      return std::make_unique<RTEMSTargetInfo<PPC32TargetInfo>>(Triple, Opts);
     case llvm::Triple::AIX:
       return std::make_unique<AIXPPC32TargetInfo>(Triple, Opts);
     default:
