@@ -13,6 +13,7 @@
 #include "Arch/CSKY.h"
 #include "Arch/LoongArch.h"
 #include "Arch/M68k.h"
+#include "Arch/M88k.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
 #include "Arch/RISCV.h"
