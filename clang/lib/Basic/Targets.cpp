@@ -23,6 +23,7 @@
 #include "Targets/Lanai.h"
 #include "Targets/Le64.h"
 #include "Targets/M68k.h"
+#include "Targets/M88k.h"
 #include "Targets/MSP430.h"
 #include "Targets/Mips.h"
 #include "Targets/NVPTX.h"
@@ -312,6 +313,14 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new NetBSDTargetInfo<M68kTargetInfo>(Triple, Opts);
     default:
       return new M68kTargetInfo(Triple, Opts);
+    }
+
+  case llvm::Triple::m88k:
+    switch (os) {
+    case llvm::Triple::OpenBSD:
+      return new OpenBSDTargetInfo<M88kTargetInfo>(Triple, Opts);
+    default:
+      return new M88kTargetInfo(Triple, Opts);
     }
 
   case llvm::Triple::le32:
