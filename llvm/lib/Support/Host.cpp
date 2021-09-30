@@ -47,6 +47,10 @@
 #ifdef _AIX
 #include <sys/systemcfg.h>
 #endif
+#if defined(__OpenBSD__) && defined(__m88k__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
 
 #define DEBUG_TYPE "host-detection"
 
@@ -1337,6 +1341,20 @@ StringRef sys::getHostCPUName() {
   default:
     return "generic";
   }
+}
+#elif defined(__OpenBSD__) && defined(__m88k__)
+StringRef sys::getHostCPUName() {
+  int MIB[2] = {CTL_HW, HW_MACHINE};
+  char Buf[8192];
+  size_t Len = sizeof(Buf);
+  if (sysctl(MIB, sizeof(MIB), Buf, &len, nullptr, 0) != -1) {
+    return StringSwitch<StringRef>(StringRef(Buf))
+        .Case("luna88k", "mc88100")
+        // TODO Add Motorola MVME187/MVME198 boards: mc88100
+        // TODO Add Motorola MVME197LE boards: mc88110
+        .Default("generic");
+  }
+  return "generic";
 }
 #else
 StringRef sys::getHostCPUName() { return "generic"; }
