@@ -371,7 +371,8 @@ static int computeHostNumPhysicalCores() {
   }
   return CPU_COUNT(&Enabled);
 }
-#elif defined(__linux__) && defined(__s390x__)
+#elif defined(__linux__) && defined(__s390x__) || defined(__OpenBSD__) ||    \
+    defined(__FreeBSD__)
 static int computeHostNumPhysicalCores() {
   return sysconf(_SC_NPROCESSORS_ONLN);
 }
