@@ -59,7 +59,6 @@ public:
     hexagon,        // Hexagon: hexagon
     m68k,           // M68k: Motorola 680x0 family
     m88k,           // M88000 (big endian): m88k
-    m88kel,         // M88000: (little endian) m88kel
     mips,           // MIPS: mips, mipsallegrex, mipsr6
     mipsel,         // MIPSEL: mipsel, mipsallegrexe, mipsr6el
     mips64,         // MIPS64: mips64, mips64r6, mipsn32, mipsn32r6
