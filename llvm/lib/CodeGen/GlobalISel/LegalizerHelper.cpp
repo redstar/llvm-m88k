@@ -945,8 +945,11 @@ LegalizerHelper::LegalizeResult LegalizerHelper::narrowScalar(MachineInstr &MI,
     int NumParts = TotalSize / NarrowSize;
 
     SmallVector<Register, 4> PartRegs;
+    bool IsBigEndian = MIRBuilder.getDataLayout().isBigEndian();
     for (int I = 0; I != NumParts; ++I) {
       unsigned Offset = I * NarrowSize;
+      if (IsBigEndian)
+        Offset = TotalSize - NarrowSize - Offset;
       auto K = MIRBuilder.buildConstant(NarrowTy,
                                         Val.lshr(Offset).trunc(NarrowSize));
       PartRegs.push_back(K.getReg(0));
@@ -958,8 +961,8 @@ LegalizerHelper::LegalizeResult LegalizerHelper::narrowScalar(MachineInstr &MI,
     if (LeftoverBits != 0) {
       LeftoverTy = LLT::scalar(LeftoverBits);
       auto K = MIRBuilder.buildConstant(
-        LeftoverTy,
-        Val.lshr(NumParts * NarrowSize).trunc(LeftoverBits));
+          LeftoverTy,
+          Val.lshr(!IsBigEndian * NumParts * NarrowSize).trunc(LeftoverBits));
       LeftoverRegs.push_back(K.getReg(0));
     }
 
