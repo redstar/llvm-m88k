@@ -471,6 +471,7 @@ bool CombinerHelper::tryCombineExtendingLoads(MachineInstr &MI) {
 
 bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
                                                 PreferredTuple &Preferred) {
+llvm::dbgs() << "Enter matchCombineExtendingLoads\n";
   // We match the loads and follow the uses to the extend instead of matching
   // the extends and following the def to the load. This is because the load
   // must remain in the same position for correctness (unless we also add code
@@ -499,7 +500,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
   // loads. Don't bother trying to match them into extending loads.
   if (!isPowerOf2_32(LoadValueTy.getSizeInBits()))
     return false;
-
+llvm::dbgs() << "  --> Looking for preferred opcode\n";
   // Find the preferred type aside from the any-extends (unless it's the only
   // one) and non-extending ops. We'll emit an extending load to that type and
   // and emit a variant of (extend (trunc X)) for the others according to the
@@ -514,6 +515,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
     if (UseMI.getOpcode() == TargetOpcode::G_SEXT ||
         UseMI.getOpcode() == TargetOpcode::G_ZEXT ||
         (UseMI.getOpcode() == TargetOpcode::G_ANYEXT)) {
+llvm::dbgs() << "  --> Found G_*EXT\n";
       const auto &MMO = LoadMI->getMMO();
       // For atomics, only form anyextending loads.
       if (MMO.isAtomic() && UseMI.getOpcode() != TargetOpcode::G_ANYEXT)
@@ -523,6 +525,7 @@ bool CombinerHelper::matchCombineExtendingLoads(MachineInstr &MI,
         LegalityQuery::MemDesc MMDesc(MMO);
         LLT UseTy = MRI.getType(UseMI.getOperand(0).getReg());
         LLT SrcTy = MRI.getType(LoadMI->getPointerReg());
+llvm::dbgs() << "  --> Check legality UseTy " << UseTy << " SrcTy " << SrcTy << "\n";
         if (LI->getAction({LoadMI->getOpcode(), {UseTy, SrcTy}, {MMDesc}})
                 .Action != LegalizeActions::Legal)
           continue;
@@ -1740,9 +1743,13 @@ void CombinerHelper::applyCombineUnmergeConstant(MachineInstr &MI,
          "Not enough operands to replace all defs");
   unsigned NumElems = MI.getNumOperands() - 1;
   Builder.setInstrAndDebugLoc(MI);
+  bool IsBigEndianTarget =
+      MI.getParent()->getParent()->getDataLayout().isBigEndian();
   for (unsigned Idx = 0; Idx < NumElems; ++Idx) {
     Register DstReg = MI.getOperand(Idx).getReg();
-    Builder.buildConstant(DstReg, Csts[Idx]);
+    unsigned CstsIdx = IsBigEndianTarget ? bigEndianByteAt(NumElems, Idx)
+                                         : littleEndianByteAt(NumElems, Idx);
+    Builder.buildConstant(DstReg, Csts[CstsIdx]);
   }
 
   MI.eraseFromParent();
