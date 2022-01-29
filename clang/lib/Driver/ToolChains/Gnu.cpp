@@ -2852,6 +2852,7 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   case llvm::Triple::hexagon:
   case llvm::Triple::lanai:
   case llvm::Triple::m68k:
+  case llvm::Triple::m88k:
   case llvm::Triple::mips:
   case llvm::Triple::mipsel:
   case llvm::Triple::mips64:
