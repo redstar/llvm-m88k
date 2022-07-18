@@ -3615,6 +3615,14 @@ M88k
 
 .. option:: -m88100
 
+.. option:: -mcheck-zero-division, -mno-check-zero-division
+
+Generate code to check for division by zero (MC88100 only).
+
+.. option:: -muse-div-instruction
+
+Use div instruction for signed integer division (MC88100 only).
+
 MIPS
 ----
 .. option:: -mabicalls, -mno-abicalls
