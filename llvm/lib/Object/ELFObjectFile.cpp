@@ -438,6 +438,9 @@ std::optional<StringRef> ELFObjectFileBase::tryGetCPUName() const {
     return getAMDGPUCPUName();
   case ELF::EM_CUDA:
     return getNVPTXCPUName();
+  case ELF::EM_88K:
+    return StringRef(getPlatformFlags() & ELF::EF_88K_M88110 ? "mc88110"
+                                                             : "mc88100");
   case ELF::EM_PPC:
   case ELF::EM_PPC64:
     return StringRef("future");
