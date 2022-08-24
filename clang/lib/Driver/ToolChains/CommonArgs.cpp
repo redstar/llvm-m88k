@@ -411,7 +411,7 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
     return m68k::getM68kTargetCPU(Args);
 
   case llvm::Triple::m88k:
-    return m88k::getM88kTargetCPU(Args);
+    return std::string(m88k::getM88kTargetCPU(Args));
 
   case llvm::Triple::mips:
   case llvm::Triple::mipsel:
