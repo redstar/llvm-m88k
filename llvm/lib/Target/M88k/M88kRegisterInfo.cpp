@@ -62,7 +62,7 @@ M88kRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
   return CSR_M88k_RegMask;
 }
 
-void M88kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
+bool M88kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                            int SPAdj, unsigned FIOperandNum,
                                            RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected stack adjustment");
@@ -80,6 +80,7 @@ void M88kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   assert(isInt<16>(Offset) && "m88k: Larger offsets not yet supported.");
   MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, /*isDef=*/false);
   MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+  return false;
 }
 
 Register M88kRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
