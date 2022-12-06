@@ -109,7 +109,7 @@ void M88kTargetInfo::getTargetDefines(const LangOptions &Opts,
 
 ArrayRef<Builtin::Info> M88kTargetInfo::getTargetBuiltins() const {
   // TODO Implement.
-  return None;
+  return std::nullopt;
 }
 
 bool M88kTargetInfo::hasFeature(StringRef Feature) const {
@@ -129,7 +129,7 @@ ArrayRef<const char *> M88kTargetInfo::getGCCRegNames() const {
 
 ArrayRef<TargetInfo::GCCRegAlias> M88kTargetInfo::getGCCRegAliases() const {
   // No aliases.
-  return None;
+  return std::nullopt;
 }
 
 bool M88kTargetInfo::validateAsmConstraint(
