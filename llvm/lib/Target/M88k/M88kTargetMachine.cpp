@@ -88,7 +88,7 @@ std::string computeDataLayout(const Triple &TT, StringRef CPU, StringRef FS) {
 }
 
 // TODO: Check.
-Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
+Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
   if (!RM || *RM == Reloc::DynamicNoPIC)
     return Reloc::Static;
   return *RM;
@@ -100,8 +100,8 @@ Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
 M88kTargetMachine::M88kTargetMachine(const Target &T, const Triple &TT,
                                      StringRef CPU, StringRef FS,
                                      const TargetOptions &Options,
-                                     Optional<Reloc::Model> RM,
-                                     Optional<CodeModel::Model> CM,
+                                     std::optional<Reloc::Model> RM,
+                                     std::optional<CodeModel::Model> CM,
                                      CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(T, computeDataLayout(TT, CPU, FS), TT, CPU, FS, Options,
                         getEffectiveRelocModel(RM),

@@ -158,7 +158,7 @@ M88kInstructionSelector::M88kInstructionSelector(
 // Check is the register Reg is zero. If yes then return the hardware zero
 // register, otherwise return Reg.
 static Register getRegOrZero(Register Reg, const MachineRegisterInfo &MRI) {
-  Optional<ValueAndVReg> Res =
+  std::optional<ValueAndVReg> Res =
       getIConstantVRegValWithLookThrough(Reg, MRI, true);
   if (Res && Res->Value.isZero())
     return M88k::R0;
@@ -174,7 +174,7 @@ static Register getRegOrZero(MachineOperand &OP,
 // list instead of None.
 static Register getRegIgnoringCopies(Register Reg,
                                      const MachineRegisterInfo &MRI) {
-  Optional<DefinitionAndSourceRegister> DefSrcReg =
+  std::optional<DefinitionAndSourceRegister> DefSrcReg =
       getDefSrcRegIgnoringCopies(Reg, MRI);
   return DefSrcReg ? DefSrcReg->Reg : Reg;
 }
@@ -205,7 +205,7 @@ static bool selectCopy(MachineInstr &I, const TargetInstrInfo &TII,
   Register SrcReg = I.getOperand(1).getReg();
   if (Register::isVirtualRegister(SrcReg) &&
       MRI.getType(SrcReg) == LLT::pointer(0, 32))
-    if (Optional<APInt> Cst = getIConstantVRegVal(SrcReg, MRI);
+    if (std::optional<APInt> Cst = getIConstantVRegVal(SrcReg, MRI);
         Cst && Cst->isZero())
       I.getOperand(1).setReg(M88k::R0);
 
@@ -236,7 +236,7 @@ bool M88kInstructionSelector::constrainSelectedInstRegOperands(
     Register Reg = OP.getReg();
     if (Register::isPhysicalRegister(Reg))
       continue;
-    Optional<ValueAndVReg> Res =
+    std::optional<ValueAndVReg> Res =
         getIConstantVRegValWithLookThrough(Reg, MRI, true);
     // TODO This needs an update when the XR register class is supported.
     if (Res && Res->Value.isZero())
@@ -863,7 +863,7 @@ bool M88kInstructionSelector::selectLoadStore(MachineInstr &I,
   // store is the constant 0, then use register %r0 instead.
   Register ValReg = I.getOperand(0).getReg();
   if (!IsLoad) {
-    if (Optional<APInt> Cst = getIConstantVRegVal(ValReg, MRI);
+    if (std::optional<APInt> Cst = getIConstantVRegVal(ValReg, MRI);
         Cst && Cst->isZero())
       ValReg = M88k::R0;
     else if (MachineInstr *TruncMI =
