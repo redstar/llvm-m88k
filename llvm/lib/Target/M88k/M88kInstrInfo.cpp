@@ -535,7 +535,7 @@ void M88kInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
       .addReg(SrcReg, getKillRegState(KillSrc));
 }
 
-Optional<DestSourcePair>
+std::optional<DestSourcePair>
 M88kInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   if (MI.isMoveReg() ||
       (MI.getOpcode() == M88k::ORri && MI.getOperand(2).getImm() == 0))
@@ -547,7 +547,7 @@ M88kInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
     if (MI.getOperand(1).getReg() == M88k::R0)
       return DestSourcePair{MI.getOperand(0), MI.getOperand(2)};
   }
-  return None;
+  return std::nullopt;
 }
 
 void M88kInstrInfo::insertNoop(MachineBasicBlock &MBB,
