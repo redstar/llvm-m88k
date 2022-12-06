@@ -76,7 +76,7 @@ public:
   // Override MCAsmBackend
   unsigned getNumFixupKinds() const override;
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
-  Optional<MCFixupKind> getFixupKind(StringRef Name) const override;
+  std::optional<MCFixupKind> getFixupKind(StringRef Name) const override;
 
   void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                   const MCValue &Target, MutableArrayRef<char> Data,
@@ -103,7 +103,8 @@ unsigned M88kMCAsmBackend::getNumFixupKinds() const {
   return M88k::NumTargetFixupKinds;
 }
 
-Optional<MCFixupKind> M88kMCAsmBackend::getFixupKind(StringRef Name) const {
+std::optional<MCFixupKind>
+M88kMCAsmBackend::getFixupKind(StringRef Name) const {
   unsigned Type = llvm::StringSwitch<unsigned>(Name)
 #define ELF_RELOC(X, Y) .Case(#X, Y)
 #include "llvm/BinaryFormat/ELFRelocs/M88k.def"
@@ -111,7 +112,7 @@ Optional<MCFixupKind> M88kMCAsmBackend::getFixupKind(StringRef Name) const {
                       .Default(-1u);
   if (Type != -1u)
     return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
-  return None;
+  return std::nullopt;
 }
 
 const MCFixupKindInfo &
