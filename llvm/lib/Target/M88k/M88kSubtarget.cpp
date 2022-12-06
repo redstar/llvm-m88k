@@ -55,41 +55,41 @@ M88kSubtarget::M88kSubtarget(const Triple &TT, const std::string &CPU,
       *static_cast<const M88kTargetMachine *>(&TM), *this, *RBI));
 }
 
-Optional<unsigned> M88kSubtarget::getCacheSize(unsigned Level) const {
+std::optional<unsigned> M88kSubtarget::getCacheSize(unsigned Level) const {
   if (Level > 0)
-    return Optional<unsigned>();
+    return std::optional<unsigned>();
   switch (M88kProc) {
   case MC88100:
     return 16 * 1024; // 16k sharec I+D cache.
   case MC88110:
     return 8 * 1024; // 8k sharec D cache.
   default:
-    return Optional<unsigned>();
+    return std::optional<unsigned>();
   }
 }
 
-Optional<unsigned> M88kSubtarget::getCacheAssociativity(unsigned Level) const {
+std::optional<unsigned> M88kSubtarget::getCacheAssociativity(unsigned Level) const {
   if (Level > 0)
-    return Optional<unsigned>();
+    return std::optional<unsigned>();
   switch (M88kProc) {
   case MC88100:
     return 4; // Cache is 4-way associative.
   case MC88110:
     return 2; // Cache is 4-way associative.
   default:
-    return Optional<unsigned>();
+    return std::optional<unsigned>();
   }
 }
 
-Optional<unsigned> M88kSubtarget::getCacheLineSize(unsigned Level) const {
+std::optional<unsigned> M88kSubtarget::getCacheLineSize(unsigned Level) const {
   if (Level > 0)
-    return Optional<unsigned>();
+    return std::optional<unsigned>();
   switch (M88kProc) {
   case MC88100:
     return 16; // 4 bytes.
   case MC88110:
     return 32; // 8 words.
   default:
-    return Optional<unsigned>();
+    return std::optional<unsigned>();
   }
 }
