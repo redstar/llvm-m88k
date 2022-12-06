@@ -83,9 +83,9 @@ public:
   void ParseSubtargetFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS);
 
   // Return information about cache structure.
-  Optional<unsigned> getCacheSize(unsigned Level) const override;
-  Optional<unsigned> getCacheAssociativity(unsigned Level) const override;
-  Optional<unsigned> getCacheLineSize(unsigned Level) const override;
+  std::optional<unsigned> getCacheSize(unsigned Level) const override;
+  std::optional<unsigned> getCacheAssociativity(unsigned Level) const override;
+  std::optional<unsigned> getCacheLineSize(unsigned Level) const override;
 
   const TargetFrameLowering *getFrameLowering() const override {
     return &FrameLowering;
