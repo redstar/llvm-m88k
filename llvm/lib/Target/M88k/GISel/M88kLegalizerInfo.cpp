@@ -140,6 +140,16 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   getActionDefinitionsBuilder(G_FPEXT).legalFor({{S64, S32}});
   getActionDefinitionsBuilder(G_FPTRUNC).legalFor({{S32, S64}});
 
+  getActionDefinitionsBuilder(
+      {G_FCOS, G_FSIN, G_FLOG10, G_FLOG, G_FLOG2, G_FEXP, G_FEXP2, G_FPOW})
+      .minScalar(0, S32)
+      .libcallFor({S32, S64});
+  getActionDefinitionsBuilder(G_FSQRT)
+      .minScalar(0, S32)
+      .legalIf(
+          all(typeInSet(0, {S32, S64}), LegalityPredicate(IsMC88110)))
+      .libcallFor({S32, S64});
+
   // FP to int conversion instructions
   getActionDefinitionsBuilder(G_FPTOSI)
       .legalForCartesianProduct({S32}, {S64, S32})
