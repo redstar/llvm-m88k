@@ -67,6 +67,8 @@ private:
                   int OpIdx = -1) const;
   void renderHI16(MachineInstrBuilder &MIB, const MachineInstr &I,
                   int OpIdx = -1) const;
+  void renderNEG16(MachineInstrBuilder &MIB, const MachineInstr &I,
+                   int OpIdx = -1) const;
 
   bool selectFrameIndex(MachineInstr &I, MachineBasicBlock &MBB,
                         MachineRegisterInfo &MRI) const;
@@ -263,6 +265,15 @@ void M88kInstructionSelector::renderHI16(MachineInstrBuilder &MIB,
   uint64_t Val = I.getOperand(1).getCImm()->getZExtValue();
   Val = (Val & 0x00000000FFFF0000ULL) >> 16;
   MIB.addImm(Val);
+}
+
+void M88kInstructionSelector::renderNEG16(MachineInstrBuilder &MIB,
+                                          const MachineInstr &I,
+                                          int OpIdx) const {
+  assert(I.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
+         "Expected G_CONSTANT");
+  int64_t Val = I.getOperand(1).getCImm()->getSExtValue();
+  MIB.addImm(-Val);
 }
 
 bool M88kInstructionSelector::selectFrameIndex(MachineInstr &I,
@@ -1069,31 +1080,6 @@ bool M88kInstructionSelector::earlySelect(MachineInstr &I) {
   auto &MRI = MF.getRegInfo();
 
   switch (I.getOpcode()) {
-  case TargetOpcode::G_CONSTANT: {
-    // Only handle negative 32bit values between -1 and -65536.
-    // Other constants are handled by TableGen.
-    APInt ConstValue = I.getOperand(1).getCImm()->getValue();
-    if (ConstValue.isSignedIntN(32)) {
-      int64_t Cst = ConstValue.getSExtValue();
-      if (Cst < 0 && Cst >= -65536) {
-        MachineInstr *MI;
-        if (Cst == -65536)
-          MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::SETrwo),
-                       I.getOperand(0).getReg())
-                   .addReg(M88k::R0)
-                   .addImm(16)
-                   .addImm(16);
-        else
-          MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::SUBUri),
-                       I.getOperand(0).getReg())
-                   .addReg(M88k::R0)
-                   .addImm(-Cst);
-        I.eraseFromParent();
-        return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
-      }
-    }
-    return false;
-  }
   case TargetOpcode::G_AND:
   case TargetOpcode::G_OR: {
     // Lower
