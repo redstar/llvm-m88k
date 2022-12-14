@@ -186,6 +186,15 @@ def HI16 : SDNodeXForm<imm, [{
 
 def gi_HI16 : GICustomOperandRenderer<"renderHI16">, GISDNodeXFormEquiv<HI16>;
 
+// Negate a 16 bit immediate.
+def NEG16 : SDNodeXForm<imm, [{
+  int64_t Value = N->getSExtValue();
+  return CurDAG->getTargetConstant(-Value, SDLoc(N), MVT::i16);
+}]>;
+
+def gi_NEG16 : GICustomOperandRenderer<"renderNEG16">,
+                                       GISDNodeXFormEquiv<NEG16>;
+
 
 // Immediates for the lower and upper 16 bits of an i32, with the other
 // bits of the i32 being zero.
@@ -220,6 +229,12 @@ defm uimm16 : Immediate<i32, [{
 def uimm32 : IntImmLeaf<i32, [{
   uint64_t Val = Imm.getZExtValue();
   return isUInt<32>(Val);
+}]>;
+
+// Predicate: Negative 16 bit value.
+def simm16Neg : IntImmLeaf<i32, [{
+  int64_t Val = Imm.getSExtValue();
+  return Val < 0 && Val > -65536;
 }]>;
 
 // ---------------------------------------------------------------------------//
@@ -291,27 +306,6 @@ defm MASK : LogicImm<0b01, "mask", and>;
 defm AND : Logic<0b01000, 0b00, "and", and>;
 defm XOR : Logic<0b01010, 0b10, "xor", xor>;
 defm OR  : Logic<0b01011, 0b11, "or", or>;
-
-// Pattern for 32 bit constants.
-def : Pat<(and GPR:$rs1, uimm32:$imm),
-          (ANDri (ANDriu GPR:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
-def : Pat<(or GPR:$rs1, uimm32:$imm),
-          (ORri (ORriu GPR:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
-def : Pat<(xor GPR:$rs1, uimm32:$imm),
-          (XORri (XORriu GPR:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
-
-// Zero immediate.
-def : Pat<(i32 0),
-          (ORri (i32 R0), 0)>;
-
-// Arbitrary constants.
-// 16-bit immediate.
-def : Pat<(i32 imm32lo16:$imm), (ORri (i32 R0), (LO16 i32:$imm))>;
-def : Pat<(i32 imm32hi16:$imm), (ORriu (i32 R0), (HI16 i32:$imm))>;
-
-// Arbitrary immediate.
-def : Pat<(i32 imm:$imm),
-          (ORri (ORriu (i32 R0), (HI16 i32:$imm)), (LO16 i32:$imm))>;
 
 // Multiclass for bit-field instructions with triadic registers or immediates.
 multiclass Bitfield<bits<6> Func, string OpcStr> {
@@ -412,6 +406,10 @@ defm : BinaryOpPat<"DIVS", sdiv>;
 //def : Pat<(umullohi GPR:$rs1, GPR:$rs2), (MULUrrd GPR:$rs1, GPR:$rs2)>;
 def : Pat<(ineg GPR:$rs2), (SUBUrr (i32 R0), GPR:$rs2)>;
 
+// ---------------------------------------------------------------------------//
+// Integer compare.
+// ---------------------------------------------------------------------------//
+
 multiclass SetCCPat<CondCode CC, bits<5> w5, bits<5> o5> {
   def : Pat<(setcc (i32 GPR:$lhs), (i32 GPR:$rhs), CC),
             (EXTUrwo (CMPrr GPR:$lhs, GPR:$rhs), w5, o5)>;
@@ -429,6 +427,39 @@ defm : SetCCPat<SETUGT, 1, 8>;
 defm : SetCCPat<SETULE, 1, 8>;
 defm : SetCCPat<SETULT, 1, 10>;
 defm : SetCCPat<SETUGE, 1, 11>;
+
+// ---------------------------------------------------------------------------//
+// Materialize constants.
+// ---------------------------------------------------------------------------//
+
+// Pattern for logial operations with 32 bit constants.
+def : Pat<(and GPR:$rs1, uimm32:$imm),
+          (ANDri (ANDriu GPR:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
+def : Pat<(or GPR:$rs1, uimm32:$imm),
+          (ORri (ORriu GPR:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
+def : Pat<(xor GPR:$rs1, uimm32:$imm),
+          (XORri (XORriu GPR:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
+
+// Zero constant.
+def : Pat<(i32 0), (ORri (i32 R0), 0)>;
+
+// Constant -65536 aka 4294901760 = 0xffff0000.
+def : Pat<(i32 4294901760), (SETrwo (i32 R0), 16, 16)>;
+
+// Constants < 0 and > -65536
+def : Pat<(i32 simm16Neg:$imm), (SUBUri (i32 R0), (NEG16 i32:$imm))>;
+
+// 16-bit constants.
+def : Pat<(i32 imm32lo16:$imm), (ORri (i32 R0), (LO16 i32:$imm))>;
+def : Pat<(i32 imm32hi16:$imm), (ORriu (i32 R0), (HI16 i32:$imm))>;
+
+// 32-bit constants.
+def : Pat<(i32 imm:$imm),
+          (ORri (ORriu (i32 R0), (HI16 i32:$imm)), (LO16 i32:$imm))>;
+
+// ---------------------------------------------------------------------------//
+// Load & Store.
+// ---------------------------------------------------------------------------//
 
 /*
 Addressing modes:
