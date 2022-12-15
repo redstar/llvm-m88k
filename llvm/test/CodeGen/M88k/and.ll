@@ -76,3 +76,11 @@ define i32 @f8(i32 %a) {
   %res = and i32 %a, 4278190335 ; = 0xFF0000FF
   ret i32 %res
 }
+
+; Check identity.
+define i32 @f9(i32 %a) {
+; CHECK-LABEL: f9:
+; CHECK: jmp %r1
+  %res = and i32 %a, -1
+  ret i32 %res
+}
