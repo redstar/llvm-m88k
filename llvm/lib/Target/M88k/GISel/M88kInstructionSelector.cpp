@@ -69,6 +69,14 @@ private:
                   int OpIdx = -1) const;
   void renderNEG16(MachineInstrBuilder &MIB, const MachineInstr &I,
                    int OpIdx = -1) const;
+  void renderCPOP(MachineInstrBuilder &MIB, const MachineInstr &I,
+                  int OpIdx = -1) const;
+  void renderCTZ(MachineInstrBuilder &MIB, const MachineInstr &I,
+                 int OpIdx = -1) const;
+  void renderCPOPINV(MachineInstrBuilder &MIB, const MachineInstr &I,
+                     int OpIdx = -1) const;
+  void renderCTZINV(MachineInstrBuilder &MIB, const MachineInstr &I,
+                    int OpIdx = -1) const;
 
   bool selectFrameIndex(MachineInstr &I, MachineBasicBlock &MBB,
                         MachineRegisterInfo &MRI) const;
@@ -274,6 +282,42 @@ void M88kInstructionSelector::renderNEG16(MachineInstrBuilder &MIB,
          "Expected G_CONSTANT");
   int64_t Val = I.getOperand(1).getCImm()->getSExtValue();
   MIB.addImm(-Val);
+}
+
+void M88kInstructionSelector::renderCPOP(MachineInstrBuilder &MIB,
+                                         const MachineInstr &I,
+                                         int OpIdx) const {
+  assert(I.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
+         "Expected G_CONSTANT");
+  uint64_t Val = I.getOperand(1).getCImm()->getZExtValue();
+  MIB.addImm(countPopulation(Val) & 0x1f);
+}
+
+void M88kInstructionSelector::renderCTZ(MachineInstrBuilder &MIB,
+                                        const MachineInstr &I,
+                                        int OpIdx) const {
+  assert(I.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
+         "Expected G_CONSTANT");
+  uint64_t Val = I.getOperand(1).getCImm()->getZExtValue();
+  MIB.addImm(countTrailingZeros(Val) & 0x1f);
+}
+
+void M88kInstructionSelector::renderCPOPINV(MachineInstrBuilder &MIB,
+                                            const MachineInstr &I,
+                                            int OpIdx) const {
+  assert(I.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
+         "Expected G_CONSTANT");
+  uint64_t Val = ~I.getOperand(1).getCImm()->getZExtValue() & 0xffffffff;
+  MIB.addImm(countPopulation(Val) & 0x1f);
+}
+
+void M88kInstructionSelector::renderCTZINV(MachineInstrBuilder &MIB,
+                                           const MachineInstr &I,
+                                           int OpIdx) const {
+  assert(I.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
+         "Expected G_CONSTANT");
+  uint64_t Val = ~I.getOperand(1).getCImm()->getZExtValue() & 0xffffffff;
+  MIB.addImm(countTrailingZeros(Val) & 0x1f);
 }
 
 bool M88kInstructionSelector::selectFrameIndex(MachineInstr &I,
@@ -1080,66 +1124,6 @@ bool M88kInstructionSelector::earlySelect(MachineInstr &I) {
   auto &MRI = MF.getRegInfo();
 
   switch (I.getOpcode()) {
-  case TargetOpcode::G_AND:
-  case TargetOpcode::G_OR: {
-    // Lower
-    //   G_AND $dst, $src, ~((2**width - 1) << offset)
-    // to
-    //   CLRrwo $dst, $src, width<offset>
-    // and
-    //   G_OR $dst, $src, ((2**width - 1) << offset
-    // to
-    //   SETrwo $dst, $src, width<offset>
-    //
-    // The special cases
-    //   G_AND $dst, $src, 0
-    // and
-    //   G_OR $dst, $src, -1
-    // are lowered to
-    //   G_COPY $msk
-    bool IsAnd = I.getOpcode() == TargetOpcode::G_AND;
-    Register DstReg = I.getOperand(0).getReg();
-    if (!MRI.getType(DstReg).isScalar())
-      return false;
-
-    Register SrcReg = I.getOperand(1).getReg();
-    Register MskReg = I.getOperand(2).getReg();
-    int64_t Mask;
-    if (!mi_match(MskReg, MRI, m_ICst(Mask))) {
-      std::swap(MskReg, SrcReg);
-      if (!mi_match(MskReg, MRI, m_ICst(Mask)))
-        return false;
-    }
-
-    // Check that the mask is a (negated) shifted mask.
-    Mask &= 0xFFFFFFFF;
-    if (IsAnd)
-      Mask = ~static_cast<uint64_t>(Mask) & 0xFFFFFFFF;
-    uint64_t MaskWidth, MaskOffset;
-    if (!isShiftedMask(Mask, MaskWidth, MaskOffset))
-      return false;
-
-    assert(MaskWidth > 0 && MaskWidth <= 32 && "Width out of range");
-    assert(MaskOffset >= 0 && MaskOffset < 32 && "Offset out of range");
-
-    MachineInstr *MI;
-    if (MaskWidth == 32 && MaskOffset == 0) {
-      MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::COPY),
-                   I.getOperand(0).getReg())
-               .addReg(MskReg);
-      RBI.constrainGenericRegister(I.getOperand(0).getReg(),
-                                   M88k::GPRRCRegClass, MRI);
-    } else {
-      unsigned NewOpc = IsAnd ? M88k::CLRrwo : M88k::SETrwo;
-      MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(NewOpc))
-               .add(I.getOperand(0))
-               .addReg(SrcReg)
-               .addImm(MaskWidth & 0x1f)
-               .addImm(MaskOffset);
-    }
-    I.eraseFromParent();
-    return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
-  }
   default:
     return false;
   }

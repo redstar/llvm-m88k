@@ -58,3 +58,12 @@ define i32 @f6(i32 %a) {
   %res = or i32 %a, 16776960 ; 0x00FFFF00
   ret i32 %res
 }
+
+; Check identity.
+define i32 @f7(i32 %a) {
+; CHECK-LABEL: f7:
+; CHECK: jmp %r1
+  %res = or i32 %a, 0
+  ret i32 %res
+}
+
