@@ -195,6 +195,34 @@ def NEG16 : SDNodeXForm<imm, [{
 def gi_NEG16 : GICustomOperandRenderer<"renderNEG16">,
                                        GISDNodeXFormEquiv<NEG16>;
 
+// Count population modulo 32.
+def CPOP : SDNodeXForm<imm, [{
+  uint64_t Val = countPopulation(Imm.getZExtValue()) & 0x1f;
+  return CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i8);
+}]>;
+def : GICustomOperandRenderer<"renderCPOP">, GISDNodeXFormEquiv<CPOP>;
+
+// Count traling zeroes modulo 32.
+def CTZ : SDNodeXForm<imm, [{
+  uint64_t Val = countTrailingZeros(Imm.getZExtValue()) & 0x1f;
+  return CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i8);
+}]>;
+def : GICustomOperandRenderer<"renderCTZ">, GISDNodeXFormEquiv<CTZ>;
+
+// Count population modulo 32 on inverted (1-complement) 32 bit value.
+def CPOPINV : SDNodeXForm<imm, [{
+  uint64_t Val = countPopulation(~Imm.getZExtValue() & 0xffffffff) & 0x1f;
+  return CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i8);
+}]>;
+def : GICustomOperandRenderer<"renderCPOPINV">, GISDNodeXFormEquiv<CPOPINV>;
+
+// Count traling zeroes modulo 32 on inverted (1-complement) 32 bit value.
+def CTZINV : SDNodeXForm<imm, [{
+  uint64_t Val = countTrailingZeros(~Imm.getZExtValue() & 0xffffffff) & 0x1f;
+  return CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i8);
+}]>;
+def : GICustomOperandRenderer<"renderCTZINV">, GISDNodeXFormEquiv<CTZINV>;
+
 
 // Immediates for the lower and upper 16 bits of an i32, with the other
 // bits of the i32 being zero.
@@ -235,6 +263,18 @@ def uimm32 : IntImmLeaf<i32, [{
 def simm16Neg : IntImmLeaf<i32, [{
   int64_t Val = Imm.getSExtValue();
   return Val < 0 && Val > -65536;
+}]>;
+
+// Predicate: Shifted mask.
+def shmask32 : IntImmLeaf<i32, [{
+  uint64_t Val = Imm.getZExtValue();
+  return isUInt<32>(Val) && isShiftedMask_64(Val);
+}]>;
+
+// Predicate: Inverted (1-complement) shifted mask.
+def invshmask32 : IntImmLeaf<i32, [{
+  uint64_t Val = Imm.getZExtValue();
+  return isUInt<32>(Val) && isShiftedMask_64(~Val & 0xffffffff);
 }]>;
 
 // ---------------------------------------------------------------------------//
@@ -429,8 +469,14 @@ defm : SetCCPat<SETULT, 1, 10>;
 defm : SetCCPat<SETUGE, 1, 11>;
 
 // ---------------------------------------------------------------------------//
-// Materialize constants.
+// Materialize immediates & constants.
 // ---------------------------------------------------------------------------//
+
+// Pattern for logial operations with shifted masks.
+def : Pat<(or GPR:$rs1, shmask32:$imm),
+          (SETrwo GPR:$rs1, (CPOP $imm), (CTZ $imm))>;
+def : Pat<(and GPR:$rs1, invshmask32:$imm),
+          (CLRrwo GPR:$rs1, (CPOPINV $imm), (CTZINV $imm))>;
 
 // Pattern for logial operations with 32 bit constants.
 def : Pat<(and GPR:$rs1, uimm32:$imm),
