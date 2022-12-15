@@ -19,7 +19,6 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "GISel/M88kGlobalISelUtils.h"
 #include "GISel/M88kLegalizerInfo.h"
 #include "M88kTargetMachine.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
@@ -41,72 +40,9 @@
 #define DEBUG_TYPE "M88K-postlegalizer-lowering"
 
 using namespace llvm;
-using namespace M88kGISelUtils;
 using namespace MIPatternMatch;
 
 namespace {
-// Replace the generic instruction with a m88k instruction, which has a
-// width/offset field.
-void replaceMI(unsigned Opc, MachineInstr &MI, MachineRegisterInfo &MRI,
-               std::tuple<Register, uint32_t, uint32_t> &MatchInfo) {
-  uint64_t Offset, Width;
-  Register SrcReg;
-  std::tie(SrcReg, Width, Offset) = MatchInfo;
-  MachineIRBuilder MIB(MI);
-  MachineFunction &MF = MIB.getMF();
-  const M88kSubtarget &Subtarget = MF.getSubtarget<M88kSubtarget>();
-  const auto *TRI = Subtarget.getRegisterInfo();
-  const auto *TII = Subtarget.getInstrInfo();
-  const auto *RBI = Subtarget.getRegBankInfo();
-  auto Inst = MIB.buildInstr(Opc, {MI.getOperand(0).getReg()}, {SrcReg})
-                  .addImm(Width)
-                  .addImm(Offset);
-  constrainSelectedInstRegOperands(*Inst, *TII, *TRI, *RBI);
-  MI.eraseFromParent();
-}
-
-// Match G_SHL $dst, (G_AND $src, (2**width - 1)), offset
-bool matchShiftAndToMak(MachineInstr &MI, MachineRegisterInfo &MRI,
-                        std::tuple<Register, uint32_t, uint32_t> &MatchInfo) {
-  assert(MI.getOpcode() == TargetOpcode::G_SHL);
-
-  Register DstReg = MI.getOperand(0).getReg();
-  if (!MRI.getType(DstReg).isScalar())
-    return false;
-
-  Register AndReg = MI.getOperand(1).getReg();
-  Register OfsReg = MI.getOperand(2).getReg();
-  int64_t Offset;
-  if (!mi_match(OfsReg, MRI, m_ICst(Offset)))
-    return false;
-
-  Register SrcReg;
-  int64_t Mask;
-  if (!mi_match(AndReg, MRI, m_GAnd(m_Reg(SrcReg), m_ICst(Mask))))
-    return false;
-
-  // Check that the mask is a shifted mask with offset 0.
-  uint64_t MaskWidth, MaskOffset;
-  if (!isShiftedMask(Mask, MaskWidth, MaskOffset) || MaskOffset != 0)
-    return false;
-
-  assert(MaskWidth >= 0 && MaskWidth < 32 && "Width out of range");
-  assert(Offset >= 0 && Offset < 32 && "Offset out of range");
-
-  MatchInfo = std::make_tuple(SrcReg, static_cast<uint32_t>(MaskWidth),
-                              static_cast<uint32_t>(Offset));
-
-  return true;
-}
-
-// Lower to MAKrwo $dst, $src, width<offset>
-bool applyShiftAndToMak(MachineInstr &MI, MachineRegisterInfo &MRI,
-                        std::tuple<Register, uint32_t, uint32_t> &MatchInfo) {
-  assert(MI.getOpcode() == TargetOpcode::G_SHL);
-  replaceMI(M88k::MAKrwo, MI, MRI, MatchInfo);
-  return true;
-}
-
 // Creates a new MachineBasicBlock. The new block is inserted after/before the
 // basic block MBB, depending on flag IsSucc.
 MachineBasicBlock *createMBB(MachineBasicBlock *MBB, bool IsSucc = true) {

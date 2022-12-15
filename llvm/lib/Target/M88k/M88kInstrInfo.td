@@ -265,6 +265,13 @@ def simm16Neg : IntImmLeaf<i32, [{
   return Val < 0 && Val > -65536;
 }]>;
 
+// Predicate: Mask.
+def mask32 : IntImmLeaf<i32, [{
+  uint64_t Val = Imm.getZExtValue();
+  return isUInt<32>(Val) && isShiftedMask_64(Val)
+         && countTrailingZeros(Val) == 0;
+}]>;
+
 // Predicate: Shifted mask.
 def shmask32 : IntImmLeaf<i32, [{
   uint64_t Val = Imm.getZExtValue();
@@ -471,6 +478,11 @@ defm : SetCCPat<SETUGE, 1, 11>;
 // ---------------------------------------------------------------------------//
 // Materialize immediates & constants.
 // ---------------------------------------------------------------------------//
+
+// Match G_SHL $dst, (G_AND $src, (2**width - 1)), offset
+// Lower to MAKrwo $dst, $src, width<offset>
+def : Pat<(shl (and GPR:$rs1, mask32:$imm), bfoffset:$ofs),
+          (MAKrwo GPR:$rs1, (CPOP $imm), bfoffset:$ofs)>;
 
 // Pattern for logial operations with shifted masks.
 def : Pat<(or GPR:$rs1, shmask32:$imm),
