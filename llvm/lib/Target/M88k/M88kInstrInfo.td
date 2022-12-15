@@ -315,37 +315,22 @@ class UnaryOpPat<InstM88k Inst, SDPatternOperator OpNode>
 // Multiclass for logical instructions with immediates.
 // The pattern for "and" is slightly different.
 multiclass LogicImm<bits<2> FuncI, string OpcStr, SDNode OpNode> {
-  def ri  : F_LI<FuncI, 0b0,
-                 (outs GPR:$rd),
-                 !if(!eq(OpcStr, "and"),
-                   (ins GPR:$rs1, imm32lo16c:$imm16),
-                   (ins GPR:$rs1, imm32lo16:$imm16)
-                 ),
-                 OpcStr,
-                 !if(!eq(OpcStr, "and"),
-                   [(set i32:$rd, (OpNode GPR:$rs1, imm32lo16c:$imm16))],
-                   [(set i32:$rd, (OpNode GPR:$rs1, imm32lo16:$imm16))]
-                 )>;
-  def riu  : F_LI<FuncI, 0b1,
-                 (outs GPR:$rd),
-                 !if(!eq(OpcStr, "and"),
-                   (ins GPR:$rs1, imm32hi16c:$imm16),
-                   (ins GPR:$rs1, imm32hi16:$imm16)
-                 ),
-                 !strconcat(OpcStr, ".u"),
-                 !if(!eq(OpcStr, "and"),
-                   [(set i32:$rd, (OpNode GPR:$rs1, imm32hi16c:$imm16))],
-                   [(set i32:$rd, (OpNode GPR:$rs1, imm32hi16:$imm16))]
-                 )>;
+  defvar OPLO = !if(!eq(OpcStr, "and"), imm32lo16c, imm32lo16);
+  defvar OPHI = !if(!eq(OpcStr, "and"), imm32hi16c, imm32hi16);
+
+  def ri  : F_LI<FuncI, /*upper=*/0b0, OPLO, OpcStr,
+                 [(set i32:$rd, (OpNode GPR:$rs1, OPLO:$imm16))]>;
+  def riu : F_LI<FuncI, /*upper=*/0b1, OPHI, OpcStr,
+                 [(set i32:$rd, (OpNode GPR:$rs1, OPHI:$imm16))]>;
 }
 
 // Multiclass for logical instructions with triadic registers or immediates.
 multiclass Logic<bits<5> FuncR, bits<2> FuncI, string OpcStr, SDNode OpNode>
   : LogicImm<FuncI, OpcStr, OpNode> {
   let isCommutable = 1 in
-    def rr  : F_LR<FuncR, 0b0, OpcStr,
-                   [(set i32:$rd, (OpNode GPR:$rs1, GPR:$rs2))]>;
-  def rrc : F_LR<FuncR, 0b1, !strconcat(OpcStr, ".c"),
+    def rr : F_LR<FuncR, /*comp=*/0b0, OpcStr,
+                  [(set i32:$rd, (OpNode GPR:$rs1, GPR:$rs2))]>;
+  def rrc : F_LR<FuncR, /*comp=*/0b1, OpcStr,
                  [(set i32:$rd, (OpNode GPR:$rs1, (not GPR:$rs2)))]>;
 }
 
@@ -357,14 +342,10 @@ defm OR  : Logic<0b01011, 0b11, "or", or>;
 // Multiclass for bit-field instructions with triadic registers or immediates.
 multiclass Bitfield<bits<6> Func, string OpcStr> {
   def rr  : F_BR<Func, OpcStr>;
-  if !ne(OpcStr, "rot") then {
-    def rwo : F_BI<Func,
-                  (outs GPR:$rd), (ins GPR:$rs1, bfwidth:$w5, bfoffset:$o5),
-                  OpcStr>;
+  if !eq(OpcStr, "rot") then {
+    def rwo : F_BIOFS<Func, (ins GPR:$rs1, bfoffset:$o5), OpcStr>;
   } else {
-    def rwo : F_BIOFS<Func,
-                     (outs GPR:$rd), (ins GPR:$rs1, bfoffset:$o5),
-                     OpcStr>;
+    def rwo : F_BI<Func, (ins GPR:$rs1, bfwidth:$w5, bfoffset:$o5), OpcStr>;
   }
 }
 
@@ -407,9 +388,9 @@ def : Pat<(ctlz_zero_undef GPR:$rs), (XORri (FF1r GPR:$rs), 31)>;
 
 // Multiclass for arithmetic instructions with triadic registers or immediates.
 multiclass ArithTri<bits<6> Func, string OpcStr, bit IsReMat = 0> {
-  def rr : F_IRC<Func, 0b0, 0b0, OpcStr>;
+  def rr : F_IRC<Func, /*carryin=*/0b0, /*carryout=*/0b0, OpcStr>;
   let isReMaterializable = IsReMat in
-    def ri : F_II<Func, (ins GPR:$rs1, uimm16:$imm16),OpcStr>;
+    def ri : F_II<Func, (ins GPR:$rs1, uimm16:$imm16), OpcStr>;
 }
 
 // Multiclass for arithmetic instructions with triadic registers or immediates,
@@ -417,11 +398,11 @@ multiclass ArithTri<bits<6> Func, string OpcStr, bit IsReMat = 0> {
 multiclass ArithTriCarry<bits<6> Func, string OpcStr, bit IsReMat = 0>
   : ArithTri<Func, OpcStr, IsReMat> {
   let Uses = [CARRY] in
-    def rrci  : F_IRC<Func, 0b1, 0b0, !strconcat(OpcStr, ".ci")>;
+    def rrci  : F_IRC<Func, /*carryin=*/0b1, /*carryout=*/0b0, OpcStr>;
   let Defs = [CARRY] in
-    def rrco  : F_IRC<Func, 0b0, 0b1, !strconcat(OpcStr, ".co")>;
+    def rrco  : F_IRC<Func, /*carryin=*/0b0, /*carryout=*/0b1, OpcStr>;
   let Uses = [CARRY], Defs = [CARRY] in
-    def rrcio : F_IRC<Func, 0b1, 0b1, !strconcat(OpcStr, ".cio")>;
+    def rrcio : F_IRC<Func, /*carryin=*/0b1, /*carryout=*/0b1, OpcStr>;
 }
 
 let isCommutable = 1 in {
@@ -915,19 +896,19 @@ def : Pat<(m88k_hi tglobaladdr:$dst), (ORriu (i32 R0), tglobaladdr:$dst)>;
 // ---------------------------------------------------------------------------//
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1, isIndirectBranch = 1 in {
-  def JMP : F_JMP<0b11000, (outs), (ins GPR:$rs2), "jmp", [(brind GPR:$rs2)]>;
+  def JMP : F_JMP<0b11000, "jmp", [(brind GPR:$rs2)]>;
   let hasDelaySlot = 1 in
-    def JMPn : F_JMP<0b11000, (outs), (ins GPR:$rs2), "jmp">;
+    def JMPn : F_JMP<0b11000, "jmp">;
 }
 
 let isCall = 1, Defs = [R1] in {
-  def JSR : F_JMP<0b11001, (outs), (ins GPR:$rs2), "jsr">;
+  def JSR : F_JMP<0b11001, "jsr">;
   let hasDelaySlot = 1 in
-    def JSRn : F_JMP<0b11001, (outs), (ins GPR:$rs2), "jsr">;
+    def JSRn : F_JMP<0b11001, "jsr">;
 
-  def BSR : F_BRANCH<0b11001, (outs), (ins brtarget26:$d26), "bsr">;
+  def BSR : F_BRANCH<0b11001, (ins brtarget26:$d26), "bsr">;
   let hasDelaySlot = 1 in
-    def BSRn : F_BRANCH<0b11001, (outs), (ins brtarget26:$d26), "bsr">;
+    def BSRn : F_BRANCH<0b11001, (ins brtarget26:$d26), "bsr">;
 }
 
 let isReturn = 1, isTerminator = 1, isBarrier = 1, Uses = [R1],
@@ -938,10 +919,10 @@ let isReturn = 1, isTerminator = 1, isBarrier = 1, Uses = [R1],
 }
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
-  def BR : F_BRANCH<0b11000, (outs), (ins brtarget26:$d26), "br",
+  def BR : F_BRANCH<0b11000, (ins brtarget26:$d26), "br",
                     [(br bb:$d26)]>;
   let hasDelaySlot = 1 in
-    def BRn : F_BRANCH<0b11000, (outs), (ins brtarget26:$d26), "br">;
+    def BRn : F_BRANCH<0b11000, (ins brtarget26:$d26), "br">;
 }
 
 let isBranch = 1, isTerminator = 1 in {
