@@ -139,18 +139,6 @@ def M88kPostLegalizerCombinerHelper: GICombinerHelper<
 //  let AdditionalArguments = [];
 }
 
-// Lower
-//   G_SHL $dst, (G_AND $src, (2**width - 1)), offset
-// to
-//   MAKrwo $dst, $src, width<offset>
-def shiftand_to_mak_matchdata : GIDefMatchData<"std::tuple<Register, uint32_t, uint32_t>">;
-def shiftand_to_mak : GICombineRule<
-  (defs root:$root, shiftand_to_mak_matchdata:$matchinfo),
-  (match (wip_match_opcode G_SHL):$root,
-         [{ return matchShiftAndToMak(*${root}, MRI, ${matchinfo}); }]),
-  (apply [{ applyShiftAndToMak(*${root}, MRI, ${matchinfo}); }])>;
-
-
 // Lower G_SDIV into G_UDIV on M88100.
 def sdiv_to_udiv : GICombineRule<
   (defs root:$root),
@@ -171,7 +159,7 @@ def insert_div_by_zero_trap : GICombineRule<
 // pseudos.
 def M88kPostLegalizerLoweringHelper
     : GICombinerHelper<"M88kGenPostLegalizerLoweringHelper",
-                       [shiftand_to_mak, sdiv_to_udiv, insert_div_by_zero_trap]> {
+                       [sdiv_to_udiv, insert_div_by_zero_trap]> {
   let DisableRuleOption = "m88kpostlegalizerlowering-disable-rule";
   let AdditionalArguments = [GICombinerHelperArg<"GISelKnownBits *", "KB">,
                              GICombinerHelperArg<"bool", "ReplaceSignedDiv">,
