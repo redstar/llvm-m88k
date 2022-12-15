@@ -78,9 +78,11 @@ class F_L<dag outs, dag ins, string asm, string operands,
 }
 
 // Format: Logical with 16bit immediate.
-class F_LI<bits<2> func, bits<1> upper, dag outs, dag ins, string asm,
+class F_LI<bits<2> func, bits<1> upper, DAGOperand vt, string asm,
            list<dag> pattern = []>
-   : F_L<outs, ins, asm, "$rd, $rs1, $imm16", pattern> {
+   : F_L<(outs GPR:$rd), (ins GPR:$rs1, vt:$imm16),
+         !if(upper, !strconcat(asm, ".u"), asm),
+         "$rd, $rs1, $imm16", pattern> {
   bits<16> imm16;
   let Inst{31-29} = 0b010;
   let Inst{28-27} = func;
@@ -92,7 +94,7 @@ class F_LI<bits<2> func, bits<1> upper, dag outs, dag ins, string asm,
 // Format: Logical with triadic register.
 class F_LR<bits<5> func, bits<1> comp, string asm, list<dag> pattern = []>
    : F_L<(outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-         asm, "$rd, $rs1, $rs2", pattern> {
+         !if(comp, !strconcat(asm, ".c"), asm), "$rd, $rs1, $rs2", pattern> {
   bits<5>  rs2;
   let Inst{31-26} = 0b111101;
   let Inst{15-11} = func;
@@ -130,8 +132,8 @@ class F_BF<bits<6> func, dag outs, dag ins, string asm, list<dag> pattern =[]>
 }
 
 // Format: Bit-field with 10-bit width / offset.
-class F_BI<bits<6> func, dag outs, dag ins, string asm, list<dag> pattern = []>
-   : F_B<func, outs, ins, asm, "$rd, $rs1, $w5<$o5>", pattern> {
+class F_BI<bits<6> func, dag ins, string asm, list<dag> pattern = []>
+   : F_B<func, (outs GPR:$rd), ins, asm, "$rd, $rs1, $w5<$o5>", pattern> {
   bits<5> w5;
   bits<5> o5;
 
@@ -141,8 +143,8 @@ class F_BI<bits<6> func, dag outs, dag ins, string asm, list<dag> pattern = []>
 }
 
 // Format: Bit-field with 5-bit offset.
-class F_BIOFS<bits<6> func, dag outs, dag ins, string asm, list<dag> pattern = []>
-   : F_B<func, outs, ins, asm, "$rd, $rs1, <$o5>", pattern> {
+class F_BIOFS<bits<6> func, dag ins, string asm, list<dag> pattern = []>
+   : F_B<func, (outs GPR:$rd), ins, asm, "$rd, $rs1, <$o5>", pattern> {
   bits<5> o5;
   let Inst{26}  = 0b0;
   let Inst{9-5} = 0b00000;
@@ -170,7 +172,11 @@ class F_II<bits<6> func, dag ins, string asm, list<dag> pattern = []>
 // Format: Integer with triadic register and carry.
 class F_IRC<bits<6> func, bits<1> carryin, bits<1> carryout,
             string asm, list<dag> pattern = []>
-   : F_I<(outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2), asm,
+   : F_I<(outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+         !strconcat(asm, !cond(!not(!or(carryin, carryout)) : "",
+                               !and(carryin, !not(carryout)) : ".ci",
+                               !and(!not(carryin), carryout) : ".co",
+                               !and(carryin, carryout) : ".cio")),
          "$rd, $rs1, $rs2", pattern> {
   bits<5> rs2;
 
@@ -350,9 +356,8 @@ class F_LADDR<bits<2> ty, bits<1> scl, dag outs, dag ins, string asm,
 // Category: Flow control.
 
 // Format: JMP/JSR
-class F_JMP<bits<5> func,
-            dag outs, dag ins, string asm, list<dag> pattern = []>
-   : InstM88k<outs, ins, asm, "$rs2", pattern> {
+class F_JMP<bits<5> func, string asm, list<dag> pattern = []>
+   : InstM88k<(outs), (ins GPR:$rs2), asm, "$rs2", pattern> {
   bits<5> rs2;
 
   let Inst{31-26} = 0b111101;
@@ -364,9 +369,8 @@ class F_JMP<bits<5> func,
 }
 
 // Format: BR/BSR
-class F_BRANCH<bits<5> func,
-               dag outs, dag ins, string asm, list<dag> pattern = []>
-   : InstM88k<outs, ins, asm, "$d26", pattern> {
+class F_BRANCH<bits<5> func, dag ins, string asm, list<dag> pattern = []>
+   : InstM88k<(outs), ins, asm, "$d26", pattern> {
   bits<26> d26;
 
   let Inst{31-27} = func;
