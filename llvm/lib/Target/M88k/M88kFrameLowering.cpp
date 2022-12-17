@@ -187,7 +187,7 @@ bool M88kFrameLowering::spillCalleeSavedRegisters(
     if (Reg != M88k::R1 && Reg != M88k::R30) {
       const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
       TII->storeRegToStackSlot(MBB, MBBI, Reg, /*isKill=*/true,
-                               CS.getFrameIdx(), RC, TRI);
+                               CS.getFrameIdx(), RC, TRI, Register());
     }
   }
 
