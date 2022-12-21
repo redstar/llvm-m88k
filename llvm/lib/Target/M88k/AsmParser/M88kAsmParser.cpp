@@ -219,13 +219,14 @@ class M88kAsmParser : public MCTargetAsmParser {
   bool ParseDirective(AsmToken DirectiveID) override;
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                     SMLoc &EndLoc) override;
+  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                         SMLoc &EndLoc) override;
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
 
-  bool parseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc,
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc, SMLoc &EndLoc,
                      bool RestoreOnFailure);
   bool parseOperand(OperandVector &Operands, StringRef Mnemonic);
   bool parseScaledRegister(OperandVector &Operands);
@@ -407,7 +408,7 @@ bool M88kAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic) {
 
   // Check if it is a register.
   if (Lexer.is(AsmToken::Percent)) {
-    unsigned RegNo;
+    MCRegister RegNo;
     SMLoc StartLoc, EndLoc;
     if (parseRegister(RegNo, StartLoc, EndLoc, /*RestoreOnFailure=*/false))
       return true;
@@ -597,7 +598,7 @@ OperandMatchResultTy M88kAsmParser::parsePCRel(OperandVector &Operands,
 }
 
 // Parses register of form %(r|x|cr|fcr)<No>.
-bool M88kAsmParser::parseRegister(unsigned &RegNo, SMLoc &StartLoc,
+bool M88kAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                   SMLoc &EndLoc, bool RestoreOnFailure) {
   StartLoc = Parser.getTok().getLoc();
 
@@ -629,7 +630,7 @@ bool M88kAsmParser::parseScaledRegister(OperandVector &Operands) {
     return true;
   Parser.Lex();
 
-  unsigned RegNo;
+  MCRegister RegNo;
   SMLoc StartLoc, EndLoc;
   if (parseRegister(RegNo, StartLoc, EndLoc, /*RestoreOnFailure=*/false))
     return true;
@@ -648,13 +649,13 @@ bool M88kAsmParser::parseScaledRegister(OperandVector &Operands) {
   return false;
 }
 
-bool M88kAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+bool M88kAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                   SMLoc &EndLoc) {
   return parseRegister(RegNo, StartLoc, EndLoc,
                        /*RestoreOnFailure=*/false);
 }
 
-OperandMatchResultTy M88kAsmParser::tryParseRegister(unsigned &RegNo,
+OperandMatchResultTy M88kAsmParser::tryParseRegister(MCRegister &RegNo,
                                                      SMLoc &StartLoc,
                                                      SMLoc &EndLoc) {
   bool Result = parseRegister(RegNo, StartLoc, EndLoc,
