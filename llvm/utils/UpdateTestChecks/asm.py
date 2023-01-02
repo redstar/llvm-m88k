@@ -77,6 +77,12 @@ ASM_FUNCTION_M68K_RE = re.compile(
     r'.Lfunc_end[0-9]+:\n',
     flags=(re.M | re.S))
 
+ASM_FUNCTION_M88K_RE = re.compile(
+    r'^_?(?P<func>[^:]+):\s*\|\s*@"?(?P=func)"?\s*\n'
+    r'(?P<body>.*?)\n' # (body of the function)
+    r'.Lfunc_end[0-9]+:\n',
+    flags=(re.M | re.S))
+
 ASM_FUNCTION_MIPS_RE = re.compile(
     r'^_?(?P<func>[^:]+):[ \t]*#+[ \t]*@"?(?P=func)"?\n[^:]*?'  # f: (name of func)
     r"(?:\s*\.?Ltmp[^:\n]*:\n)?[^:]*?"  # optional .Ltmp<N> for EH
@@ -367,6 +373,16 @@ def scrub_asm_m68k(asm, args):
     return asm
 
 
+def scrub_asm_m88k(asm, args):
+  # Scrub runs of whitespace out of the assembly, but leave the leading
+  # whitespace in place.
+  asm = common.SCRUB_WHITESPACE_RE.sub(r' ', asm)
+  # Expand the tabs used for indentation.
+  asm = string.expandtabs(asm, 2)
+  # Strip trailing whitespace.
+  asm = common.SCRUB_TRAILING_WHITESPACE_RE.sub(r'', asm)
+  return asm
+
 def scrub_asm_mips(asm, args):
     # Scrub runs of whitespace out of the assembly, but leave the leading
     # whitespace in place.
@@ -537,6 +553,7 @@ def get_run_handler(triple):
         "thumbv7-apple-darwin": (scrub_asm_arm_eabi, ASM_FUNCTION_THUMB_DARWIN_RE),
         "thumbv7-apple-ios": (scrub_asm_arm_eabi, ASM_FUNCTION_ARM_IOS_RE),
         "m68k": (scrub_asm_m68k, ASM_FUNCTION_M68K_RE),
+        "m88k": (scrub_asm_m88k, ASM_FUNCTION_M88K_RE),
         "mips": (scrub_asm_mips, ASM_FUNCTION_MIPS_RE),
         "msp430": (scrub_asm_msp430, ASM_FUNCTION_MSP430_RE),
         "avr": (scrub_asm_avr, ASM_FUNCTION_AVR_RE),
