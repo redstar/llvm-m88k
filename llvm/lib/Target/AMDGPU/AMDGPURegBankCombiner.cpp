@@ -389,11 +389,13 @@ public:
       report_fatal_error("Invalid rule identifier");
   }
 
-  bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+  bool combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+               GISelChangeObserver &Observer, MachineInstr &MI,
                MachineIRBuilder &B) const override;
 };
 
-bool AMDGPURegBankCombinerInfo::combine(GISelChangeObserver &Observer,
+bool AMDGPURegBankCombinerInfo::combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+                                              GISelChangeObserver &Observer,
                                               MachineInstr &MI,
                                               MachineIRBuilder &B) const {
   CombinerHelper Helper(Observer, B, /* IsPreLegalize*/ false, KB, MDT);
@@ -401,7 +403,7 @@ bool AMDGPURegBankCombinerInfo::combine(GISelChangeObserver &Observer,
   AMDGPUGenRegBankCombinerHelper Generated(GeneratedRuleCfg, Helper,
                                            RegBankHelper);
 
-  if (Generated.tryCombineAll(Observer, MI, B))
+  if (Generated.tryCombineAll(MatchSets, Observer, MI, B))
     return true;
 
   return false;

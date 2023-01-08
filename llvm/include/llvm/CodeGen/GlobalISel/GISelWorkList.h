@@ -111,6 +111,11 @@ public:
     WorklistMap.erase(I);
     return I;
   }
+
+  bool contains(const MachineInstr *I) {
+    auto It = WorklistMap.find(I);
+    return It != WorklistMap.end();
+  }
 };
 
 } // end namespace llvm.

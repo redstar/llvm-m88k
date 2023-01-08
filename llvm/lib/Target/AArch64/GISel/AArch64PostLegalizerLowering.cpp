@@ -1070,16 +1070,18 @@ public:
       report_fatal_error("Invalid rule identifier");
   }
 
-  bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+  bool combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+               GISelChangeObserver &Observer, MachineInstr &MI,
                MachineIRBuilder &B) const override;
 };
 
-bool AArch64PostLegalizerLoweringInfo::combine(GISelChangeObserver &Observer,
-                                               MachineInstr &MI,
-                                               MachineIRBuilder &B) const {
+bool AArch64PostLegalizerLoweringInfo::combine(
+    DenseMap<MachineInstr *, unsigned> &MatchSets,
+    GISelChangeObserver &Observer, MachineInstr &MI,
+    MachineIRBuilder &B) const {
   CombinerHelper Helper(Observer, B, /* IsPreLegalize*/ false);
   AArch64GenPostLegalizerLoweringHelper Generated(GeneratedRuleCfg);
-  return Generated.tryCombineAll(Observer, MI, B, Helper);
+  return Generated.tryCombineAll(MatchSets, Observer, MI, B, Helper);
 }
 
 #define AARCH64POSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_CPP

@@ -17,6 +17,10 @@
 namespace llvm {
 
 class GISelChangeObserver;
+template <typename KeyT, typename ValueT,
+          typename KeyInfoT,
+          typename BucketT>
+class DenseMap;
 class LegalizerInfo;
 class MachineInstr;
 class MachineIRBuilder;
@@ -63,7 +67,8 @@ public:
   ///
   /// However, it is important to report instruction modification and this is
   /// not automatic.
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+  virtual bool combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+                       GISelChangeObserver &Observer, MachineInstr &MI,
                        MachineIRBuilder &B) const = 0;
 };
 } // namespace llvm

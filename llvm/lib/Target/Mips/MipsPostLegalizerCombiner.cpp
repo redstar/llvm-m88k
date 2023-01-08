@@ -53,18 +53,20 @@ public:
       report_fatal_error("Invalid rule identifier");
   }
 
-  bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+  bool combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+               GISelChangeObserver &Observer, MachineInstr &MI,
                MachineIRBuilder &B) const override;
 };
 
-bool MipsPostLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
+bool MipsPostLegalizerCombinerInfo::combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+                                            GISelChangeObserver &Observer,
                                             MachineInstr &MI,
                                             MachineIRBuilder &B) const {
 
   CombinerHelper Helper(Observer, B, /* IsPreLegalize*/ false, KB,
                         /*DominatorTree*/ nullptr, LInfo);
   MipsGenPostLegalizerCombinerHelper Generated(GeneratedRuleCfg, Helper);
-  return Generated.tryCombineAll(Observer, MI, B, Helper);
+  return Generated.tryCombineAll(MatchSets, Observer, MI, B, Helper);
 }
 
 #define MIPSPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_CPP
