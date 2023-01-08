@@ -321,13 +321,15 @@ public:
       report_fatal_error("Invalid rule identifier");
   }
 
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+  virtual bool combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+                       GISelChangeObserver &Observer, MachineInstr &MI,
                        MachineIRBuilder &B) const override;
 };
 
-bool M88kPostLegalizerLoweringInfo::combine(GISelChangeObserver &Observer,
-                                            MachineInstr &MI,
-                                            MachineIRBuilder &B) const {
+bool M88kPostLegalizerLoweringInfo::combine(
+    DenseMap<MachineInstr *, unsigned> &MatchSets,
+    GISelChangeObserver &Observer, MachineInstr &MI,
+    MachineIRBuilder &B) const {
   M88kGenPostLegalizerLoweringHelper Generated(GeneratedRuleCfg);
 
   // If the instruction is commutable and the first operand is a constant, then
@@ -352,7 +354,7 @@ bool M88kPostLegalizerLoweringInfo::combine(GISelChangeObserver &Observer,
     }
   }
 
-  if (Generated.tryCombineAll(Observer, MI, B, KB, ReplaceSignedDiv,
+  if (Generated.tryCombineAll(MatchSets, Observer, MI, B, KB, ReplaceSignedDiv,
                               AddZeroDivCheck))
     return true;
   return false;
