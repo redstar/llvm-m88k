@@ -31,11 +31,13 @@ public:
       : CombinerInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
                      /*LegalizerInfo*/ nullptr, /*EnableOpt*/ false,
                      /*EnableOptSize*/ false, /*EnableMinSize*/ false) {}
-  bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+  bool combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+               GISelChangeObserver &Observer, MachineInstr &MI,
                MachineIRBuilder &B) const override;
 };
 
-bool MipsPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
+bool MipsPreLegalizerCombinerInfo::combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+                                           GISelChangeObserver &Observer,
                                            MachineInstr &MI,
                                            MachineIRBuilder &B) const {
   CombinerHelper Helper(Observer, B, /*IsPreLegalize*/ true);

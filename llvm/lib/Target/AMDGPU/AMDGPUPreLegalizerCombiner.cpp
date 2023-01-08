@@ -191,11 +191,13 @@ public:
       report_fatal_error("Invalid rule identifier");
   }
 
-  bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+  bool combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+               GISelChangeObserver &Observer, MachineInstr &MI,
                MachineIRBuilder &B) const override;
 };
 
-bool AMDGPUPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
+bool AMDGPUPreLegalizerCombinerInfo::combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+                                              GISelChangeObserver &Observer,
                                               MachineInstr &MI,
                                               MachineIRBuilder &B) const {
   const auto *LI = MI.getMF()->getSubtarget().getLegalizerInfo();
@@ -204,7 +206,7 @@ bool AMDGPUPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
   AMDGPUGenPreLegalizerCombinerHelper Generated(GeneratedRuleCfg, Helper,
                                                 PreLegalizerHelper);
 
-  if (Generated.tryCombineAll(Observer, MI, B))
+  if (Generated.tryCombineAll(MatchSets, Observer, MI, B))
     return true;
 
   switch (MI.getOpcode()) {

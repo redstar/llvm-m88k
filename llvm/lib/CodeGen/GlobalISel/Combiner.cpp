@@ -51,6 +51,7 @@ namespace {
 class WorkListMaintainer : public GISelChangeObserver {
   using WorkListTy = GISelWorkList<512>;
   WorkListTy &WorkList;
+  SmallVectorImpl<MachineInstr *> &ChangedInstrs;
   /// The instructions that have been created but we want to report once they
   /// have their operands. This is only maintained if debug output is requested.
 #ifndef NDEBUG
@@ -58,7 +59,9 @@ class WorkListMaintainer : public GISelChangeObserver {
 #endif
 
 public:
-  WorkListMaintainer(WorkListTy &WorkList) : WorkList(WorkList) {}
+  WorkListMaintainer(WorkListTy &WorkList,
+                     SmallVectorImpl<MachineInstr *> &ChangedInstrs)
+      : WorkList(WorkList), ChangedInstrs(ChangedInstrs) {}
   virtual ~WorkListMaintainer() = default;
 
   void erasingInstr(MachineInstr &MI) override {
@@ -67,16 +70,19 @@ public:
   }
   void createdInstr(MachineInstr &MI) override {
     LLVM_DEBUG(dbgs() << "Creating: " << MI << "\n");
-    WorkList.insert(&MI);
+    //WorkList.insert(&MI);
+    ChangedInstrs.push_back(&MI);
     LLVM_DEBUG(CreatedInstrs.insert(&MI));
   }
   void changingInstr(MachineInstr &MI) override {
     LLVM_DEBUG(dbgs() << "Changing: " << MI << "\n");
-    WorkList.insert(&MI);
+    //WorkList.insert(&MI);
+    ChangedInstrs.push_back(&MI);
   }
   void changedInstr(MachineInstr &MI) override {
     LLVM_DEBUG(dbgs() << "Changed: " << MI << "\n");
-    WorkList.insert(&MI);
+    //WorkList.insert(&MI);
+    ChangedInstrs.push_back(&MI);
   }
 
   void reportFullyCreatedInstrs() {
@@ -88,7 +94,41 @@ public:
     LLVM_DEBUG(CreatedInstrs.clear());
   }
 };
-}
+
+// For each changed/created node, the TreeRepairer adds the path from the node
+// to the root of the tree by following the use edges. For these nodes, the
+// match sets in the underlying combiner may be invalid, and adding them to the
+// WorkList ensures that the match sets are recalculated in the correct order.
+class TreeRepairer {
+  MachineRegisterInfo *MRI;
+  using WorkListTy = GISelWorkList<512>;
+  WorkListTy &WorkList;
+
+  void add(MachineInstr *MI) {
+    if (WorkList.contains(MI))
+      return;
+    for (auto Op : MI->operands()) {
+      if (!Op.isReg() || !Op.isDef())
+        continue;
+      for (auto &UseMI : MRI->use_nodbg_instructions(Op.getReg()))
+        add(&UseMI);
+    }
+    WorkList.insert(MI);
+  }
+
+public:
+  TreeRepairer(MachineRegisterInfo *MRI, WorkListTy &WorkList)
+      : MRI(MRI), WorkList(WorkList) {}
+
+  void run(SmallVectorImpl<MachineInstr *> &ChangedInstrs) {
+    for (MachineInstr *MI : ChangedInstrs) {
+      LLVM_DEBUG(dbgs() << "Adding path for: "; MI->print(dbgs()));
+      add(MI);
+    }
+    ChangedInstrs.clear();
+  }
+};
+} // namespace
 
 Combiner::Combiner(CombinerInfo &Info, const TargetPassConfig *TPC)
     : CInfo(Info), TPC(TPC) {
@@ -117,6 +157,7 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
   bool MFChanged = false;
   bool Changed;
   MachineIRBuilder &B = *Builder;
+  DenseMap<MachineInstr *, unsigned> MatchSets;
 
   do {
     // Collect all instructions. Do a post order traversal for basic blocks and
@@ -124,11 +165,13 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
     // down RPOT.
     Changed = false;
     GISelWorkList<512> WorkList;
-    WorkListMaintainer Observer(WorkList);
+    SmallVector<MachineInstr *, 32> ChangedInstrs;
+    WorkListMaintainer Observer(WorkList, ChangedInstrs);
     GISelObserverWrapper WrapperObserver(&Observer);
     if (CSEInfo)
       WrapperObserver.addObserver(CSEInfo);
     RAIIDelegateInstaller DelInstall(MF, &WrapperObserver);
+    TreeRepairer Repairer(MRI, WorkList);
     for (MachineBasicBlock *MBB : post_order(&MF)) {
       for (MachineInstr &CurMI :
            llvm::make_early_inc_range(llvm::reverse(*MBB))) {
@@ -143,12 +186,14 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
       }
     }
     WorkList.finalize();
+    MatchSets.reserve(WorkList.size());
     // Main Loop. Process the instructions here.
     while (!WorkList.empty()) {
       MachineInstr *CurrInst = WorkList.pop_back_val();
       LLVM_DEBUG(dbgs() << "\nTry combining " << *CurrInst;);
-      Changed |= CInfo.combine(WrapperObserver, *CurrInst, B);
+      Changed |= CInfo.combine(MatchSets, WrapperObserver, *CurrInst, B);
       Observer.reportFullyCreatedInstrs();
+      Repairer.run(ChangedInstrs);
     }
     MFChanged |= Changed;
   } while (Changed);
