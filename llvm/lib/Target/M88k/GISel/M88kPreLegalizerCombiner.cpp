@@ -126,17 +126,19 @@ public:
       report_fatal_error("Invalid rule identifier");
   }
 
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
+  virtual bool combine(DenseMap<MachineInstr *, unsigned> &MatchSets,
+                       GISelChangeObserver &Observer, MachineInstr &MI,
                        MachineIRBuilder &B) const override;
 };
 
-bool M88kPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
-                                           MachineInstr &MI,
-                                           MachineIRBuilder &B) const {
+bool M88kPreLegalizerCombinerInfo::combine(
+    DenseMap<MachineInstr *, unsigned> &MatchSets,
+    GISelChangeObserver &Observer, MachineInstr &MI,
+    MachineIRBuilder &B) const {
   CombinerHelper Helper(Observer, B, /*IsPreLegalize=*/true, KB, MDT);
   M88kGenPreLegalizerCombinerHelper Generated(GeneratedRuleCfg, Helper);
 
-  if (Generated.tryCombineAll(Observer, MI, B))
+  if (Generated.tryCombineAll(MatchSets, Observer, MI, B))
     return true;
 
   return false;
