@@ -232,9 +232,9 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
         MRI.getType(Src2I->getOperand(1).getReg()) != S32)
       return Libcall();
     auto Zero = MIRBuilder.buildConstant(S32, 0);
-    auto Mult1 = MIRBuilder.buildMerge(
+    auto Mult1 = MIRBuilder.buildMergeLikeInstr(
         S64, {Zero.getReg(0), Src1I->getOperand(1).getReg()});
-    auto Mult2 = MIRBuilder.buildMerge(
+    auto Mult2 = MIRBuilder.buildMergeLikeInstr(
         S64, {Zero.getReg(0), Src2I->getOperand(1).getReg()});
     MIRBuilder.buildMul(DstReg, Mult1, Mult2, MI.getFlags());
     MI.eraseFromParent();
@@ -269,7 +269,7 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
     if (MRI.getType(Src2I->getOperand(1).getReg()) != S32)
       return Libcall();
     auto Zero = MIRBuilder.buildConstant(S32, 0);
-    auto Div = MIRBuilder.buildMerge(
+    auto Div = MIRBuilder.buildMergeLikeInstr(
         S64, {Zero.getReg(0), Src2I->getOperand(1).getReg()});
     MIRBuilder.buildInstr(G_UDIV, {DstReg}, {Src1Reg, Div.getReg(0)},
                           MI.getFlags());
