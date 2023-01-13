@@ -259,7 +259,7 @@ M88kIncomingValueHandler::assignCustomValue(CallLowering::ArgInfo &Arg,
   assignValueToReg(NewRegs[0], LoVA.getLocReg(), LoVA);
   assignValueToReg(NewRegs[1], HiVA.getLocReg(), HiVA);
 
-  MIRBuilder.buildMerge(Arg.Regs[0], NewRegs);
+  MIRBuilder.buildMergeLikeInstr(Arg.Regs[0], NewRegs);
 
   return 1;
 }
