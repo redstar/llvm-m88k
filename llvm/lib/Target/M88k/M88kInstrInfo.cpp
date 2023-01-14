@@ -68,7 +68,7 @@ M88kInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
       {MO_ABS_HI, "m88k-abs-hi"},
       {MO_ABS_LO, "m88k-abs-lo"},
   };
-  return makeArrayRef(Flags);
+  return ArrayRef(Flags);
 }
 
 static MachineMemOperand *getMachineMemOperand(MachineBasicBlock &MBB, int FI,
