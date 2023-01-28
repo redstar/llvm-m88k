@@ -435,16 +435,16 @@ OperandMatchResultTy M88kAsmParser::parseBFWidth(OperandVector &Operands) {
   // If not followed by <O>, then it is the offset, and the width is 0.
   MCContext &Ctx = getContext();
   SMLoc StartLoc = Parser.getTok().getLoc();
-  Optional<AsmToken> WidthTok;
+  bool HasWidth = false;
   int64_t Width = 0;
   bool IsReallyOffset = false;
   if (Lexer.is(AsmToken::Integer)) {
-    WidthTok = Parser.getTok();
     Width = Parser.getTok().getIntVal();
+    HasWidth = true;
     Parser.Lex();
   }
   if (Lexer.isNot(AsmToken::Less)) {
-    if (!WidthTok)
+    if (!HasWidth)
       return MatchOperand_NoMatch;
     IsReallyOffset = true;
   }
