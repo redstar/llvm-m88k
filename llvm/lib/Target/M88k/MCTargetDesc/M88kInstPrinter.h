@@ -14,6 +14,7 @@
 #define LLVM_LIB_TARGET_M88K_MCTARGETDESC_M88KINSTPRINTER_H
 
 #include "llvm/MC/MCInstPrinter.h"
+#include "llvm/MC/MCRegister.h"
 #include <cstdint>
 
 namespace llvm {
@@ -31,7 +32,7 @@ public:
   std::pair<const char *, uint64_t> getMnemonic(const MCInst *MI) override;
   void printInstruction(const MCInst *MI, uint64_t Address,
                         const MCSubtargetInfo &STI, raw_ostream &O);
-  static const char *getRegisterName(unsigned RegNo);
+  static const char *getRegisterName(MCRegister RegNo);
 
   // Print the given operand.
   void printOperand(const MCInst *MI, int OpNum, const MCSubtargetInfo &STI,
