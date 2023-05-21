@@ -290,7 +290,7 @@ void M88kInstructionSelector::renderCPOP(MachineInstrBuilder &MIB,
   assert(I.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
          "Expected G_CONSTANT");
   uint64_t Val = I.getOperand(1).getCImm()->getZExtValue();
-  MIB.addImm(countPopulation(Val) & 0x1f);
+  MIB.addImm(popcount(Val) & 0x1f);
 }
 
 void M88kInstructionSelector::renderCTZ(MachineInstrBuilder &MIB,
@@ -299,7 +299,7 @@ void M88kInstructionSelector::renderCTZ(MachineInstrBuilder &MIB,
   assert(I.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
          "Expected G_CONSTANT");
   uint64_t Val = I.getOperand(1).getCImm()->getZExtValue();
-  MIB.addImm(countTrailingZeros(Val) & 0x1f);
+  MIB.addImm(countr_zero(Val) & 0x1f);
 }
 
 void M88kInstructionSelector::renderCPOPINV(MachineInstrBuilder &MIB,
@@ -308,7 +308,7 @@ void M88kInstructionSelector::renderCPOPINV(MachineInstrBuilder &MIB,
   assert(I.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
          "Expected G_CONSTANT");
   uint64_t Val = ~I.getOperand(1).getCImm()->getZExtValue() & 0xffffffff;
-  MIB.addImm(countPopulation(Val) & 0x1f);
+  MIB.addImm(popcount(Val) & 0x1f);
 }
 
 void M88kInstructionSelector::renderCTZINV(MachineInstrBuilder &MIB,
@@ -317,7 +317,7 @@ void M88kInstructionSelector::renderCTZINV(MachineInstrBuilder &MIB,
   assert(I.getOpcode() == TargetOpcode::G_CONSTANT && OpIdx == -1 &&
          "Expected G_CONSTANT");
   uint64_t Val = ~I.getOperand(1).getCImm()->getZExtValue() & 0xffffffff;
-  MIB.addImm(countTrailingZeros(Val) & 0x1f);
+  MIB.addImm(countr_zero(Val) & 0x1f);
 }
 
 bool M88kInstructionSelector::selectFrameIndex(MachineInstr &I,

@@ -204,7 +204,7 @@ def : GICustomOperandRenderer<"renderCPOP">, GISDNodeXFormEquiv<CPOP>;
 
 // Count traling zeroes modulo 32.
 def CTZ : SDNodeXForm<imm, [{
-  uint64_t Val = countTrailingZeros(Imm.getZExtValue()) & 0x1f;
+  uint64_t Val = countr_zero(Imm.getZExtValue()) & 0x1f;
   return CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i8);
 }]>;
 def : GICustomOperandRenderer<"renderCTZ">, GISDNodeXFormEquiv<CTZ>;
@@ -218,7 +218,7 @@ def : GICustomOperandRenderer<"renderCPOPINV">, GISDNodeXFormEquiv<CPOPINV>;
 
 // Count traling zeroes modulo 32 on inverted (1-complement) 32 bit value.
 def CTZINV : SDNodeXForm<imm, [{
-  uint64_t Val = countTrailingZeros(~Imm.getZExtValue() & 0xffffffff) & 0x1f;
+  uint64_t Val = countr_zero(~Imm.getZExtValue() & 0xffffffff) & 0x1f;
   return CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i8);
 }]>;
 def : GICustomOperandRenderer<"renderCTZINV">, GISDNodeXFormEquiv<CTZINV>;
@@ -269,7 +269,7 @@ def simm16Neg : IntImmLeaf<i32, [{
 def mask32 : IntImmLeaf<i32, [{
   uint64_t Val = Imm.getZExtValue();
   return isUInt<32>(Val) && isShiftedMask_64(Val)
-         && countTrailingZeros(Val) == 0;
+         && countr_zero(Val) == 0;
 }]>;
 
 // Predicate: Shifted mask.
