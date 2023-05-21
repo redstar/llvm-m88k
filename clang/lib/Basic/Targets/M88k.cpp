@@ -149,7 +149,7 @@ bool M88kTargetInfo::validateAsmConstraint(
   return false;
 }
 
-const char *M88kTargetInfo::getClobbers() const {
+std::string_view M88kTargetInfo::getClobbers() const {
   // TODO Implement.
   return "";
 }
