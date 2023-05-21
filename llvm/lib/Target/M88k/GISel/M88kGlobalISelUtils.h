@@ -25,8 +25,8 @@ inline bool isShiftedMask(uint64_t I, uint64_t &Width, uint64_t &Offset) {
   if (!isShiftedMask_64(I))
     return false;
 
-  Width = countPopulation(I);
-  Offset = countTrailingZeros(I);
+  Width = popcount(I);
+  Offset = countr_zero(I);
   return true;
 }
 
