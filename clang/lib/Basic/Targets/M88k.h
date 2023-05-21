@@ -38,7 +38,7 @@ public:
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override;
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &info) const override;
-  const char *getClobbers() const override;
+  std::string_view getClobbers() const override;
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::M88kBuiltinVaList;
