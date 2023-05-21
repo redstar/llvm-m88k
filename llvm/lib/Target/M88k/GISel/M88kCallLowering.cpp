@@ -391,9 +391,9 @@ bool M88kCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
       return false;
   }
 
-  CallSeqStart.addImm(ArgAssigner.StackOffset).addImm(0);
+  CallSeqStart.addImm(ArgAssigner.StackSize).addImm(0);
   MIRBuilder.buildInstr(M88k::ADJCALLSTACKUP)
-      .addImm(ArgAssigner.StackOffset)
+      .addImm(ArgAssigner.StackSize)
       .addImm(0);
 
   return true;
