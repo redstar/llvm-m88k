@@ -78,6 +78,15 @@ private:
   void renderCTZINV(MachineInstrBuilder &MIB, const MachineInstr &I,
                     int OpIdx = -1) const;
 
+  ComplexRendererFns selectAddrRegImm(MachineOperand &Root) const;
+  ComplexRendererFns selectAddrRegReg(MachineOperand &Root) const;
+  ComplexRendererFns selectAddrRegScaled(MachineOperand &Root,
+                                         uint32_t Width) const;
+  template <uint32_t MemSizeInBytes>
+  ComplexRendererFns selectAddrRegScaled(MachineOperand &Root) const {
+    return selectAddrRegScaled(Root, Log2_32(MemSizeInBytes));
+  }
+
   bool selectFrameIndex(MachineInstr &I, MachineBasicBlock &MBB,
                         MachineRegisterInfo &MRI) const;
   bool selectGlobalValue(MachineInstr &I, MachineBasicBlock &MBB,
@@ -318,6 +327,98 @@ void M88kInstructionSelector::renderCTZINV(MachineInstrBuilder &MIB,
          "Expected G_CONSTANT");
   uint64_t Val = ~I.getOperand(1).getCImm()->getZExtValue() & 0xffffffff;
   MIB.addImm(countr_zero(Val) & 0x1f);
+}
+
+InstructionSelector::ComplexRendererFns
+M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
+  MachineFunction &MF = *Root.getParent()->getParent()->getParent();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  if (!Root.isReg())
+    return std::nullopt;
+
+  // A frame index is always matched to the reg-imm address.
+  MachineInstr *RootDef = getDefIgnoringCopies(Root.getReg(), MRI);
+  if (RootDef->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
+        [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+    }};
+  }
+
+  // TODO This check most likely needs to be extended.
+  if (RootDef->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
+    return std::nullopt;
+
+  // Handle the case of a simple address.
+  if (RootDef->getOpcode() != TargetOpcode::G_PTR_ADD) {
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
+        [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+    }};
+  }
+
+  // Check for G_PTR_ADD plus 16 bit offset.
+  Register Base;
+  int64_t Offset;
+  if (mi_match(RootDef, MRI, m_GPtrAdd(m_Reg(Base), m_ICst(Offset))) &&
+      isUInt<16>(Offset)) {
+    Register BaseReg = getRegIgnoringCopies(Base, MRI);
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.addReg(BaseReg); },
+        [=](MachineInstrBuilder &MIB) { MIB.addImm(Offset); },
+    }};
+  }
+
+  return std::nullopt;
+}
+
+InstructionSelector::ComplexRendererFns
+M88kInstructionSelector::selectAddrRegReg(MachineOperand &Root) const {
+  MachineFunction &MF = *Root.getParent()->getParent()->getParent();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  if (!Root.isReg())
+    return std::nullopt;
+
+  // Check for G_PTR_ADD plus 16 bit offset.
+  MachineInstr *RootDef = getDefIgnoringCopies(Root.getReg(), MRI);
+  Register Base, Offset;
+  if (mi_match(RootDef, MRI, m_GPtrAdd(m_Reg(Base), m_Reg(Offset)))) {
+    Register BaseReg = getRegIgnoringCopies(Base, MRI);
+    Register OffsetReg = getRegIgnoringCopies(Offset, MRI);
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.addReg(BaseReg); },
+        [=](MachineInstrBuilder &MIB) { MIB.addReg(OffsetReg); },
+    }};
+  }
+
+  return std::nullopt;
+}
+
+InstructionSelector::ComplexRendererFns
+M88kInstructionSelector::selectAddrRegScaled(MachineOperand &Root,
+                                             uint32_t Width) const {
+  MachineFunction &MF = *Root.getParent()->getParent()->getParent();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  if (!Root.isReg())
+    return std::nullopt;
+
+  // Check for G_PTR_ADD plus shifted register.
+  Register Base, Scaled;
+  if (mi_match(Root.getReg(), MRI,
+               m_GPtrAdd(m_Reg(Base),
+                         m_GShl(m_Reg(Scaled), m_SpecificICst(Width))))) {
+    Register BaseReg = getRegIgnoringCopies(Base, MRI);
+    Register ScaledReg = getRegIgnoringCopies(Scaled, MRI);
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.addReg(BaseReg); },
+        [=](MachineInstrBuilder &MIB) { MIB.addReg(ScaledReg); },
+    }};
+  }
+
+  return std::nullopt;
 }
 
 bool M88kInstructionSelector::selectFrameIndex(MachineInstr &I,
