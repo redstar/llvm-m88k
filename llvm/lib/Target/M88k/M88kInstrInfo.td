@@ -568,6 +568,29 @@ multiclass StoreIndexImm {
   }
 }
 
+multiclass FLoadUnsigned<bits<1> ty, string option, RegisterOperand cls,
+                         ValueType vt, SDPatternOperator operator,
+                         ComplexPattern addr> {
+  def u # option : F_LSINDUSCUNS</*ty=*/ ty, /*user=*/ 0b0, (outs cls:$rd),
+                                 (ins GPR:$rs1, GPR:$rs2),
+                                 !strconcat("ld.", option, "u"),
+                                 [(set (vt cls:$rd),
+                                       (operator (ADDRrr (i32 GPR:$rs1),
+                                                         (i32 GPR:$rs2))))]> {}
+  def u # option # u : F_LSINDUSCUNS</*ty=*/ ty, /*user=*/ 0b1, (outs cls:$rd),
+                                     (ins GPR:$rs1, GPR:$rs2),
+                                     !strconcat("ld.", option, "u.usr")> {}
+  def s # option : F_LSINDSCUNS</*ty=*/ ty, /*user=*/ 0b0, (outs cls:$rd),
+                                (ins GPR:$rs1, GPR:$rs2),
+                                !strconcat("ld.", option, "u"),
+                                [(set (vt cls:$rd),
+                                      (operator (addr (i32 GPR:$rs1),
+                                                      (i32 GPR:$rs2))))]> {}
+  def s # option # u : F_LSINDSCUNS</*ty=*/ ty, /*user=*/ 0b1, (outs cls:$rd),
+                                    (ins GPR:$rs1, GPR:$rs2),
+                                    !strconcat("ld.", option, "u.usr")> {}
+}
+
 multiclass LoadUnsigned {
   def urih : F_LU<0b0, (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
                   "ld.hu",
@@ -575,22 +598,8 @@ multiclass LoadUnsigned {
   def urib : F_LU<0b1, (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
                   "ld.bu",
                   [(set (i32 GPR:$rd), (zextloadi8 (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]>;
-  foreach U = 0-1 in {
-    defvar Suffix = !if(U, ".usr", "");
-    defvar S = !if(U, "u", "");
-    def urrub#S : F_LSINDUSCUNS</*ty=*/ 0b1, /*user=*/ U,
-                                (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                !strconcat("ld.bu", Suffix)>;
-    def urruh#S : F_LSINDUSCUNS</*ty=*/ 0b0, /*user=*/ U,
-                                (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                !strconcat("ld.hu", Suffix)>;
-    def urrsb#S : F_LSINDSCUNS</*ty=*/ 0b1, /*user=*/ U,
-                               (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                               !strconcat("ld.bu", Suffix)>;
-    def urrsh#S : F_LSINDSCUNS</*ty=*/ 0b0, /*user=*/ U,
-                               (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                               !strconcat("ld.hu", Suffix)>;
-  }
+  defm urr : FLoadUnsigned</*ty=*/ 0b1, "b", GPR, i32, zextloadi8, ADDRrs1>;
+  defm urr : FLoadUnsigned</*ty=*/ 0b0, "h", GPR, i32, zextloadi16, ADDRrs2>;
 }
 
 // Instruction formats with semantics.
