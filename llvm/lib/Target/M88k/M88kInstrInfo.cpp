@@ -411,10 +411,10 @@ unsigned M88kInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
   case M88k::STxid:
   case M88k::STxis:
   case M88k::STxix:
-  case M88k::STxrd:
-  case M88k::STxrdt:
-  case M88k::STxrdu:
-  case M88k::STxrdut:
+  case M88k::STxrsd:
+  case M88k::STxrsdt:
+  case M88k::STxrsdu:
+  case M88k::STxrsdut:
   case M88k::STxrss:
   case M88k::STxrsst:
   case M88k::STxrssu:
