@@ -508,59 +508,48 @@ Register indirect with scaled index:    ld rD, rS1, [rS2]
 */
 def ADDRrr : ComplexPattern<i32, 2, "selectAddrRr", [], []>;
 def ADDRri : ComplexPattern<i32, 2, "selectAddrRi", [], []>;
-def ADDRrs : ComplexPattern<i32, 1, "selectAddrRs", [], []>;
+def ADDRrs : ComplexPattern<i32, 2, "selectAddrRs", [], []>;
+
+// Instruction formats with semantics.
+class FLoadIndexImm<bits<4> func, bits<2> ty, string option,
+                    RegisterOperand cls, ValueType vt,
+                    SDPatternOperator operator>
+  : F_LS<func, ty, (outs cls:$rd), (ins GPR:$rs1, uimm16:$si16),
+         !if(!eq(option,""), "ld", !strconcat("ld.", option)),
+         [(set (vt cls:$rd), (operator (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]> {}
+
+class FStoreIndexImm<bits<4> func, bits<2> ty, string option,
+                     RegisterOperand cls, ValueType vt,
+                     SDPatternOperator operator>
+  : F_LS<func, ty, (outs), (ins cls:$rd, GPR:$rs1, uimm16:$si16),
+         !if(!eq(option,""), "st", !strconcat("st.", option)),
+         [(operator (vt cls:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16))]> {}
 
 // Multiclass for load and store instructions.
-multiclass LoadIndexImm<bits<4> Func, string OpcStr> {
-  def riw  : F_LS<Func, /*ty=*/ 0b01,
-                  (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
-                  OpcStr,
-                  [(set (i32 GPR:$rd), (load (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]>;
-  def rib  : F_LS<Func, /*ty=*/ 0b11,
-                  (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
-                  !strconcat(OpcStr, ".b"),
-                  [(set (i32 GPR:$rd), (sextloadi8 (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]>;
-  def rih  : F_LS<Func, /*ty=*/ 0b10,
-                  (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
-                  !strconcat(OpcStr, ".h"),
-                  [(set (i32 GPR:$rd), (sextloadi16 (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]>;
-  def rid  : F_LS<Func, /*ty=*/ 0b00,
-                  (outs GPR64:$rd), (ins GPR:$rs1, uimm16:$si16),
-                  !strconcat(OpcStr, ".d"),
-                  [(set (i64 GPR64:$rd), (load (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]>;
+multiclass LoadIndexImm {
+  defvar Func = 0b0001;
+  def riw  : FLoadIndexImm<Func, /*ty=*/ 0b01, "", GPR, i32, load>;
+  def rib  : FLoadIndexImm<Func, /*ty=*/ 0b11, "b", GPR, i32, sextloadi8>;
+  def rih  : FLoadIndexImm<Func, /*ty=*/ 0b10, "h", GPR, i32, sextloadi16>;
+  def rid  : FLoadIndexImm<Func, /*ty=*/ 0b00, "d", GPR64, i64, load>;
+  let Predicates = [MC88110], DecoderNamespace = "MC88110" in {
+    def xi  : FLoadIndexImm<0b0000, /*ty=*/ 0b01, "", XR, f32, load>;
+    def xid  : FLoadIndexImm<0b0000, /*ty=*/ 0b00, "b", XR, f64, load>;
+    def xix  : FLoadIndexImm<0b0011, /*ty=*/ 0b11, "h", XR, f80, load>;
+  }
 }
 
-multiclass StoreIndexImm<string OpcStr> {
-  defvar Func = 0b0010;
-  def riw  : F_LS<Func, /*ty=*/ 0b01,
-                  (outs), (ins GPR:$rd, GPR:$rs1, uimm16:$si16),
-                  OpcStr,
-                  [(store (i32 GPR:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16))]>;
-  def rib  : F_LS<Func, /*ty=*/ 0b11,
-                  (outs), (ins GPR:$rd, GPR:$rs1, uimm16:$si16),
-                  !strconcat(OpcStr, ".b"),
-                  [(truncstorei8 (i32 GPR:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16))]>;
-  def rih  : F_LS<Func, /*ty=*/ 0b10,
-                  (outs), (ins GPR:$rd, GPR:$rs1, uimm16:$si16),
-                  !strconcat(OpcStr, ".h"),
-                  [(truncstorei16 (i32 GPR:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16))]>;
-  def rid  : F_LS<Func, /*ty=*/ 0b00,
-                  (outs), (ins GPR64:$rd, GPR:$rs1, uimm16:$si16),
-                  !strconcat(OpcStr, ".d"),
-                  [(store (i64 GPR64:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16))]>;
+multiclass StoreIndexImm {
+  defvar FuncG = 0b0010;
+  def riw  : FStoreIndexImm<FuncG, /*ty=*/ 0b01, "", GPR, i32, store>;
+  def rib  : FStoreIndexImm<FuncG, /*ty=*/ 0b11, "b", GPR, i32, truncstorei8>;
+  def rih  : FStoreIndexImm<FuncG, /*ty=*/ 0b10, "h", GPR, i32, truncstorei16>;
+  def rid  : FStoreIndexImm<FuncG, /*ty=*/ 0b00, "d", GPR64, i64, store>;
   let Predicates = [MC88110], DecoderNamespace = "MC88110" in {
-    def xis  : F_LS<0b0011, /*ty=*/ 0b01,
-                    (outs), (ins XR:$rd, GPR:$rs1, uimm16:$si16),
-                    OpcStr,
-                    [(store (f32 XR:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16))]>;
-    def xid  : F_LS<0b0011, /*ty=*/ 0b00,
-                    (outs), (ins XR:$rd, GPR:$rs1, uimm16:$si16),
-                    !strconcat(OpcStr, ".d"),
-                    [(store (f64 XR:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16))]>;
-    def xix  : F_LS<0b0011, /*ty=*/ 0b10,
-                    (outs), (ins XR:$rd, GPR:$rs1, uimm16:$si16),
-                    !strconcat(OpcStr, ".x"),
-                    [(store (f80 XR:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16))]>;
+    defvar FuncX = 0b0011;
+    def xis  : FStoreIndexImm<FuncX, /*ty=*/ 0b01, "", XR, f32, store>;
+    def xid  : FStoreIndexImm<FuncX, /*ty=*/ 0b00, "d", XR, f64, store>;
+    def xix  : FStoreIndexImm<FuncX, /*ty=*/ 0b10, "x", XR, f80, store>;
   }
 }
 
@@ -589,110 +578,57 @@ multiclass LoadUnsigned {
   }
 }
 
-class LoadXR<bits<6> Func, string OpcStr, ValueType VT>
-  :  F_LX<Func, (outs XR:$rd), (ins GPR:$rs1, uimm16:$si16),
-          OpcStr,
-          [(set (VT XR:$rd), (zextloadi8 (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]>;
+// Instruction formats with semantics.
+multiclass FLoadUnscaled<bits<4> func, bits<2> ty, string option,
+                         RegisterOperand cls, ValueType vt,
+                         SDPatternOperator operator> {
+  def "" : F_LSINDUSC<func, ty, /*user=*/ 0b0, (outs cls:$rd), (ins GPR:$rs1, GPR:$rs2),
+                      !if(!eq(option,""), "ld", !strconcat("ld.", option)),
+                      [(set (vt cls:$rd), (operator (ADDRrr (i32 GPR:$rs1),
+                                                            (i32 GPR:$rs2))))]> {}
+  def u : F_LSINDUSC<func, ty, /*user=*/ 0b1, (outs cls:$rd), (ins GPR:$rs1, GPR:$rs2),
+                     !if(!eq(option,""), "ld.usr", !strconcat("ld.", option, ".usr"))> {}
+}
 
-multiclass LoadUnscaled<bits<4> Func, string OpcStr> {
+multiclass LoadUnscaled {
+  defvar Func = 0b0001;
   let regfile = 1 in {
-    def rrud  : F_LSINDUSC<Func, /*ty=*/ 0b00, /*user=*/ 0b0,
-                    (outs GPR64:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".d"),
-                    [(set (i64 GPR64:$rd), (load (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))))]>;
-    def rruw  : F_LSINDUSC<Func, /*ty=*/ 0b01, /*user=*/ 0b0,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    OpcStr,
-                    [(set (i32 GPR:$rd), (load (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))))]>;
-    def rrub  : F_LSINDUSC<Func, /*ty=*/ 0b11, /*user=*/ 0b0,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".b"),
-                    [(set (i32 GPR:$rd), (sextloadi8 (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))))]>;
-    def rruh  : F_LSINDUSC<Func, /*ty=*/ 0b10, /*user=*/ 0b0,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".h"),
-                    [(set (i32 GPR:$rd), (sextloadi16 (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))))]>;
-    def rrudu : F_LSINDUSC<Func, /*ty=*/ 0b00, /*user=*/ 0b1,
-                    (outs GPR64:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".d.usr")>;
-    def rruwu : F_LSINDUSC<Func, /*ty=*/ 0b01, /*user=*/ 0b1,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".usr")>;
-    def rrubu : F_LSINDUSC<Func, /*ty=*/ 0b11, /*user=*/ 0b1,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".b.usr")>;
-    def rruhu : F_LSINDUSC<Func, /*ty=*/ 0b10, /*user=*/ 0b1,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".h.usr")>;
+    defm rrud  : FLoadUnscaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, load>;
+    defm rruw  : FLoadUnscaled<Func, /*ty=*/ 0b01, "", GPR, i32, load>;
+    defm rrub  : FLoadUnscaled<Func, /*ty=*/ 0b11, "b", GPR, i32, sextloadi8>;
+    defm rruh  : FLoadUnscaled<Func, /*ty=*/ 0b10, "h", GPR, i32, sextloadi16>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    def xxuw  : F_LSINDUSC<Func, /*ty=*/ 0b01, /*user=*/ 0b0,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    OpcStr>;
-    def xxud  : F_LSINDUSC<Func, /*ty=*/ 0b00, /*user=*/ 0b0,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".d")>;
-    def xxuq  : F_LSINDUSC<Func, /*ty=*/ 0b10, /*user=*/ 0b0,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".x")>;
-    def xxuwu : F_LSINDUSC<Func, /*ty=*/ 0b01, /*user=*/ 0b1,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".usr")>;
-    def xxudu : F_LSINDUSC<Func, /*ty=*/ 0b00, /*user=*/ 0b1,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".d.usr")>;
-    def xxuqu : F_LSINDUSC<Func, /*ty=*/ 0b10, /*user=*/ 0b1,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".x.usr")>;
+    defm xxuw  : FLoadUnscaled<Func, /*ty=*/ 0b01, "", XR, f32, load>;
+    defm xxud  : FLoadUnscaled<Func, /*ty=*/ 0b00, "d", XR, f64, load>;
+    defm xxuq  : FLoadUnscaled<Func, /*ty=*/ 0b10, "x", XR, f80, load>;
   }
 }
 
-multiclass LoadScaled<bits<4> Func, string OpcStr> {
+// Instruction formats with semantics.
+multiclass FLoadScaled<bits<4> func, bits<2> ty, string option,
+                       RegisterOperand cls, ValueType vt,
+                       SDPatternOperator operator, ComplexPattern addr> {
+  def "" : F_LSINDSC<func, ty, /*user=*/ 0b0, (outs cls:$rd), (ins GPR:$rs1, GPR:$rs2),
+               !if(!eq(option,""), "ld", !strconcat("ld.", option)),
+               [(set (vt cls:$rd), (operator (addr (i32 GPR:$rs1),
+                                                   (i32 GPR:$rs2))))]>;
+  def u : F_LSINDSC<func, ty, /*user=*/ 0b1, (outs cls:$rd), (ins GPR:$rs1, GPR:$rs2),
+               !if(!eq(option,""), "ld.usr", !strconcat("ld.", option, ".usr"))>;
+}
+
+multiclass LoadScaled {
+  defvar Func = 0b0001;
   let regfile = 1 in {
-    def rrsd  : F_LSINDSC<Func, /*ty=*/ 0b00, /*user=*/ 0b0,
-                    (outs GPR64:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".d")>;
-    def rrsw  : F_LSINDSC<Func, /*ty=*/ 0b01, /*user=*/ 0b0,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    OpcStr>;
-    def rrsb  : F_LSINDSC<Func, /*ty=*/ 0b11, /*user=*/ 0b0,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".b")>;
-    def rrsh  : F_LSINDSC<Func, /*ty=*/ 0b10, /*user=*/ 0b0,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".h")>;
-    def rrsdu : F_LSINDSC<Func, /*ty=*/ 0b00, /*user=*/ 0b1,
-                    (outs GPR64:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".d.usr")>;
-    def rrswu : F_LSINDSC<Func, /*ty=*/ 0b01, /*user=*/ 0b1,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".usr")>;
-    def rrsbu : F_LSINDSC<Func, /*ty=*/ 0b11, /*user=*/ 0b1,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".b.usr")>;
-    def rrshu : F_LSINDSC<Func, /*ty=*/ 0b10, /*user=*/ 0b1,
-                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".h.usr")>;
+    defm rrsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, load, ADDRrs>;
+    defm rrsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", GPR, i32, load, ADDRrs>;
+    defm rrsb  : FLoadScaled<Func, /*ty=*/ 0b11, "b", GPR, i32, sextloadi8, ADDRrs>;
+    defm rrsh  : FLoadScaled<Func, /*ty=*/ 0b10, "h", GPR, i32, sextloadi16, ADDRrs>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    def xxsw  : F_LSINDSC<Func, /*ty=*/ 0b01, /*user=*/ 0b0,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    OpcStr>;
-    def xxsd  : F_LSINDSC<Func, /*ty=*/ 0b00, /*user=*/ 0b0,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".d")>;
-    def xxsq  : F_LSINDSC<Func, /*ty=*/ 0b10, /*user=*/ 0b0,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".x")>;
-    def xxswu : F_LSINDSC<Func, /*ty=*/ 0b01, /*user=*/ 0b1,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".usr")>;
-    def xxsdu : F_LSINDSC<Func, /*ty=*/ 0b00, /*user=*/ 0b1,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".d.usr")>;
-    def xxsqu : F_LSINDSC<Func, /*ty=*/ 0b10, /*user=*/ 0b1,
-                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                    !strconcat(OpcStr, ".x.usr")>;
+    defm xxsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", XR, f32, load, ADDRrs>;
+    defm xxsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", XR, f64, load, ADDRrs>;
+    defm xxsq  : FLoadScaled<Func, /*ty=*/ 0b10, "x", XR, f80, load, ADDRrs>;
   }
 }
 
@@ -859,27 +795,31 @@ multiclass Xmem {
 }
 
 let mayLoad = 1 in {
-  defm LD : LoadIndexImm<0b0001, "ld">;
-  defm LD : LoadUnsigned<>;
-  defm LD : LoadUnscaled<0b0001, "ld">;
-  defm LD : LoadScaled<0b0001, "ld">;
-
-  let Predicates = [MC88110], DecoderNamespace = "MC88110" in {
-    def LDxri : LoadXR<0b000001, "ld", f32>;
-    def LDxrid : LoadXR<0b000000, "ld.d", f64>;
-    def LDxrix : LoadXR<0b001111, "ld.x", f80>;
-  }
+  defm LD : LoadIndexImm;
+  defm LD : LoadUnsigned;
+  defm LD : LoadUnscaled;
+  defm LD : LoadScaled;
 }
 
 defm LDA : LoadAddr<"lda">;
 
 let mayStore = 1 in {
-  defm ST : StoreIndexImm<"st">;
+  defm ST : StoreIndexImm;
   defm ST : StoreUnscaled<0b0010, "st">;
   defm ST : StoreScaled<0b0010, "st">;
 }
 
-defm XMEM : Xmem<>;
+defm XMEM : Xmem;
+
+// Additional patterns for floating point types.
+def : Pat<(f32 (load (ADDRri (i32 GPR:$rs1), uimm16:$si16))),
+          (LDriw GPR:$rs1, uimm16:$si16)>;
+def : Pat<(f64 (load (ADDRri (i32 GPR:$rs1), uimm16:$si16))),
+          (LDrid GPR:$rs1, uimm16:$si16)>;
+def : Pat<(f32 (load (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2)))),
+          (LDrruw GPR:$rs1, GPR:$rs2)>;
+def : Pat<(f64 (load (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2)))),
+          (LDrrud GPR:$rs1, GPR:$rs2)>;
 
 def : Pat<(add GPR:$rs1, (shl GPR:$rs2, (i32 1))), (LDAhs GPR:$rs1, GPR:$rs2)>;
 def : Pat<(add GPR:$rs1, (shl GPR:$rs2, (i32 2))), (LDAws GPR:$rs1, GPR:$rs2)>;
