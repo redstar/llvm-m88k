@@ -12,7 +12,7 @@
 @mem16 = common global i16 0, align 2
 @mem8 = common global i8 0, align 1
 
-; Loading value to pointer address.
+; Store value to pointer address.
 
 define void @f1(ptr %p) {
 ; CHECK-LABEL: f1:
@@ -149,41 +149,69 @@ define void @f13(ptr %p, double %val) {
 
 ; Store value to pointer plus index.
 
-; define void @f14(ptr %p, i32 %idx, i32 %val) {
-;   %arrayidx = getelementptr inbounds i32, ptr %p, i32 %idx
-;   store i32 %val, ptr %arrayidx, align 4
-;   ret void
-; }
+define void @f14(ptr %p, i32 %idx, i32 %val) {
+; CHECK-LABEL: f14:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    st %r4, %r2[%r3]
+; CHECK-NEXT:    jmp %r1
+  %arrayidx = getelementptr inbounds i32, ptr %p, i32 %idx
+  store i32 %val, ptr %arrayidx, align 4
+  ret void
+}
 
-; define void @f15(ptr %p, i32 %idx, float %val) {
-;   %arrayidx = getelementptr inbounds float, ptr %p, i32 %idx
-;   store float %val, ptr %arrayidx, align 4
-;   ret void
-; }
+define void @f15(ptr %p, i32 %idx, float %val) {
+; CHECK-LABEL: f15:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    st %r4, %r2[%r3]
+; CHECK-NEXT:    jmp %r1
+  %arrayidx = getelementptr inbounds float, ptr %p, i32 %idx
+  store float %val, ptr %arrayidx, align 4
+  ret void
+}
 
-; define void @f16(ptr %p, i32 %idx, i8 %val) {
-;   %arrayidx = getelementptr inbounds i8, ptr %p, i32 %idx
-;   store i8 %val, ptr %arrayidx, align 1
-;   ret void
-; }
+define void @f16(ptr %p, i32 %idx, i8 %val) {
+; CHECK-LABEL: f16:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    st.b %r4, %r2, %r3
+; CHECK-NEXT:    jmp %r1
+  %arrayidx = getelementptr inbounds i8, ptr %p, i32 %idx
+  store i8 %val, ptr %arrayidx, align 1
+  ret void
+}
 
-; define void @f17(ptr %p, i32 %idx, i16 %val) {
-;   %arrayidx = getelementptr inbounds i16, ptr %p, i32 %idx
-;   store i16 %val, ptr %arrayidx, align 2
-;   ret void
-; }
+define void @f17(ptr %p, i32 %idx, i16 %val) {
+; CHECK-LABEL: f17:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    st.h %r4, %r2[%r3]
+; CHECK-NEXT:    jmp %r1
+  %arrayidx = getelementptr inbounds i16, ptr %p, i32 %idx
+  store i16 %val, ptr %arrayidx, align 2
+  ret void
+}
 
-; define void @f18(ptr %p, i32 %idx, i64 %val) {
-;   %arrayidx = getelementptr inbounds i64, ptr %p, i32 %idx
-;   store i64 %val, ptr %arrayidx, align 8
-;   ret void
-; }
+define void @f18(ptr %p, i32 %idx, i64 %val) {
+; CHECK-LABEL: f18:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    | kill: def $r5 killed $r5 killed $r4_r5 def $r4_r5
+; CHECK-NEXT:    | kill: def $r4 killed $r4 killed $r4_r5 def $r4_r5
+; CHECK-NEXT:    st.d %r4, %r2[%r3]
+; CHECK-NEXT:    jmp %r1
+  %arrayidx = getelementptr inbounds i64, ptr %p, i32 %idx
+  store i64 %val, ptr %arrayidx, align 8
+  ret void
+}
 
-; define void @f19(ptr %p, i32 %idx, double %val) {
-;   %arrayidx = getelementptr inbounds double, ptr %p, i32 %idx
-;   store double %val, ptr %arrayidx, align 8
-;   ret void
-; }
+define void @f19(ptr %p, i32 %idx, double %val) {
+; CHECK-LABEL: f19:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    | kill: def $r5 killed $r5 killed $r4_r5 def $r4_r5
+; CHECK-NEXT:    | kill: def $r4 killed $r4 killed $r4_r5 def $r4_r5
+; CHECK-NEXT:    st.d %r4, %r2[%r3]
+; CHECK-NEXT:    jmp %r1
+  %arrayidx = getelementptr inbounds double, ptr %p, i32 %idx
+  store double %val, ptr %arrayidx, align 8
+  ret void
+}
 
 ; Store value to global address.
 
