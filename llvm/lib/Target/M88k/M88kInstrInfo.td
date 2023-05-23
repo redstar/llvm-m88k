@@ -500,15 +500,30 @@ def : Pat<(i32 imm:$imm),
 // Load & Store.
 // ---------------------------------------------------------------------------//
 
+// Complex pattern which also declare the GI complex operand.
+multiclass ComplexPatternWithGIEquiv<ValueType vty, LLT sty, int numops,
+                                     string fn,
+                                     list<SDNode> roots = [],
+                                     list<SDNodeProperty> props = [],
+                                     int complexity = -1> {
+  def "" : ComplexPattern<vty, numops, fn, roots, props, complexity>;
+  def : GIComplexOperandMatcher<sty, fn>,
+        GIComplexPatternEquiv<!cast<ComplexPattern>(NAME)>;
+}
+
 /*
 Addressing modes:
 Register indirect with immediate index: ld rD, rS1, si16
 Register indirect with index:           ld rD, rS1, rS2
 Register indirect with scaled index:    ld rD, rS1, [rS2]
 */
-def ADDRrr : ComplexPattern<i32, 2, "selectAddrRr", [], []>;
-def ADDRri : ComplexPattern<i32, 2, "selectAddrRi", [], []>;
-def ADDRrs : ComplexPattern<i32, 2, "selectAddrRs", [], []>;
+defm ADDRri : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegImm", [], [], 10>;
+defm ADDRrr : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegReg", [], []>;
+defm ADDRrs1 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<1>", [], [], 15>;
+defm ADDRrs2 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<2>", [], [], 15>;
+defm ADDRrs4 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<4>", [], [], 15>;
+defm ADDRrs8 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<8>", [], [], 15>;
+defm ADDRrs16 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<16>", [], [], 15>;
 
 // Instruction formats with semantics.
 class FLoadIndexImm<bits<4> func, bits<2> ty, string option,
@@ -534,8 +549,8 @@ multiclass LoadIndexImm {
   def rid  : FLoadIndexImm<Func, /*ty=*/ 0b00, "d", GPR64, i64, load>;
   let Predicates = [MC88110], DecoderNamespace = "MC88110" in {
     def xi  : FLoadIndexImm<0b0000, /*ty=*/ 0b01, "", XR, f32, load>;
-    def xid  : FLoadIndexImm<0b0000, /*ty=*/ 0b00, "b", XR, f64, load>;
-    def xix  : FLoadIndexImm<0b0011, /*ty=*/ 0b11, "h", XR, f80, load>;
+    def xid  : FLoadIndexImm<0b0000, /*ty=*/ 0b00, "d", XR, f64, load>;
+    def xix  : FLoadIndexImm<0b0011, /*ty=*/ 0b11, "x", XR, f80, load>;
   }
 }
 
@@ -620,99 +635,89 @@ multiclass FLoadScaled<bits<4> func, bits<2> ty, string option,
 multiclass LoadScaled {
   defvar Func = 0b0001;
   let regfile = 1 in {
-    defm rrsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, load, ADDRrs>;
-    defm rrsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", GPR, i32, load, ADDRrs>;
-    defm rrsb  : FLoadScaled<Func, /*ty=*/ 0b11, "b", GPR, i32, sextloadi8, ADDRrs>;
-    defm rrsh  : FLoadScaled<Func, /*ty=*/ 0b10, "h", GPR, i32, sextloadi16, ADDRrs>;
+    defm rrsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, load, ADDRrs8>;
+    defm rrsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", GPR, i32, load, ADDRrs4>;
+    defm rrsb  : FLoadScaled<Func, /*ty=*/ 0b11, "b", GPR, i32, sextloadi8, ADDRrs1>;
+    defm rrsh  : FLoadScaled<Func, /*ty=*/ 0b10, "h", GPR, i32, sextloadi16, ADDRrs2>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    defm xxsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", XR, f32, load, ADDRrs>;
-    defm xxsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", XR, f64, load, ADDRrs>;
-    defm xxsq  : FLoadScaled<Func, /*ty=*/ 0b10, "x", XR, f80, load, ADDRrs>;
+    defm xxsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", XR, f32, load, ADDRrs4>;
+    defm xxsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", XR, f64, load, ADDRrs8>;
+    defm xxsq  : FLoadScaled<Func, /*ty=*/ 0b10, "x", XR, f80, load, ADDRrs16>;
   }
 }
 
-multiclass StoreUnscaled<bits<4> Func, string OpcStr> {
-  foreach T = 0-1 in {
-    foreach U = 0-1 in {
-      defvar ThroughSuffix = !if (!eq(T, 0), "", ".wt");
-      defvar UserSuffix = !if (!eq(U, 0), "", ".usr");
-      defvar Suffix = !strconcat(UserSuffix, ThroughSuffix);
-      defvar t = !if (!eq(T, 0), "", "t");
-      defvar u = !if (!eq(U, 0), "", "u");
-      defvar s = !strconcat(u, t);
-      let regfile = 1 in {
-        let through = T in {
-          def rrud # s : F_LSINDUSC<Func, /*ty=*/ 0b00, /*user=*/ U,
-                                    (outs GPR64:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                    !strconcat(OpcStr, ".d", Suffix)>;
-          def rruw # s : F_LSINDUSC<Func, /*ty=*/ 0b01, /*user=*/ U,
-                                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                    !strconcat(OpcStr, Suffix)>;
-          def rrub # s : F_LSINDUSC<Func, /*ty=*/ 0b11, /*user=*/ U,
-                                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                    !strconcat(OpcStr, ".b", Suffix)>;
-          def rruh # s : F_LSINDUSC<Func, /*ty=*/ 0b10, /*user=*/ U,
-                                    (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                    !strconcat(OpcStr, ".h", Suffix)>;
-        }
-      }
-      let regfile = 0, Predicates = [MC88110] in {
-        let through = T in {
-          def xrus # s : F_LSINDUSC<Func, /*ty=*/ 0b01, /*user=*/ U,
-                                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                    !strconcat(OpcStr, Suffix)>;
-          def xrud # s : F_LSINDUSC<Func, /*ty=*/ 0b00, /*user=*/ U,
-                                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                    !strconcat(OpcStr, ".d", Suffix)>;
-          def xrux # s : F_LSINDUSC<Func, /*ty=*/ 0b10, /*user=*/ U,
-                                    (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                    !strconcat(OpcStr, ".x", Suffix)>;
-        }
-      }
-    }
+multiclass FStoreUnscaled<bits<4> func, bits<2> ty, string option,
+                          RegisterOperand cls, ValueType vt,
+                          SDPatternOperator operator> {
+  let through = 0 in {
+  def "" : F_LSINDUSC<func, /*ty=*/ ty, /*user=*/ 0b0,
+               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               !if(!eq(option, ""), "st", !strconcat("st.", option)),
+               [(operator (vt cls:$rd), (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2)))]>;
+  def u : F_LSINDUSC<func, /*ty=*/ ty, /*user=*/ 0b1,
+               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               !if(!eq(option, ""), "st.usr", !strconcat("st.", option, ".usr"))>;
+  }
+  let through = 1 in {
+  def t : F_LSINDUSC<func, /*ty=*/ ty, /*user=*/ 0b0,
+               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               !if(!eq(option, ""), "st.wt", !strconcat("st.", option, ".wt"))>;
+  def ut : F_LSINDUSC<func, /*ty=*/ ty, /*user=*/ 0b1,
+               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               !if(!eq(option, ""), "st.usr.wt", !strconcat("st.", option, ".usr.wt"))>;
   }
 }
 
-multiclass StoreScaled<bits<4> Func, string OpcStr> {
-  foreach T = 0-1 in {
-    foreach U = 0-1 in {
-      defvar ThroughSuffix = !if (!eq(T, 0), "", ".wt");
-      defvar UserSuffix = !if (!eq(U, 0), "", ".usr");
-      defvar Suffix = !strconcat(UserSuffix, ThroughSuffix);
-      defvar t = !if (!eq(T, 0), "", "t");
-      defvar u = !if (!eq(U, 0), "", "u");
-      defvar s = !strconcat(u, t);
-      let regfile = 1 in {
-        let through = T in {
-          def rrsd # s : F_LSINDSC<Func, /*ty=*/ 0b00, /*user=*/ U,
-                                   (outs GPR64:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                   !strconcat(OpcStr, ".d", Suffix)>;
-          def rrsw # s : F_LSINDSC<Func, /*ty=*/ 0b01, /*user=*/ U,
-                                   (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                   !strconcat(OpcStr, Suffix)>;
-          def rrsb # s : F_LSINDSC<Func, /*ty=*/ 0b11, /*user=*/ U,
-                                   (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                   !strconcat(OpcStr, ".b", Suffix)>;
-          def rrsh # s : F_LSINDSC<Func, /*ty=*/ 0b10, /*user=*/ U,
-                                   (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                   !strconcat(OpcStr, ".h", Suffix)>;
-        }
-      }
-      let regfile = 0, Predicates = [MC88110] in {
-        let through = T in {
-          def xrss # s : F_LSINDSC<Func, /*ty=*/ 0b01, /*user=*/ U,
-                                   (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                   !strconcat(OpcStr, Suffix)>;
-          def xrd # s : F_LSINDSC<Func, /*ty=*/ 0b00, /*user=*/ U,
-                                   (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                   !strconcat(OpcStr, ".d", Suffix)>;
-          def xrsx # s : F_LSINDSC<Func, /*ty=*/ 0b10, /*user=*/ U,
-                                   (outs XR:$rd), (ins GPR:$rs1, GPR:$rs2),
-                                   !strconcat(OpcStr, ".x", Suffix)>;
-        }
-      }
-    }
+multiclass StoreUnscaled {
+  defvar Func = 0b0010;
+  let regfile = 1 in {
+    defm rrud : FStoreUnscaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, store>;
+    defm rruw : FStoreUnscaled<Func, /*ty=*/ 0b01, "", GPR, i32, store>;
+    defm rrub : FStoreUnscaled<Func, /*ty=*/ 0b11, "b", GPR, i32, truncstorei8>;
+    defm rruh : FStoreUnscaled<Func, /*ty=*/ 0b10, "h", GPR, i32, truncstorei16>;
+  }
+  let regfile = 0, Predicates = [MC88110] in {
+    defm xrus : FStoreUnscaled<Func, /*ty=*/ 0b01, "", XR, f32, store>;
+    defm xrud : FStoreUnscaled<Func, /*ty=*/ 0b00, "d", XR, f64, store>;
+    defm xrux : FStoreUnscaled<Func, /*ty=*/ 0b10, "x", XR, f80, store>;
+  }
+}
+
+multiclass FStoreScaled<bits<4> func, bits<2> ty, string option,
+                          RegisterOperand cls, ValueType vt,
+                          SDPatternOperator operator, ComplexPattern addr> {
+  let through = 0 in {
+  def "" : F_LSINDSC<func, /*ty=*/ ty, /*user=*/ 0b0,
+               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               !if(!eq(option, ""), "st", !strconcat("st.", option)),
+               [(operator (vt cls:$rd), (addr (i32 GPR:$rs1), (i32 GPR:$rs2)))]>;
+  def u : F_LSINDSC<func, /*ty=*/ ty, /*user=*/ 0b1,
+               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               !if(!eq(option, ""), "st.usr", !strconcat("st.", option, ".usr"))>;
+  }
+  let through = 1 in {
+  def t : F_LSINDSC<func, /*ty=*/ ty, /*user=*/ 0b0,
+               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               !if(!eq(option, ""), "st.wt", !strconcat("st.", option, ".wt"))>;
+  def ut : F_LSINDSC<func, /*ty=*/ ty, /*user=*/ 0b1,
+               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               !if(!eq(option, ""), "st.usr.wt", !strconcat("st.", option, ".usr.wt"))>;
+  }
+}
+
+multiclass StoreScaled {
+  defvar Func = 0b0010;
+  let regfile = 1 in {
+    defm rrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, store, ADDRrs8>;
+    defm rrsw : FStoreScaled<Func, /*ty=*/ 0b01, "", GPR, i32, store, ADDRrs4>;
+    defm rrsb : FStoreScaled<Func, /*ty=*/ 0b11, "b", GPR, i32, truncstorei8, ADDRrs1>;
+    defm rrsh : FStoreScaled<Func, /*ty=*/ 0b10, "h", GPR, i32, truncstorei16, ADDRrs2>;
+  }
+  let regfile = 0, Predicates = [MC88110] in {
+    defm xrss : FStoreScaled<Func, /*ty=*/ 0b01, "", XR, f32, store, ADDRrs4>;
+    defm xrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", XR, f64, store, ADDRrs8>;
+    defm xrsx : FStoreScaled<Func, /*ty=*/ 0b10, "x", XR, f80, store, ADDRrs16>;
   }
 }
 
@@ -805,13 +810,17 @@ defm LDA : LoadAddr<"lda">;
 
 let mayStore = 1 in {
   defm ST : StoreIndexImm;
-  defm ST : StoreUnscaled<0b0010, "st">;
-  defm ST : StoreScaled<0b0010, "st">;
+  defm ST : StoreUnscaled;
+  defm ST : StoreScaled;
 }
 
 defm XMEM : Xmem;
 
 // Additional patterns for floating point types.
+def : Pat<(f32 (load (ADDRrs4 (i32 GPR:$rs1), (i32 GPR:$rs2)))),
+          (LDrrsw GPR:$rs1, GPR:$rs2)>;
+def : Pat<(f64 (load (ADDRrs8 (i32 GPR:$rs1), (i32 GPR:$rs2)))),
+          (LDrrsd GPR:$rs1, GPR:$rs2)>;
 def : Pat<(f32 (load (ADDRri (i32 GPR:$rs1), uimm16:$si16))),
           (LDriw GPR:$rs1, uimm16:$si16)>;
 def : Pat<(f64 (load (ADDRri (i32 GPR:$rs1), uimm16:$si16))),
@@ -821,11 +830,32 @@ def : Pat<(f32 (load (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2)))),
 def : Pat<(f64 (load (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2)))),
           (LDrrud GPR:$rs1, GPR:$rs2)>;
 
+def : Pat<(store (f32 GPR:$rd), (ADDRrs4 (i32 GPR:$rs1), (i32 GPR:$rs2))),
+          (STrrsw (f32 GPR:$rd), GPR:$rs1, GPR:$rs2)>;
+def : Pat<(store (f64 GPR64:$rd), (ADDRrs8 (i32 GPR:$rs1), (i32 GPR:$rs2))),
+          (STrrsd (f64 GPR64:$rd), GPR:$rs1, GPR:$rs2)>;
+def : Pat<(store (f32 GPR:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16)),
+          (STriw (f32 GPR:$rd), GPR:$rs1, uimm16:$si16)>;
+def : Pat<(store (f64 GPR64:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16)),
+          (STrid (f64 GPR64:$rd), GPR:$rs1, uimm16:$si16)>;
+def : Pat<(store (f32 GPR:$rd), (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))),
+          (STrruw (f32 GPR:$rd), GPR:$rs1, GPR:$rs2)>;
+def : Pat<(store (f64 GPR64:$rd), (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))),
+          (STrrud (f64 GPR64:$rd), GPR:$rs1, GPR:$rs2)>;
+
+// Storing a zero constant.
+def : Pat<(store (i32 0), (ADDRrs4 (i32 GPR:$rs1), (i32 GPR:$rs2))),
+          (STrrsw (i32 R0), GPR:$rs1, GPR:$rs2)>;
+def : Pat<(store (i32 0), (ADDRri (i32 GPR:$rs1), uimm16:$si16)),
+          (STriw (i32 R0), GPR:$rs1, uimm16:$si16)>;
+def : Pat<(store (i32 0), (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))),
+          (STrruw (i32 R0), GPR:$rs1, GPR:$rs2)>;
+
+// Patterns to replace add/shl sequence with lda instruction.
 def : Pat<(add GPR:$rs1, (shl GPR:$rs2, (i32 1))), (LDAhs GPR:$rs1, GPR:$rs2)>;
 def : Pat<(add GPR:$rs1, (shl GPR:$rs2, (i32 2))), (LDAws GPR:$rs1, GPR:$rs2)>;
 let Predicates = [MC88110] in
   def : Pat<(add GPR:$rs1, (shl GPR:$rs2, (i32 3))), (LDAxs GPR:$rs1, GPR:$rs2)>;
-
 
 // GlobalAddress, ExternalSymbol, Jumptable, ConstantPool
 def : Pat<(m88k_hi tglobaladdr:$dst), (ORriu (i32 R0), tglobaladdr:$dst)>;
