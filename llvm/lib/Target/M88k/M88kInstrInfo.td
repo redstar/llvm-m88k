@@ -1008,210 +1008,149 @@ def : InstAlias<"nop", (ORrr R0, R0, R0)>;
 
 // Helper classes to select floating point operands.
 
-class FT<string p, RegisterOperand FReg> {
-  bits<1> regfile = 0;
-  string prec = p;
-  RegisterOperand opnd = FReg;
+class FloatType<string optionin, ValueType vtin, int sizein, RegisterOperand clsin,
+                bits<2> encin> {
+  string option = optionin;
+  ValueType vt = vtin;
+  int size = sizein; // TODO Get from RegisterClass
+  RegisterOperand cls = clsin;
+  bits<2> enc = encin;
 }
 
-def FT32 : FT<"s", GPR>;
-def FT64 : FT<"d", GPR64>;
-def FT80 : FT<"x", ?>;
+def FTG32 : FloatType<"s", f32, 32, GPR, 0>;
+def FTG64 : FloatType<"d", f64, 64, GPR64, 1>;
+def FTX32 : FloatType<"s", f32, 32, XR, 0>;
+def FTX64 : FloatType<"d", f64, 64, XR, 1>;
+def FTX80 : FloatType<"x", f80, 80, XR, 2>;
 
-class getFT<int n> {
-  FT ret = !if(!eq(n, 0), FT32, !if(!eq(n, 1), FT64, FT80));
+class FloatSrc1<FloatType S1, FloatType S2> {
+  dag val = !if(!lt(S1.size, S2.size),
+                (S2.vt (fpextend (S1.vt S1.cls:$rs1))),
+                (S1.vt S1.cls:$rs1));
+}
+class FloatSrc2<FloatType S1, FloatType S2> {
+  dag val = !if(!gt(S1.size, S2.size),
+                (S1.vt (fpextend (S2.vt S2.cls:$rs2))),
+                (S2.vt S2.cls:$rs2));
+}
+class FloatPat<FloatType D, FloatType S1, FloatType S2, SDPatternOperator op> {
+  defvar dags1 = FloatSrc1<S1, S2>.val;
+  defvar dags2 = FloatSrc2<S1, S2>.val;
+  defvar extend = !and(!gt(D.size, S1.size), !gt(D.size, S2.size));
+  defvar round = !or(!lt(D.size, S1.size), !lt(D.size, S2.size));
+  dag val = !cond(extend : (D.vt (fpextend (op dags1, dags2))),
+                  round : (D.vt (fpround (op dags1, dags2))),
+                  true: (op dags1, dags2));
 }
 
 // Multiclass for triadic register floating point instructions.
-multiclass FArithG<bits<4> Func, string OpcStr> {
-  foreach D = 0-1 in {
-    foreach S1 = 0-1 in {
-      foreach S2 = 0-1 in {
+multiclass FArith<bits<4> Func, string OpcStr, SDPatternOperator op> {
+  foreach D = [FTG32, FTG64] in {
+    foreach S1 = [FTG32, FTG64] in {
+      foreach S2 =[FTG32, FTG64] in {
         let regfile = 0 in {
-          defvar DPrec = getFT<D>.ret.prec;
-          defvar DOpnd = getFT<D>.ret.opnd;
-          defvar S1Prec = getFT<S1>.ret.prec;
-          defvar S1Opnd = getFT<S1>.ret.opnd;
-          defvar S2Prec = getFT<S2>.ret.prec;
-          defvar S2Opnd = getFT<S2>.ret.opnd;
-          def g # DPrec # S1Prec # S2Prec :
-                  F_SFU1<Func, D, S1, S2,
-                      (outs DOpnd:$rd), (ins S1Opnd:$rs1, S2Opnd:$rs2),
-                      !strconcat(OpcStr, ".", DPrec, S1Prec, S2Prec)>;
+          def g # D.option # S1.option # S2.option :
+                  F_SFU1<Func, D.enc, S1.enc, S2.enc,
+                      (outs D.cls:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
+                      !strconcat(OpcStr, ".", D.option, S1.option, S2.option),
+                      [(set (D.vt D.cls:$rd), FloatPat<D, S1, S2, op>.val)]>;
+        }
+      }
+    }
+  }
+  foreach D = [FTX32, FTX64, FTX80] in {
+    foreach S1 = [FTX32, FTX64, FTX80] in {
+      foreach S2 =[FTX32, FTX64, FTX80] in {
+        let regfile = 1 in {
+          def x # D.option # S1.option # S2.option :
+                  F_SFU1<Func, D.enc, S1.enc, S2.enc,
+                      (outs D.cls:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
+                      !strconcat(OpcStr, ".", D.option, S1.option, S2.option),
+                      [(set (D.vt D.cls:$rd), FloatPat<D, S1, S2, op>.val)]>;
         }
       }
     }
   }
 }
-
-multiclass FArithX<bits<4> Func, string OpcStr> {
-  foreach D = 0-2 in {
-    foreach S1 = 0-2 in {
-      foreach S2 = 0-2 in {
-        let regfile = 1, Predicates = [MC88110] in {
-          defvar DPrec = getFT<D>.ret.prec;
-          defvar S1Prec = getFT<S1>.ret.prec;
-          defvar S2Prec = getFT<S2>.ret.prec;
-          def x # DPrec # S1Prec # S2Prec :
-                  F_SFU1<Func, D, S1, S2,
-                      (outs XR:$rd), (ins XR:$rs1, XR:$rs2),
-                      !strconcat(OpcStr, ".", DPrec, S1Prec, S2Prec)>;
-        }
-      }
-    }
-  }
-}
-
-multiclass FArith<bits<4> Func, string OpcStr>
-                  : FArithG<Func, OpcStr>, FArithX<Func, OpcStr>;
 
 // Multiclass for dyadic register floating point instructions, single prec.
-multiclass FArith2G<bits<4> Func, string OpcStr> {
-  foreach S2 = 0-1 in {
+multiclass FArith2<bits<4> Func, string OpcStr> {
+  foreach S2 = [FTG32, FTG64] in {
     let regfile = 0 in {
-      defvar S2Prec = getFT<S2>.ret.prec;
-      defvar S2Opnd = getFT<S2>.ret.opnd;
-      def gs # S2Prec :
-              F_SFU1D<Func, /*td=*/ 0b00, /*t1=*/ 0b00, /*t2=*/ S2,
-                      (outs GPR:$rd), (ins S2Opnd:$rs2),
-                      !strconcat(OpcStr, ".s", S2Prec)>;
+      def gs # S2.option :
+              F_SFU1D<Func, /*td=*/ 0b00, /*t1=*/ 0b00, /*t2=*/ S2.enc,
+                      (outs GPR:$rd), (ins S2.cls:$rs2),
+                      !strconcat(OpcStr, ".s", S2.option)>;
+    }
+  }
+  foreach S2 = [FTX32, FTX64, FTX80] in {
+    let regfile = 1 in {
+      def xs # S2.option :
+              F_SFU1D<Func, /*td=*/ 0b00, /*t1=*/ 0b00, /*t2=*/ S2.enc,
+                      (outs GPR:$rd), (ins S2.cls:$rs2),
+                      !strconcat(OpcStr, ".s", S2.option)>;
     }
   }
 }
-
-multiclass FArith2X<bits<4> Func, string OpcStr> {
-  foreach S2 = 0-2 in {
-    let regfile = 1, Predicates = [MC88110] in {
-      defvar S2Prec = getFT<S2>.ret.prec;
-      def xs # S2Prec :
-              F_SFU1D<Func, /*td=*/ 0b00, /*t1=*/ 0b00, /*t2=*/ S2,
-                      (outs GPR:$rd), (ins XR:$rs2),
-                      !strconcat(OpcStr, ".s", S2Prec)>;
-    }
-  }
-}
-
-multiclass FArith2<bits<4> Func, string OpcStr>
-                  : FArith2G<Func, OpcStr>, FArith2X<Func, OpcStr>;
 
 // Multiclass for dyadic register floating point instructions, unary.
-multiclass FUnaryG<bits<4> Func, string OpcStr, bit eq> {
-  foreach D = 0-1 in {
-    foreach S2 = 0-1 in {
+multiclass FUnary<bits<4> Func, string OpcStr, bit eq> {
+  foreach D = [FTG32, FTG64] in {
+    foreach S2 = [FTG32, FTG64] in {
       defvar IsLegal = !or(eq, !ne(D, S2));
       if IsLegal then {
         let regfile = 0 in {
-          defvar DPrec = getFT<D>.ret.prec;
-          defvar DOpnd = getFT<D>.ret.opnd;
-          defvar S2Prec = getFT<S2>.ret.prec;
-          defvar S2Opnd = getFT<S2>.ret.opnd;
-          def g # DPrec # S2Prec :
-              F_SFU1D<Func, D, /*t1=*/ 0b00, S2,
-                      (outs DOpnd:$rd), (ins S2Opnd:$rs2),
-                      !strconcat(OpcStr, ".", DPrec, S2Prec)>;
+          def g # D.option # S2.option :
+              F_SFU1D<Func, D.enc, /*t1=*/ 0b00, S2.enc,
+                      (outs D.cls:$rd), (ins S2.cls:$rs2),
+                      !strconcat(OpcStr, ".", D.option, S2.option)>;
         }
       }
     }
   }
-}
-
-multiclass FUnaryX<bits<4> Func, string OpcStr, bit eq> {
-  foreach D = 0-2 in {
-    foreach S2 = 0-2 in {
+  foreach D = [FTX32, FTX64, FTX80] in {
+    foreach S2 = [FTX32, FTX64, FTX80] in {
       defvar IsLegal = !or(eq, !ne(D, S2));
       if IsLegal then {
-        let regfile = 1, Predicates = [MC88110] in {
-          defvar DPrec = getFT<D>.ret.prec;
-          defvar S2Prec = getFT<S2>.ret.prec;
-          def x # DPrec # S2Prec :
-              F_SFU1D<Func, D, /*t1=*/ 0b00, S2,
-                      (outs XR:$rd), (ins XR:$rs2),
-                      !strconcat(OpcStr, ".", DPrec, S2Prec)>;
+        let regfile = 1 in {
+          def x # D.option # S2.option :
+              F_SFU1D<Func, D.enc, /*t1=*/ 0b00, S2.enc,
+                      (outs D.cls:$rd), (ins S2.cls:$rs2),
+                      !strconcat(OpcStr, ".", D.option, S2.option)>;
         }
       }
     }
   }
 }
 
-multiclass FUnary<bits<4> Func, string OpcStr, bit eq>
-                  : FUnaryG<Func, OpcStr, eq>,
-                    FUnaryX<Func, OpcStr, eq>;
-
 // Multiclass for triadic register floating point instructions fcmp/fcmpu.
-multiclass FCmpG<bits<4> Func, bits<2> td, string OpcStr> {
-  foreach S1 = 0-1 in {
-    foreach S2 = 0-1 in {
+multiclass FCmp<bits<4> Func, bits<2> td, string OpcStr> {
+  foreach S1 = [FTG32, FTG64] in {
+    foreach S2 = [FTG32, FTG64] in {
       let regfile = 0 in {
-        defvar S1Prec = getFT<S1>.ret.prec;
-        defvar S1Opnd = getFT<S1>.ret.opnd;
-        defvar S2Prec = getFT<S2>.ret.prec;
-        defvar S2Opnd = getFT<S2>.ret.opnd;
-        def g # s # S1Prec # S2Prec :
-            F_SFU1<Func, /*td=*/ td, /*t1=*/ S1, /*t2=*/ S2,
-                   (outs GPR:$rd), (ins S1Opnd:$rs1, S2Opnd:$rs2),
-                   !strconcat(OpcStr, ".s", S1Prec, S2Prec)>;
+        def gs # S1.option # S2.option :
+            F_SFU1<Func, /*td=*/ td, /*t1=*/ S1.enc, /*t2=*/ S2.enc,
+                   (outs GPR:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
+                   !strconcat(OpcStr, ".s", S1.option, S2.option)>;
+      }
+    }
+  }
+  foreach S1 = [FTX32, FTX64, FTX80] in {
+    foreach S2 = [FTX32, FTX64, FTX80] in {
+      let regfile = 1 in {
+        def xs # S1.option # S2.option :
+            F_SFU1<Func, /*td=*/ td, /*t1=*/ S1.enc, /*t2=*/ S2.enc,
+                   (outs GPR:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
+                   !strconcat(OpcStr, ".s", S1.option, S2.option)>;
       }
     }
   }
 }
 
-multiclass FCmpX<bits<4> Func, bits<2> td, string OpcStr> {
-  foreach S1 = 0-2 in {
-    foreach S2 = 0-2 in {
-      let regfile = 1, Predicates = [MC88110] in {
-        defvar S1Prec = getFT<S1>.ret.prec;
-        defvar S2Prec = getFT<S2>.ret.prec;
-        def x # s # S1Prec # S2Prec :
-            F_SFU1<Func, /*td=*/ td, /*t1=*/ S1, /*t2=*/ S2,
-                   (outs GPR:$rd), (ins XR:$rs1, XR:$rs2),
-                   !strconcat(OpcStr, ".s", S1Prec, S2Prec)>;
-      }
-    }
-  }
-}
-
-multiclass FCmp<bits<4> Func, bits<2> td, string OpcStr>
-  : FCmpG<Func, td, OpcStr>, FCmpX<Func, td, OpcStr>;
-
-multiclass FloatBinPat<string Inst, SDPatternOperator OpNode> {
-  def : Pat<(OpNode GPR:$rs1, GPR:$rs2),
-            (!cast<InstM88k>(Inst#"gsss") GPR:$rs1, GPR:$rs2)>;
-  def : Pat<(fpround (OpNode (fpextend GPR:$rs1), GPR64:$rs2)),
-            (!cast<InstM88k>(Inst#"gssd") GPR:$rs1, GPR64:$rs2)>;
-  def : Pat<(fpround (OpNode GPR64:$rs1, (fpextend GPR:$rs2))),
-            (!cast<InstM88k>(Inst#"gsds") GPR64:$rs1, GPR:$rs2)>;
-  def : Pat<(fpround (OpNode GPR64:$rs1, GPR64:$rs2)),
-            (!cast<InstM88k>(Inst#"gsdd") GPR64:$rs1, GPR64:$rs2)>;
-
-  def : Pat<(fpextend (OpNode GPR:$rs1, GPR:$rs2)),
-            (!cast<InstM88k>(Inst#"gdss") GPR:$rs1, GPR:$rs2)>;
-  def : Pat<(OpNode (fpextend GPR:$rs1), GPR64:$rs2),
-            (!cast<InstM88k>(Inst#"gdsd") GPR:$rs1, GPR64:$rs2)>;
-  def : Pat<(OpNode GPR64:$rs1, (fpextend GPR:$rs2)),
-            (!cast<InstM88k>(Inst#"gdds") GPR64:$rs1, GPR:$rs2)>;
-  def : Pat<(OpNode GPR64:$rs1, GPR64:$rs2),
-            (!cast<InstM88k>(Inst#"gddd") GPR64:$rs1, GPR64:$rs2)>;
-
-  // TODO Extends patterns
-  def : Pat<(OpNode (f32 XR:$rs1), (f32 XR:$rs2)),
-            (!cast<InstM88k>(Inst#"xsss") XR:$rs1, XR:$rs2)>;
-  def : Pat<(OpNode (f64 XR:$rs1), (fpextend (f32 XR:$rs2))),
-            (!cast<InstM88k>(Inst#"xdds") XR:$rs1, XR:$rs2)>;
-  def : Pat<(OpNode (f64 XR:$rs1), (f64 XR:$rs2)),
-            (!cast<InstM88k>(Inst#"xddd") XR:$rs1, XR:$rs2)>;
-  def : Pat<(OpNode (f80 XR:$rs1), (f80 XR:$rs2)),
-            (!cast<InstM88k>(Inst#"xxxx") XR:$rs1, XR:$rs2)>;
-}
-
-defm FMUL : FArith<0b0000, "fmul">;
-defm FADD : FArith<0b0101, "fadd">;
-defm FSUB : FArith<0b0110, "fsub">;
-defm FDIV : FArith<0b1110, "fdiv">;
-
-defm : FloatBinPat<"FMUL", fmul>;
-defm : FloatBinPat<"FADD", fadd>;
-defm : FloatBinPat<"FSUB", fsub>;
-defm : FloatBinPat<"FDIV", fdiv>;
+defm FMUL : FArith<0b0000, "fmul", fmul>;
+defm FADD : FArith<0b0101, "fadd", fadd>;
+defm FSUB : FArith<0b0110, "fsub", fsub>;
+defm FDIV : FArith<0b1110, "fdiv", fdiv>;
 
 defm INT : FArith2<0b1001, "int">;
 defm NINT : FArith2<0b1010, "nint">;
