@@ -264,10 +264,11 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       OperandsMapping = getValueMapping(PMI_GR32);
     break;
   case TargetOpcode::G_FRAME_INDEX:
-  case TargetOpcode::G_GLOBAL_VALUE:
   case TargetOpcode::G_JUMP_TABLE:
   case TargetOpcode::G_CONSTANT:
   case TargetOpcode::G_BRCOND:
+  case M88k::G_HI:
+  case M88k::G_LO:
     OperandsMapping = getOperandsMapping({getValueMapping(PMI_GR32), nullptr});
     break;
   case TargetOpcode::G_BR:
