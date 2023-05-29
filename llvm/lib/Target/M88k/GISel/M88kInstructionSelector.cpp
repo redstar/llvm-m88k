@@ -20,6 +20,7 @@
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelectorImpl.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -28,7 +29,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 
-#define DEBUG_TYPE "M88k-isel"
+#define DEBUG_TYPE "m88k-isel"
 
 using namespace llvm;
 using namespace M88kGISelUtils;
@@ -37,6 +38,25 @@ using namespace MIPatternMatch;
 #define GET_GLOBALISEL_PREDICATE_BITSET
 #include "M88kGenGlobalISel.inc"
 #undef GET_GLOBALISEL_PREDICATE_BITSET
+
+// Special matcher support for G_LO/G_HI.
+template <unsigned Opcode> struct GHiLoMatch {
+  MachineInstr *&I;
+  GHiLoMatch(MachineInstr *&I) : I(I) {}
+  bool match(const MachineRegisterInfo &MRI, Register Reg) {
+    MachineInstr *TmpMI;
+    if (mi_match(Reg, MRI, m_MInstr(TmpMI)) && TmpMI->getOpcode() == Opcode &&
+        TmpMI->getNumOperands() == 2 && TmpMI->getOperand(1).isGlobal()) {
+      I = TmpMI;
+      return true;
+    }
+    return false;
+  }
+};
+
+inline GHiLoMatch<M88k::G_LO> m_GLo(MachineInstr *&I) {
+  return GHiLoMatch<M88k::G_LO>(I);
+}
 
 namespace {
 
@@ -52,6 +72,8 @@ public:
   static const char *getName() { return DEBUG_TYPE; }
 
 private:
+  bool preISelLower(MachineInstr &I);
+
   // An early selection function that runs before the selectImpl() call.
   bool earlySelect(MachineInstr &I);
 
@@ -143,6 +165,8 @@ private:
   // We use R1 as a live-in register, and we keep track of it here as it can be
   // clobbered by calls.
   Register MFReturnAddr;
+
+  MachineIRBuilder MIB;
 
 #define GET_GLOBALISEL_PREDICATES_DECL
 #include "M88kGenGlobalISel.inc"
@@ -346,9 +370,18 @@ M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
     }};
   }
 
-  // TODO This check most likely needs to be extended.
-  if (RootDef->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
-    return std::nullopt;
+  // Match load from LO/HI address.
+  MachineInstr *Lo;
+  Register Hi;
+  if (mi_match(RootDef, MRI, m_GIntToPtr(m_GOr(m_Reg(Hi), m_GLo(Lo))))) {
+    return {{
+        [=](MachineInstrBuilder &MIB) { MIB.addReg(Hi); },
+        [=](MachineInstrBuilder &MIB) {
+          MIB.addGlobalAddress(Lo->getOperand(1).getGlobal(), 0,
+                               M88kII::MO_ABS_LO);
+        },
+    }};
+  }
 
   // Handle the case of a simple address.
   if (RootDef->getOpcode() != TargetOpcode::G_PTR_ADD) {
@@ -1216,6 +1249,46 @@ bool M88kInstructionSelector::selectIntrinsic(MachineInstr &I,
   return false;
 }
 
+bool M88kInstructionSelector::preISelLower(MachineInstr &I) {
+  MachineBasicBlock &MBB = *I.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  switch (I.getOpcode()) {
+  case TargetOpcode::G_STORE: {
+    bool Changed = false;
+    MachineOperand &SrcOp = I.getOperand(0);
+    if (MRI.getType(SrcOp.getReg()).isPointer()) {
+      // Allow matching with imported patterns for stores of pointers. Unlike
+      // G_LOAD/G_PTR_ADD, we may not have selected all users. So, emit a copy
+      // and constrain.
+      auto Copy = MIB.buildCopy(LLT::scalar(32), SrcOp);
+      Register NewSrc = Copy.getReg(0);
+      SrcOp.setReg(NewSrc);
+      RBI.constrainGenericRegister(NewSrc, M88k::GPRRCRegClass, MRI);
+      Changed = true;
+    }
+    return Changed;
+  }
+  // case TargetOpcode::G_PTR_ADD:
+  //   return convertPtrAddToAdd(I, MRI);
+  case TargetOpcode::G_LOAD: {
+    // For scalar loads of pointers, we try to convert the dest type from p0
+    // to s64 so that our imported patterns can match. Like with the G_PTR_ADD
+    // conversion, this should be ok because all users should have been
+    // selected already, so the type doesn't matter for them.
+    Register DstReg = I.getOperand(0).getReg();
+    const LLT DstTy = MRI.getType(DstReg);
+    if (!DstTy.isPointer())
+      return false;
+    MRI.setType(DstReg, LLT::scalar(32));
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
 bool M88kInstructionSelector::earlySelect(MachineInstr &I) {
   assert(I.getParent() && "Instruction should be in a basic block!");
   assert(I.getParent()->getParent() && "Instruction should be in a function!");
@@ -1225,6 +1298,35 @@ bool M88kInstructionSelector::earlySelect(MachineInstr &I) {
   auto &MRI = MF.getRegInfo();
 
   switch (I.getOpcode()) {
+  case TargetOpcode::G_OR: {
+    MachineInstr *Lo;
+    Register Hi;
+    if (mi_match(I, MRI, m_GOr(m_Reg(Hi), m_GLo(Lo)))) {
+      const GlobalValue *GV = Lo->getOperand(1).getGlobal();
+      auto MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ORri))
+                    .addReg(I.getOperand(0).getReg(), RegState::Define)
+                    .addReg(Hi)
+                    .addGlobalAddress(GV, 0, M88kII::MO_ABS_LO);
+      I.eraseFromParent();
+      return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
+    }
+    return false;
+  }
+  case M88k::G_LO:
+  case M88k::G_HI: {
+    // G_LO and G_HI cannot be imported because a tglobaladdr operand is not
+    // supported.
+    const GlobalValue *GV = I.getOperand(1).getGlobal();
+    bool IsLo = I.getOpcode() == M88k::G_LO;
+    M88kII::TOF Flag = IsLo ? M88kII::MO_ABS_LO : M88kII::MO_ABS_HI;
+    unsigned Opcode = IsLo ? M88k::ORri : M88k::ORriu;
+    auto MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(Opcode))
+                  .addReg(I.getOperand(0).getReg(), RegState::Define)
+                  .addReg(M88k::R0)
+                  .addGlobalAddress(GV, 0, Flag);
+    I.eraseFromParent();
+    return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
+  }
   default:
     return false;
   }
@@ -1235,10 +1337,12 @@ void M88kInstructionSelector::setupMF(MachineFunction &MF, GISelKnownBits *KB,
                                       ProfileSummaryInfo *PSI,
                                       BlockFrequencyInfo *BFI) {
   InstructionSelector::setupMF(MF, KB, CoverageInfo, PSI, BFI);
+  MIB.setMF(MF);
   MFReturnAddr = Register();
 }
 
 bool M88kInstructionSelector::select(MachineInstr &I) {
+llvm::dbgs() << "Select: "; I.dump();
   assert(I.getParent() && "Instruction should be in a basic block!");
   assert(I.getParent()->getParent() && "Instruction should be in a function!");
 
@@ -1246,19 +1350,33 @@ bool M88kInstructionSelector::select(MachineInstr &I) {
   auto &MF = *MBB.getParent();
   auto &MRI = MF.getRegInfo();
 
+  MIB.setInstrAndDebugLoc(I);
+
   // Certain non-generic instructions also need some special handling.
-  if (!isPreISelGenericOpcode(I.getOpcode())) {
+  if (!I.isPreISelOpcode()) {
     if (I.isCopy())
       return selectCopy(I, TII, MRI, TRI, RBI);
 
     return true;
   }
 
+  // Try to do some lowering before we start instruction selecting. These
+  // lowerings are purely transformations on the input G_MIR and so selection
+  // must continue after any modification of the instruction.
+  preISelLower(I);
+
+  // There may be patterns where the importer can't deal with them optimally,
+  // but does select it to a suboptimal sequence so our custom C++ selection
+  // code later never has a chance to work on it. Therefore, we have an early
+  // selection attempt here to give priority to certain selection routines
+  // over the imported ones.
   if (earlySelect(I))
     return true;
 
   if (selectImpl(I, *CoverageInfo))
     return true;
+
+llvm::dbgs() << "Hand-coded: "; I.dump();
 
   switch (I.getOpcode()) {
   case TargetOpcode::G_INTTOPTR:
