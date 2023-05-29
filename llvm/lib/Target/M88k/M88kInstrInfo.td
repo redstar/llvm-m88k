@@ -44,6 +44,29 @@ def callseq_end   : SDNode<"ISD::CALLSEQ_END", SDT_CallSeqEnd,
 def m88k_hi : SDNode<"M88kISD::Hi16", SDTIntUnaryOp>;
 def m88k_lo : SDNode<"M88kISD::Lo16", SDTIntUnaryOp>;
 
+class M88kGenericInstruction : GenericInstruction {
+  let Namespace = "M88k";
+}
+
+// %3:_(s32) = G_HI %0(p0)
+def G_HI : M88kGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins ptype1:$addr);
+  let hasSideEffects = 0;
+}
+
+// %3:_(s32) = G_LO %0(p0)
+def G_LO : M88kGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins ptype1:$addr);
+  let hasSideEffects = 0;
+}
+
+// This is the idea, but it currently does not work because the generated GISel
+// matcher cannot handle tglobaladdr.
+def : GINodeEquiv<G_HI, m88k_hi>;
+def : GINodeEquiv<G_LO, m88k_lo>;
+
 // ---------------------------------------------------------------------------//
 // Operands.
 // ---------------------------------------------------------------------------//
@@ -868,7 +891,7 @@ let Predicates = [MC88110] in
 
 // GlobalAddress, ExternalSymbol, Jumptable, ConstantPool
 def : Pat<(m88k_hi tglobaladdr:$dst), (ORriu (i32 R0), tglobaladdr:$dst)>;
-//def : Pat<(m88k_lo tglobaladdr:$dst), (OR_I_LO (i32 R0), tglobaladdr:$dst)>;
+def : Pat<(m88k_lo tglobaladdr:$dst), (ORri (i32 R0), tglobaladdr:$dst)>;
 
 // ---------------------------------------------------------------------------//
 // Flow control

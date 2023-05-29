@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "M88kLegalizerInfo.h"
+#include "M88kInstrInfo.h"
 #include "M88kSubtarget.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
@@ -131,7 +132,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   getActionDefinitionsBuilder(G_JUMP_TABLE).legalFor({P0});
 
   getActionDefinitionsBuilder(G_FRAME_INDEX).legalFor({P0});
-  getActionDefinitionsBuilder(G_GLOBAL_VALUE).legalFor({P0});
+  getActionDefinitionsBuilder(G_GLOBAL_VALUE).customFor({P0});
 
   getActionDefinitionsBuilder(G_FCONSTANT).customFor({S32, S64});
   getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV})
@@ -188,6 +189,29 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
   const LLT P0 = LLT::pointer(0, 32);
 
   switch (MI.getOpcode()) {
+  case G_GLOBAL_VALUE: {
+    // Replace G_GLOBAL_VALUE with G_HI/G_LO.
+    Register DstReg = MI.getOperand(0).getReg();
+    const GlobalValue *GV = MI.getOperand(1).getGlobal();
+
+    Register HiReg = MRI.createGenericVirtualRegister(S32);
+    Register LoReg = MRI.createGenericVirtualRegister(S32);
+    Register TmpReg = MRI.createGenericVirtualRegister(S32);
+
+    auto buildInstr = [&MIRBuilder, &MRI](unsigned Opcode, const DstOp &Res,
+                                          const GlobalValue *GV) {
+      auto MIB = MIRBuilder.buildInstr(Opcode);
+      Res.addDefToMIB(MRI, MIB);
+      MIB.addGlobalAddress(GV);
+    };
+
+    buildInstr(M88k::G_HI, HiReg, GV);
+    buildInstr(M88k::G_LO, LoReg, GV);
+    MIRBuilder.buildOr(TmpReg, LoReg, HiReg);
+    MIRBuilder.buildIntToPtr(DstReg, TmpReg);
+    MI.eraseFromParent();
+    break;
+  }
   case G_FCONSTANT: {
     LLVMContext &Ctx = MIRBuilder.getMF().getFunction().getContext();
     // Convert to integer constants, while preserving the binary representation.
