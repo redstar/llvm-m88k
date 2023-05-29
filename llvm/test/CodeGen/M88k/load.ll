@@ -9,6 +9,7 @@
 @memdouble = common global double 0.0, align 8
 @mem32 = common global i32 0, align 4
 @memfloat = common global float 0.0, align 4
+@memptr = common global ptr null, align 4
 @mem16 = common global i16 0, align 2
 @mem8 = common global i8 0, align 1
 
@@ -348,9 +349,20 @@ define double @f32() {
   ret double %res
 }
 
+define ptr @f33() {
+; CHECK-LABEL: f33:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    or.u %r2, %r0, %hi16(memptr)
+; CHECK-NEXT:    ld %r2, %r2, %lo16(memptr)
+; CHECK-NEXT:    jmp %r1
+  %res = load ptr, ptr @memptr, align 4
+  ret ptr %res
+}
+
 ; CHECK: .comm   mem64,8,8
 ; CHECK: .comm   memdouble,8,8
 ; CHECK: .comm   mem32,4,4
 ; CHECK: .comm   memfloat,4,4
+; CHECK: .comm   memptr,4,4
 ; CHECK: .comm   mem16,2,2
 ; CHECK: .comm   mem8,1,1
