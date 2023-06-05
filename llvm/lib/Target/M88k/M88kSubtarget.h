@@ -17,7 +17,6 @@
 #include "M88kISelLowering.h"
 #include "M88kInstrInfo.h"
 #include "M88kRegisterInfo.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
