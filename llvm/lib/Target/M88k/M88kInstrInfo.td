@@ -458,28 +458,6 @@ defm : BinaryOpPat<"DIVS", sdiv>;
 def : Pat<(ineg GPR:$rs2), (SUBUrr (i32 R0), GPR:$rs2)>;
 
 // ---------------------------------------------------------------------------//
-// Integer compare.
-// ---------------------------------------------------------------------------//
-
-multiclass SetCCPat<CondCode CC, bits<5> w5, bits<5> o5> {
-  def : Pat<(setcc (i32 GPR:$lhs), (i32 GPR:$rhs), CC),
-            (EXTUrwo (CMPrr GPR:$lhs, GPR:$rhs), w5, o5)>;
-  def : Pat<(setcc (i32 GPR:$lhs), uimm16:$rhs, CC),
-            (EXTUrwo (CMPrr GPR:$lhs, uimm16:$rhs), w5, o5)>;
-}
-
-defm : SetCCPat<SETEQ, 1, 2>;
-defm : SetCCPat<SETNE, 1, 3>;
-defm : SetCCPat<SETGT, 1, 4>;
-defm : SetCCPat<SETLE, 1, 5>;
-defm : SetCCPat<SETLT, 1, 6>;
-defm : SetCCPat<SETGE, 1, 7>;
-defm : SetCCPat<SETUGT, 1, 8>;
-defm : SetCCPat<SETULE, 1, 8>;
-defm : SetCCPat<SETULT, 1, 10>;
-defm : SetCCPat<SETUGE, 1, 11>;
-
-// ---------------------------------------------------------------------------//
 // Materialize immediates & constants.
 // ---------------------------------------------------------------------------//
 
@@ -977,44 +955,6 @@ let isTrap = 1, isBarrier = 1 in {
   }
 }
 
-// Compares against zero use bcond instruction.
-def : Pat<(brcc SETEQ, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b00010, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETNE, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b01101, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETGT, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b00001, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETLT, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b01100, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETGE, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b00011, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETLE, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b01110, GPR:$rs1, bb:$dst)>;
-
-// Generate patterns for brcc and bcond nodes.
-multiclass BranchPat<CondCode CC, PatFrag ccop, bits<5> m5> {
-  def : Pat<(brcc CC, (i32 GPR:$rs1), (i32 GPR:$rs2), bb:$dst),
-             (BB1 m5, (CMPrr GPR:$rs1, GPR:$rs2), bb:$dst)>;
-  def : Pat<(brcc CC, (i32 GPR:$rs1), uimm16:$imm16, bb:$dst),
-             (BB1 m5, (CMPri GPR:$rs1, uimm16:$imm16), bb:$dst)>;
-  def : Pat<(brcond (i32 (ccop (i32 GPR:$lhs), (i32 GPR:$rhs))), bb:$dst),
-             (BB1 m5, (CMPrr GPR:$lhs, GPR:$rhs), bb:$dst)>;
-  def : Pat<(brcond (i32 (ccop (i32 GPR:$lhs), uimm16:$rhs)), bb:$dst),
-             (BB1 m5, (CMPri GPR:$lhs, uimm16:$rhs), bb:$dst)>;
-}
-
-// Compare integer registers / integer register and immediate.
-defm : BranchPat<SETEQ, seteq, 2>;
-defm : BranchPat<SETNE, setne, 3>;
-defm : BranchPat<SETGT, setgt, 4>;
-defm : BranchPat<SETLE, setle, 5>;
-defm : BranchPat<SETLT, setlt, 6>;
-defm : BranchPat<SETGE, setge, 7>;
-defm : BranchPat<SETUGT, setugt, 8>;
-defm : BranchPat<SETULE, setule, 9>;
-defm : BranchPat<SETULT, setult, 10>;
-defm : BranchPat<SETUGE, setuge, 11>;
-
 let isTerminator = 1, isBarrier = 1 in {
   def RTE : F_RTEILLOP<0b00, "rte">;
   def ILLOP1 : F_RTEILLOP<0b01, "illop1">;
@@ -1262,6 +1202,129 @@ def MOVxrd : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b01, /*t2*/0b01,
                      "mov.d",
                      [(set (f64 XR:$rd), GPR64:$rs2)]>;
 }
+
+// ---------------------------------------------------------------------------//
+// Integer & floating point compare.
+// ---------------------------------------------------------------------------//
+
+/*
+Idea
+====
+
+G_CC: Creates CC in register (CMP/FCMP)
+G_TST: Test condition
+G_BRCC: Branch if condition is true
+
+G_ICMP lowers to G_CC/G_TST
+G_BRCOND lowers to G_BRCC is condition is G_CC/G_TST sequence
+*/
+
+multiclass SetICCPat<CondCode CC, bits<5> w5, bits<5> o5> {
+  assert !ne(CC.ICmpPredicate, ""), "Not integer CC: " # CC;
+  def : Pat<(setcc (i32 GPR:$lhs), (i32 GPR:$rhs), CC),
+            (EXTUrwo (CMPrr GPR:$lhs, GPR:$rhs), w5, o5)>;
+  def : Pat<(setcc (i32 GPR:$lhs), uimm16:$rhs, CC),
+            (EXTUrwo (CMPri GPR:$lhs, uimm16:$rhs), w5, o5)>;
+}
+
+multiclass SetFCCPat<CondCode CC, bits<5> w5, bits<5> o5> {
+  assert !ne(CC.FCmpPredicate, ""), "Not floating-point CC: " # CC;
+  foreach S1 = [FTG32, FTG64] in {
+    def : Pat<(setcc (S1.vt S1.cls:$lhs), (S1.vt S1.cls:$rhs), CC),
+              (EXTUrwo (!cast<InstM88k>("FCMPgs" # S1.option # S1.option)
+                                        S1.cls:$lhs, S1.cls:$rhs), w5, o5)>;
+  }
+  foreach S1 = [FTX32, FTX64, FTX80] in {
+    def : Pat<(setcc (S1.vt S1.cls:$lhs), (S1.vt S1.cls:$rhs), CC),
+              (EXTUrwo (!cast<InstM88k>("FCMPxs" # S1.option # S1.option)
+                                        S1.cls:$lhs, S1.cls:$rhs), w5, o5)>;
+  }
+}
+
+defm : SetICCPat<SETEQ, 1, 2>;
+defm : SetICCPat<SETNE, 1, 3>;
+defm : SetICCPat<SETGT, 1, 4>;
+defm : SetICCPat<SETLE, 1, 5>;
+defm : SetICCPat<SETLT, 1, 6>;
+defm : SetICCPat<SETGE, 1, 7>;
+defm : SetICCPat<SETUGT, 1, 8>;
+defm : SetICCPat<SETULE, 1, 9>;
+defm : SetICCPat<SETULT, 1, 10>;
+defm : SetICCPat<SETUGE, 1, 11>;
+
+defm : SetFCCPat<SETUO, 1, 0>;
+defm : SetFCCPat<SETO, 1, 1>;
+defm : SetFCCPat<SETOEQ, 1, 2>;
+defm : SetFCCPat<SETONE, 1, 3>;
+defm : SetFCCPat<SETOGT, 1, 4>;
+defm : SetFCCPat<SETOLE, 1, 5>;
+defm : SetFCCPat<SETOLT, 1, 6>;
+defm : SetFCCPat<SETOGE, 1, 7>;
+defm : SetFCCPat<SETUGT, 1, 14>;
+defm : SetFCCPat<SETULE, 1, 15>;
+defm : SetFCCPat<SETULT, 1, 16>;
+defm : SetFCCPat<SETUGE, 1, 17>;
+
+/*
+def SETOEQ : CondCode<"FCMP_OEQ">;
+def SETOGT : CondCode<"FCMP_OGT">;
+def SETOGE : CondCode<"FCMP_OGE">;
+def SETOLT : CondCode<"FCMP_OLT">;
+def SETOLE : CondCode<"FCMP_OLE">;
+def SETONE : CondCode<"FCMP_ONE">;
+def SETO   : CondCode<"FCMP_ORD">;
+def SETUO  : CondCode<"FCMP_UNO">;
+def SETUEQ : CondCode<"FCMP_UEQ">;
+def SETUGT : CondCode<"FCMP_UGT", "ICMP_UGT">;
+def SETUGE : CondCode<"FCMP_UGE", "ICMP_UGE">;
+def SETULT : CondCode<"FCMP_ULT", "ICMP_ULT">;
+def SETULE : CondCode<"FCMP_ULE", "ICMP_ULE">;
+def SETUNE : CondCode<"FCMP_UNE">;
+def SETEQ : CondCode<"", "ICMP_EQ">;
+def SETGT : CondCode<"", "ICMP_SGT">;
+def SETGE : CondCode<"", "ICMP_SGE">;
+def SETLT : CondCode<"", "ICMP_SLT">;
+def SETLE : CondCode<"", "ICMP_SLE">;
+def SETNE : CondCode<"", "ICMP_NE">;
+*/
+
+// Compares against zero use bcond instruction.
+def : Pat<(brcc SETEQ, GPR:$rs1, 0, bb:$dst),
+          (BCND 0b00010, GPR:$rs1, bb:$dst)>;
+def : Pat<(brcc SETNE, GPR:$rs1, 0, bb:$dst),
+          (BCND 0b01101, GPR:$rs1, bb:$dst)>;
+def : Pat<(brcc SETGT, GPR:$rs1, 0, bb:$dst),
+          (BCND 0b00001, GPR:$rs1, bb:$dst)>;
+def : Pat<(brcc SETLT, GPR:$rs1, 0, bb:$dst),
+          (BCND 0b01100, GPR:$rs1, bb:$dst)>;
+def : Pat<(brcc SETGE, GPR:$rs1, 0, bb:$dst),
+          (BCND 0b00011, GPR:$rs1, bb:$dst)>;
+def : Pat<(brcc SETLE, GPR:$rs1, 0, bb:$dst),
+          (BCND 0b01110, GPR:$rs1, bb:$dst)>;
+
+// Generate patterns for brcc and bcond nodes.
+multiclass BranchPat<CondCode CC, PatFrag ccop, bits<5> m5> {
+  def : Pat<(brcc CC, (i32 GPR:$rs1), (i32 GPR:$rs2), bb:$dst),
+             (BB1 m5, (CMPrr GPR:$rs1, GPR:$rs2), bb:$dst)>;
+  def : Pat<(brcc CC, (i32 GPR:$rs1), uimm16:$imm16, bb:$dst),
+             (BB1 m5, (CMPri GPR:$rs1, uimm16:$imm16), bb:$dst)>;
+  def : Pat<(brcond (i32 (ccop (i32 GPR:$lhs), (i32 GPR:$rhs))), bb:$dst),
+             (BB1 m5, (CMPrr GPR:$lhs, GPR:$rhs), bb:$dst)>;
+  def : Pat<(brcond (i32 (ccop (i32 GPR:$lhs), uimm16:$rhs)), bb:$dst),
+             (BB1 m5, (CMPri GPR:$lhs, uimm16:$rhs), bb:$dst)>;
+}
+
+// Compare integer registers / integer register and immediate.
+defm : BranchPat<SETEQ, seteq, 2>;
+defm : BranchPat<SETNE, setne, 3>;
+defm : BranchPat<SETGT, setgt, 4>;
+defm : BranchPat<SETLE, setle, 5>;
+defm : BranchPat<SETLT, setlt, 6>;
+defm : BranchPat<SETGE, setge, 7>;
+defm : BranchPat<SETUGT, setugt, 8>;
+defm : BranchPat<SETULE, setule, 9>;
+defm : BranchPat<SETULT, setult, 10>;
+defm : BranchPat<SETUGE, setuge, 11>;
 
 // ---------------------------------------------------------------------------//
 // Control register instructions.

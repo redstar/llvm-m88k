@@ -11,7 +11,7 @@ tablegen(LLVM M88kGenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM M88kGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM M88kGenSubtargetInfo.inc -gen-subtarget)
 
-tablegen(LLVM M88kGenGlobalISel.inc -gen-global-isel)
+tablegen(LLVM M88kGenGlobalISel.inc -gen-global-isel -warn-on-skipped-patterns)
 tablegen(LLVM M88kGenRegisterBank.inc -gen-register-bank)
 tablegen(LLVM M88kGenPreLegalizeGICombiner.inc -gen-global-isel-combiner
               -combiners="M88kPreLegalizerCombinerHelper")

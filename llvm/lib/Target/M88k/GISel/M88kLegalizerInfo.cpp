@@ -124,9 +124,11 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMMOVE, G_MEMSET}).libcall();
 
   getActionDefinitionsBuilder(G_ICMP)
-      .legalForCartesianProduct({S1}, {S32, P0})
+      .legalForCartesianProduct({S32}, {S32, P0})
+      .widenScalarToNextPow2(0, 5)
+//.clampScalar(0, S32, S32)
       .clampScalar(1, S32, S32);
-  getActionDefinitionsBuilder(G_BRCOND).legalFor({S1});
+  getActionDefinitionsBuilder(G_BRCOND).legalFor({S32}).clampScalar(0, S32, S32);
   getActionDefinitionsBuilder(G_BRJT).legalFor({{P0, S32}});
   getActionDefinitionsBuilder(G_BRINDIRECT).legalFor({P0});
   getActionDefinitionsBuilder(G_JUMP_TABLE).legalFor({P0});
