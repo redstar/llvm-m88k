@@ -392,13 +392,24 @@ M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
   }
 
   // Check for G_PTR_ADD plus 16 bit offset.
-  Register Base;
-  int64_t Offset;
-  if (mi_match(RootDef, MRI, m_GPtrAdd(m_Reg(Base), m_ICst(Offset))) &&
-      isUInt<16>(Offset)) {
-    Register BaseReg = getRegIgnoringCopies(Base, MRI);
+  // Follow a chain of G_PTR_ADD instructsions, as long as a constant is added,
+  // and the accumulated offset still fits into 16 bit.
+  Register PtrAddBase;
+  int64_t PtrAddOffset;
+  if (mi_match(RootDef, MRI,
+               m_GPtrAdd(m_Reg(PtrAddBase), m_ICst(PtrAddOffset))) &&
+      isUInt<16>(PtrAddOffset)) {
+    Register Base = PtrAddBase;
+    int64_t Offset = PtrAddOffset;
+    while (mi_match(Base, MRI,
+                    m_GPtrAdd(m_Reg(PtrAddBase), m_ICst(PtrAddOffset))) &&
+           isUInt<16>(Offset + PtrAddOffset)) {
+      Base = PtrAddBase;
+      Offset += PtrAddOffset;
+    }
+    Base = getRegIgnoringCopies(Base, MRI);
     return {{
-        [=](MachineInstrBuilder &MIB) { MIB.addReg(BaseReg); },
+        [=](MachineInstrBuilder &MIB) { MIB.addReg(Base); },
         [=](MachineInstrBuilder &MIB) { MIB.addImm(Offset); },
     }};
   }
