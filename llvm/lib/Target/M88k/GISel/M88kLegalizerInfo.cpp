@@ -12,6 +12,7 @@
 #include "M88kLegalizerInfo.h"
 #include "M88kInstrInfo.h"
 #include "M88kSubtarget.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/LostDebugLocObserver.h"
@@ -36,14 +37,15 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   const LLT S32 = LLT::scalar(32);
   const LLT S64 = LLT::scalar(64);
   const LLT S80 = LLT::scalar(80);
+  const LLT S128 = LLT::scalar(128);
   const LLT V8S8 = LLT::fixed_vector(8, 8);
   const LLT V4S16 = LLT::fixed_vector(4, 16);
   const LLT V2S32 = LLT::fixed_vector(2, 32);
   const LLT P0 = LLT::pointer(0, 32);
 
-  auto IsMC88110 = [=, &ST](const LegalityQuery &Query) {
+  auto IsMC88110 = LegalityPredicate([=, &ST](const LegalityQuery &Query) {
     return ST.isMC88110();
-  };
+  });
 
   getActionDefinitionsBuilder(G_PHI).legalFor({S32, P0});
   getActionDefinitionsBuilder(G_SELECT)
@@ -71,22 +73,53 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   getActionDefinitionsBuilder(G_SEXT_INREG).legalForTypeWithAnyImm({S32});
   getActionDefinitionsBuilder(G_TRUNC).alwaysLegal();
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
-      .legalForTypesWithMemDesc({{S32, P0, S8, 8}, {S32, P0, S16, 16}});
+      .legalForTypesWithMemDesc({{S32, P0, S8, 8}, {S32, P0, S16, 16}})
+      .customIf(typePairAndMemDescInSet(/*TypeIdx0*/ 0, /*TypeIdx1*/ 1,
+                                      /*MMOIdx*/ 0, {{S32, P0, S16, 8}}))
+      .lower();
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
       .legalForTypesWithMemDesc({{S32, P0, S8, 8},
                                  {S32, P0, S16, 16},
                                  {S32, P0, S32, 32},
                                  {P0, P0, P0, 32},
                                  {S64, P0, S64, 64}})
+      // 80 bit floats have a mem size of 128 bit.
+      .legalIf(
+          all(typePairAndMemDescInSet(/*TypeIdx0*/ 0, /*TypeIdx1*/ 1,
+                                      /*MMOIdx*/ 0, {{S80, P0, S128, 128}}),
+              IsMC88110))
+      .clampScalar(0, S32, S32)
+      // Custom action if unaligned load/store.
+      // TODO Does not handle f80 type.
+      .customIf([=](const LegalityQuery &Query) {
+        if (!Query.Types[0].isScalar() || Query.Types[1] != P0)
+          return false;
+
+        llvm::TypeSize Size = Query.Types[0].getSizeInBits();
+        llvm::TypeSize QueryMemSize =
+            Query.MMODescrs[0].MemoryTy.getSizeInBits();
+        assert(QueryMemSize <= Size && "Scalar can't hold MemSize");
+
+        if (Size > 32 || QueryMemSize > 32)
+          return false;
+
+        if (!isPowerOf2_64(Size))
+            return false;
+
+        if (!isPowerOf2_64(QueryMemSize))
+          return false;
+
+        return QueryMemSize > Query.MMODescrs[0].AlignInBits;
+      })
       .unsupportedIfMemSizeNotPow2()
-      .minScalar(0, S32);
+      .lower();
   getActionDefinitionsBuilder(G_PTR_ADD)
       .legalFor({{P0, S32}})
       .clampScalar(1, S32, S32);
   getActionDefinitionsBuilder({G_ADD, G_SUB})
       .legalFor({S32})
       .legalIf(
-          all(typeInSet(0, {V8S8, V4S16, V2S32}), LegalityPredicate(IsMC88110)))
+          all(typeInSet(0, {V8S8, V4S16, V2S32}), IsMC88110))
       .clampScalar(0, S32, S32);
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE})
       .legalFor({{S32, S1}})
@@ -95,7 +128,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   getActionDefinitionsBuilder({G_SADDO, G_SADDE, G_SSUBO, G_SSUBE}).lower();
   getActionDefinitionsBuilder({G_MUL, G_UDIV})
       .legalFor({S32})
-      .customIf(all(typeInSet(0, {S64}), LegalityPredicate(IsMC88110)))
+      .customIf(all(typeInSet(0, {S64}), IsMC88110))
       .libcallFor({S64})
       .clampScalar(0, S32, S64);
   getActionDefinitionsBuilder(G_SDIV)
@@ -136,7 +169,8 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
 
   getActionDefinitionsBuilder(G_FCONSTANT).customFor({S32, S64});
   getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV})
-      .legalFor({S32, S64});
+      .legalFor({S32, S64})
+      .legalIf(all(typeInSet(0, {S80}), IsMC88110));
   getActionDefinitionsBuilder({G_FNEG, G_FABS}).lower();
   getActionDefinitionsBuilder(G_FPEXT).legalFor({{S64, S32}});
   getActionDefinitionsBuilder(G_FPTRUNC).legalFor({{S32, S64}});
@@ -148,7 +182,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   getActionDefinitionsBuilder(G_FSQRT)
       .minScalar(0, S32)
       .legalIf(
-          all(typeInSet(0, {S32, S64}), LegalityPredicate(IsMC88110)))
+          all(typeInSet(0, {S32, S64}), IsMC88110))
       .libcallFor({S32, S64});
 
   // FP to int conversion instructions
@@ -189,6 +223,76 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
   const LLT P0 = LLT::pointer(0, 32);
 
   switch (MI.getOpcode()) {
+  case G_SEXTLOAD:
+  case G_ZEXTLOAD:
+  case G_LOAD: {
+    // Break an unaligned load into several aligned loads, and combine the
+    // results.
+    //
+    GLoadStore *LdStMI = llvm::cast<GLoadStore>(&MI);
+    MachineMemOperand *MMO = *LdStMI->memoperands_begin();
+    MachineFunction &MF = MIRBuilder.getMF();
+
+    // Calculate the number of parts which must be loaded.
+    // E.g. MemSize = 4, Align = 2 => 2 parts of size 2.
+    // There can be only 2 cases: 2 or 4 parts.
+    uint64_t MemSize = LdStMI->getMemSize();
+    uint64_t ChunkSize = 1ULL << Log2(MMO->getAlign());
+
+    uint64_t Parts = MemSize / ChunkSize;
+    uint64_t Offset = 0;
+
+    Register DstReg = MI.getOperand(0).getReg();
+    Register AdrReg = MI.getOperand(1).getReg();
+
+    auto ChunkAmt = MIRBuilder.buildConstant(S32, ChunkSize);
+    auto ShiftAmt = MIRBuilder.buildConstant(S32, 8 * ChunkSize);
+
+    // Increments AdrReg by ChunkSize, and loads the value.
+    // Alos updates Offset.
+    auto incAndload = [&](Register &AdrReg) -> Register {
+      Offset += ChunkSize;
+      Register IncAdrReg = MRI.createGenericVirtualRegister(P0);
+      MIRBuilder.buildPtrAdd(IncAdrReg, AdrReg, ChunkAmt);
+      Register Val = MRI.createGenericVirtualRegister(S32);
+      MIRBuilder.buildLoadInstr(
+          ChunkSize == 4 ? G_LOAD : G_ZEXTLOAD, Val, IncAdrReg,
+          *MF.getMachineMemOperand(MMO, Offset, ChunkSize));
+      AdrReg = IncAdrReg;
+      return Val;
+    };
+    auto combine = [&](Register ValHi, Register ValLo,
+                       Register DstReg) -> Register {
+      Register TmpReg = MRI.createGenericVirtualRegister(S32);
+      MIRBuilder.buildShl(TmpReg, ValHi, ShiftAmt);
+      MIRBuilder.buildOr(DstReg, TmpReg, ValLo);
+      return DstReg;
+    };
+
+    Register ValReg = MRI.createGenericVirtualRegister(S32);
+    MIRBuilder.buildLoadInstr(
+        ChunkSize == 4
+            ? G_LOAD
+            : (MI.getOpcode() == G_SEXTLOAD ? G_SEXTLOAD : G_ZEXTLOAD),
+        ValReg, AdrReg, *MF.getMachineMemOperand(MMO, Offset, ChunkSize));
+
+    if (Parts > 2) {
+      Register NextReg = incAndload(AdrReg);
+      ValReg = combine(ValReg, NextReg, MRI.createGenericVirtualRegister(S32));
+
+      NextReg = incAndload(AdrReg);
+      ValReg = combine(ValReg, NextReg, MRI.createGenericVirtualRegister(S32));
+    }
+
+    Register LastReg = incAndload(AdrReg);
+    combine(ValReg, LastReg, DstReg);
+
+    MI.eraseFromParent();
+    break;
+  }
+  case G_STORE:
+    // TODO Implement.
+    return false;
   case G_GLOBAL_VALUE: {
     // Replace G_GLOBAL_VALUE with G_HI/G_LO.
     Register DstReg = MI.getOperand(0).getReg();

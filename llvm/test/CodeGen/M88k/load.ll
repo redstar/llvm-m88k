@@ -24,8 +24,17 @@ define i32 @f1(ptr %p) {
   ret i32 %res
 }
 
-define float @f2(ptr %p) {
+define ptr @f2(ptr %p) {
 ; CHECK-LABEL: f2:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    ld %r2, %r2, 0
+; CHECK-NEXT:    jmp %r1
+  %res = load ptr, ptr %p, align 4
+  ret ptr %res
+}
+
+define float @f3(ptr %p) {
+; CHECK-LABEL: f3:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld %r2, %r2, 0
 ; CHECK-NEXT:    jmp %r1
@@ -33,8 +42,8 @@ define float @f2(ptr %p) {
   ret float %res
 }
 
-define i32 @f3(ptr %p) {
-; CHECK-LABEL: f3:
+define i32 @f4(ptr %p) {
+; CHECK-LABEL: f4:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.bu %r2, %r2, 0
 ; CHECK-NEXT:    jmp %r1
@@ -43,8 +52,8 @@ define i32 @f3(ptr %p) {
   ret i32 %res
 }
 
-define i32 @f4(ptr %p) {
-; CHECK-LABEL: f4:
+define i32 @f5(ptr %p) {
+; CHECK-LABEL: f5:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.b %r2, %r2, 0
 ; CHECK-NEXT:    jmp %r1
@@ -53,8 +62,8 @@ define i32 @f4(ptr %p) {
   ret i32 %res
 }
 
-define i32 @f5(ptr %p) {
-; CHECK-LABEL: f5:
+define i32 @f6(ptr %p) {
+; CHECK-LABEL: f6:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.hu %r2, %r2, 0
 ; CHECK-NEXT:    jmp %r1
@@ -63,8 +72,8 @@ define i32 @f5(ptr %p) {
   ret i32 %res
 }
 
-define i32 @f6(ptr %p) {
-; CHECK-LABEL: f6:
+define i32 @f7(ptr %p) {
+; CHECK-LABEL: f7:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.h %r2, %r2, 0
 ; CHECK-NEXT:    jmp %r1
@@ -73,8 +82,8 @@ define i32 @f6(ptr %p) {
   ret i32 %res
 }
 
-define i64 @f7(ptr %p) {
-; CHECK-LABEL: f7:
+define i64 @f8(ptr %p) {
+; CHECK-LABEL: f8:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.d %r2, %r2, 0
 ; CHECK-NEXT:    jmp %r1
@@ -82,8 +91,8 @@ define i64 @f7(ptr %p) {
   ret i64 %res
 }
 
-define double @f8(ptr %p) {
-; CHECK-LABEL: f8:
+define double @f9(ptr %p) {
+; CHECK-LABEL: f9:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.d %r2, %r2, 0
 ; CHECK-NEXT:    jmp %r1
@@ -93,8 +102,8 @@ define double @f8(ptr %p) {
 
 ; Loading value from pointer plus constant index.
 
-define i32 @f9(ptr %p) {
-; CHECK-LABEL: f9:
+define i32 @f10(ptr %p) {
+; CHECK-LABEL: f10:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld %r2, %r2, 8
 ; CHECK-NEXT:    jmp %r1
@@ -103,8 +112,18 @@ define i32 @f9(ptr %p) {
   ret i32 %res
 }
 
-define float @f10(ptr %p) {
-; CHECK-LABEL: f10:
+define ptr @f11(ptr %p) {
+; CHECK-LABEL: f11:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    ld %r2, %r2, 8
+; CHECK-NEXT:    jmp %r1
+  %arrayidx = getelementptr inbounds ptr, ptr %p, i32 2
+  %res = load ptr, ptr %arrayidx, align 4
+  ret ptr %res
+}
+
+define float @f12(ptr %p) {
+; CHECK-LABEL: f12:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld %r2, %r2, 8
 ; CHECK-NEXT:    jmp %r1
@@ -113,8 +132,8 @@ define float @f10(ptr %p) {
   ret float %res
 }
 
-define i32 @f11(ptr %p) {
-; CHECK-LABEL: f11:
+define i32 @f13(ptr %p) {
+; CHECK-LABEL: f13:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.bu %r2, %r2, 2
 ; CHECK-NEXT:    jmp %r1
@@ -124,8 +143,8 @@ define i32 @f11(ptr %p) {
   ret i32 %res
 }
 
-define i32 @f12(ptr %p) {
-; CHECK-LABEL: f12:
+define i32 @f14(ptr %p) {
+; CHECK-LABEL: f14:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.b %r2, %r2, 2
 ; CHECK-NEXT:    jmp %r1
@@ -135,8 +154,8 @@ define i32 @f12(ptr %p) {
   ret i32 %res
 }
 
-define i32 @f13(ptr %p) {
-; CHECK-LABEL: f13:
+define i32 @f15(ptr %p) {
+; CHECK-LABEL: f15:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.hu %r2, %r2, 4
 ; CHECK-NEXT:    jmp %r1
@@ -146,8 +165,8 @@ define i32 @f13(ptr %p) {
   ret i32 %res
 }
 
-define i32 @f14(ptr %p) {
-; CHECK-LABEL: f14:
+define i32 @f16(ptr %p) {
+; CHECK-LABEL: f16:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.h %r2, %r2, 4
 ; CHECK-NEXT:    jmp %r1
@@ -157,8 +176,8 @@ define i32 @f14(ptr %p) {
   ret i32 %res
 }
 
-define i64 @f15(ptr %p) {
-; CHECK-LABEL: f15:
+define i64 @f17(ptr %p) {
+; CHECK-LABEL: f17:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.d %r2, %r2, 16
 ; CHECK-NEXT:    jmp %r1
@@ -167,8 +186,8 @@ define i64 @f15(ptr %p) {
   ret i64 %res
 }
 
-define double @f16(ptr %p) {
-; CHECK-LABEL: f16:
+define double @f18(ptr %p) {
+; CHECK-LABEL: f18:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.d %r2, %r2, 16
 ; CHECK-NEXT:    jmp %r1
@@ -179,8 +198,8 @@ define double @f16(ptr %p) {
 
 ; Loading value from pointer plus index.
 
-define i32 @f17(ptr %p, i32 %idx) {
-; CHECK-LABEL: f17:
+define i32 @f19(ptr %p, i32 %idx) {
+; CHECK-LABEL: f19:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld %r2, %r2[%r3]
 ; CHECK-NEXT:    jmp %r1
@@ -189,8 +208,18 @@ define i32 @f17(ptr %p, i32 %idx) {
   ret i32 %res
 }
 
-define float @f18(ptr %p, i32 %idx) {
-; CHECK-LABEL: f18:
+define ptr @f20(ptr %p, i32 %idx) {
+; CHECK-LABEL: f20:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    ld %r2, %r2[%r3]
+; CHECK-NEXT:    jmp %r1
+  %arrayidx = getelementptr inbounds ptr, ptr %p, i32 %idx
+  %res = load ptr, ptr %arrayidx, align 4
+  ret ptr %res
+}
+
+define float @f21(ptr %p, i32 %idx) {
+; CHECK-LABEL: f21:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld %r2, %r2[%r3]
 ; CHECK-NEXT:    jmp %r1
@@ -199,8 +228,8 @@ define float @f18(ptr %p, i32 %idx) {
   ret float %res
 }
 
-define i32 @f19(ptr %p, i32 %idx) {
-; CHECK-LABEL: f19:
+define i32 @f22(ptr %p, i32 %idx) {
+; CHECK-LABEL: f22:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.bu %r2, %r2, %r3
 ; CHECK-NEXT:    jmp %r1
@@ -210,8 +239,8 @@ define i32 @f19(ptr %p, i32 %idx) {
   ret i32 %res
 }
 
-define i32 @f20(ptr %p, i32 %idx) {
-; CHECK-LABEL: f20:
+define i32 @f23(ptr %p, i32 %idx) {
+; CHECK-LABEL: f23:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.b %r2, %r2, %r3
 ; CHECK-NEXT:    jmp %r1
@@ -221,8 +250,8 @@ define i32 @f20(ptr %p, i32 %idx) {
   ret i32 %res
 }
 
-define i32 @f21(ptr %p, i32 %idx) {
-; CHECK-LABEL: f21:
+define i32 @f24(ptr %p, i32 %idx) {
+; CHECK-LABEL: f24:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.hu %r2, %r2[%r3]
 ; CHECK-NEXT:    jmp %r1
@@ -232,8 +261,8 @@ define i32 @f21(ptr %p, i32 %idx) {
   ret i32 %res
 }
 
-define i32 @f22(ptr %p, i32 %idx) {
-; CHECK-LABEL: f22:
+define i32 @f25(ptr %p, i32 %idx) {
+; CHECK-LABEL: f25:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.h %r2, %r2[%r3]
 ; CHECK-NEXT:    jmp %r1
@@ -243,8 +272,8 @@ define i32 @f22(ptr %p, i32 %idx) {
   ret i32 %res
 }
 
-define i64 @f23(ptr %p, i32 %idx) {
-; CHECK-LABEL: f23:
+define i64 @f26(ptr %p, i32 %idx) {
+; CHECK-LABEL: f26:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.d %r2, %r2[%r3]
 ; CHECK-NEXT:    jmp %r1
@@ -253,8 +282,8 @@ define i64 @f23(ptr %p, i32 %idx) {
   ret i64 %res
 }
 
-define double @f24(ptr %p, i32 %idx) {
-; CHECK-LABEL: f24:
+define double @f27(ptr %p, i32 %idx) {
+; CHECK-LABEL: f27:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ld.d %r2, %r2[%r3]
 ; CHECK-NEXT:    jmp %r1
@@ -265,8 +294,8 @@ define double @f24(ptr %p, i32 %idx) {
 
 ; Loading value from global address.
 
-define i32 @f25() {
-; CHECK-LABEL: f25:
+define i32 @f28() {
+; CHECK-LABEL: f28:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, %hi16(mem32)
 ; CHECK-NEXT:    ld %r2, %r2, %lo16(mem32)
@@ -275,8 +304,8 @@ define i32 @f25() {
   ret i32 %res
 }
 
-define float @f26() {
-; CHECK-LABEL: f26:
+define float @f29() {
+; CHECK-LABEL: f29:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, %hi16(memfloat)
 ; CHECK-NEXT:    ld %r2, %r2, %lo16(memfloat)
@@ -285,8 +314,8 @@ define float @f26() {
   ret float %res
 }
 
-define i32 @f27() {
-; CHECK-LABEL: f27:
+define i32 @f30() {
+; CHECK-LABEL: f30:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, %hi16(mem8)
 ; CHECK-NEXT:    ld.bu %r2, %r2, %lo16(mem8)
@@ -296,8 +325,8 @@ define i32 @f27() {
   ret i32 %res
 }
 
-define i32 @f28() {
-; CHECK-LABEL: f28:
+define i32 @f31() {
+; CHECK-LABEL: f31:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, %hi16(mem8)
 ; CHECK-NEXT:    ld.b %r2, %r2, %lo16(mem8)
@@ -307,8 +336,8 @@ define i32 @f28() {
   ret i32 %res
 }
 
-define i32 @f29() {
-; CHECK-LABEL: f29:
+define i32 @f32() {
+; CHECK-LABEL: f32:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, %hi16(mem16)
 ; CHECK-NEXT:    ld.hu %r2, %r2, %lo16(mem16)
@@ -318,8 +347,8 @@ define i32 @f29() {
   ret i32 %res
 }
 
-define i32 @f30() {
-; CHECK-LABEL: f30:
+define i32 @f33() {
+; CHECK-LABEL: f33:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, %hi16(mem16)
 ; CHECK-NEXT:    ld.h %r2, %r2, %lo16(mem16)
@@ -329,8 +358,8 @@ define i32 @f30() {
   ret i32 %res
 }
 
-define i64 @f31() {
-; CHECK-LABEL: f31:
+define i64 @f34() {
+; CHECK-LABEL: f34:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, %hi16(mem64)
 ; CHECK-NEXT:    ld.d %r2, %r2, %lo16(mem64)
@@ -339,8 +368,8 @@ define i64 @f31() {
   ret i64 %res
 }
 
-define double @f32() {
-; CHECK-LABEL: f32:
+define double @f35() {
+; CHECK-LABEL: f35:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, %hi16(memdouble)
 ; CHECK-NEXT:    ld.d %r2, %r2, %lo16(memdouble)
@@ -349,8 +378,8 @@ define double @f32() {
   ret double %res
 }
 
-define ptr @f33() {
-; CHECK-LABEL: f33:
+define ptr @f36() {
+; CHECK-LABEL: f36:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, %hi16(memptr)
 ; CHECK-NEXT:    ld %r2, %r2, %lo16(memptr)
