@@ -29,6 +29,13 @@
 using namespace llvm;
 using namespace LegalityPredicates;
 
+namespace {
+/// True iff the given opcode is the same as the specified opcode.
+inline LegalityPredicate opcodeIs(unsigned Opcode) {
+  return [=](const LegalityQuery &Query) { return Query.Opcode == Opcode; };
+}
+} // namespace
+
 M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   using namespace TargetOpcode;
   const LLT S1 = LLT::scalar(1);
@@ -83,6 +90,11 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
                                  {S32, P0, S32, 32},
                                  {P0, P0, P0, 32},
                                  {S64, P0, S64, 64}})
+      // Truncating stores are legal.
+      .legalIf(all(typePairAndMemDescInSet(
+                       /*TypeIdx0*/ 0, /*TypeIdx1*/ 1,
+                       /*MMOIdx*/ 0, {{S32, P0, S8, 8}, {S32, P0, S16, 16}}),
+                   opcodeIs(G_STORE)))
       // 80 bit floats have a mem size of 128 bit.
       .legalIf(
           all(typePairAndMemDescInSet(/*TypeIdx0*/ 0, /*TypeIdx1*/ 1,
@@ -104,7 +116,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
           return false;
 
         if (!isPowerOf2_64(Size))
-            return false;
+          return false;
 
         if (!isPowerOf2_64(QueryMemSize))
           return false;
@@ -290,9 +302,62 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
     MI.eraseFromParent();
     break;
   }
-  case G_STORE:
-    // TODO Implement.
-    return false;
+  case G_STORE: {
+    // Break an unaligned store into several aligned stores.
+    GStore *StoreMI = llvm::cast<GStore>(&MI);
+    MachineMemOperand *MMO = *StoreMI->memoperands_begin();
+    MachineFunction &MF = MIRBuilder.getMF();
+
+    // Calculate the number of parts which must be stored.
+    // E.g. MemSize = 4, Align = 2 => 2 parts of size 2.
+    // There can be only 2 cases: 2 or 4 parts.
+    uint64_t MemSize = StoreMI->getMemSize();
+    uint64_t ChunkSize = 1ULL << Log2(MMO->getAlign());
+
+    uint64_t Parts = MemSize / ChunkSize;
+    uint64_t Offset = 0;
+    uint64_t Part = Parts - 1;
+
+    Register ValReg = StoreMI->getValueReg();
+    Register AdrReg = StoreMI->getPointerReg();
+
+    auto ChunkAmt = MIRBuilder.buildConstant(S32, ChunkSize);
+
+    // Stores a part of ValReg.
+    auto store = [&]() {
+      Register TmpReg;
+      if (Part) {
+        TmpReg = MRI.createGenericVirtualRegister(S32);
+        MIRBuilder.buildLShr(
+            TmpReg, ValReg,
+            MIRBuilder.buildConstant(S32, Part * 8 * ChunkSize));
+      } else
+        TmpReg = ValReg;
+      MIRBuilder.buildStore(TmpReg, AdrReg,
+                            *MF.getMachineMemOperand(MMO, Offset, ChunkSize));
+    };
+
+    // Increments AdrReg by ChunkSize, and store the next part of the value.
+    // Alsa updates Offset and Part.
+    auto storeNext = [&]() {
+      Offset += ChunkSize;
+      Part -= 1;
+      Register IncAdrReg = MRI.createGenericVirtualRegister(P0);
+      MIRBuilder.buildPtrAdd(IncAdrReg, AdrReg, ChunkAmt);
+      AdrReg = IncAdrReg;
+      store();
+    };
+
+    store();
+    storeNext();
+    if (Parts > 2) {
+      storeNext();
+      storeNext();
+    }
+
+    MI.eraseFromParent();
+    break;
+  }
   case G_GLOBAL_VALUE: {
     // Replace G_GLOBAL_VALUE with G_HI/G_LO.
     Register DstReg = MI.getOperand(0).getReg();
