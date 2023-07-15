@@ -18,7 +18,6 @@
 #include "MCTargetDesc/M88kBaseInfo.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
-#include "llvm/CodeGen/GlobalISel/InstructionSelectorImpl.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
@@ -67,7 +66,7 @@ public:
 
   bool select(MachineInstr &I) override;
   void setupMF(MachineFunction &MF, GISelKnownBits *KB,
-               CodeGenCoverage &CoverageInfo, ProfileSummaryInfo *PSI,
+               CodeGenCoverage *CoverageInfo, ProfileSummaryInfo *PSI,
                BlockFrequencyInfo *BFI) override;
   static const char *getName() { return DEBUG_TYPE; }
 
@@ -1344,7 +1343,7 @@ bool M88kInstructionSelector::earlySelect(MachineInstr &I) {
 }
 
 void M88kInstructionSelector::setupMF(MachineFunction &MF, GISelKnownBits *KB,
-                                      CodeGenCoverage &CoverageInfo,
+                                      CodeGenCoverage *CoverageInfo,
                                       ProfileSummaryInfo *PSI,
                                       BlockFrequencyInfo *BFI) {
   InstructionSelector::setupMF(MF, KB, CoverageInfo, PSI, BFI);
