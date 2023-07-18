@@ -16,6 +16,7 @@
 #include "M88kSubtarget.h"
 #include "M88kTargetMachine.h"
 #include "MCTargetDesc/M88kBaseInfo.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
