@@ -25,6 +25,8 @@
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutor.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -36,10 +38,20 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 
+#define GET_GICOMBINER_DEPS
+#include "M88kGenPostLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_DEPS
+
 #define DEBUG_TYPE "m88k-postlegalizer-combiner"
 
 using namespace llvm;
 using namespace MIPatternMatch;
+
+namespace {
+#define GET_GICOMBINER_TYPES
+#include "M88kGenPostLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_TYPES
+}
 
 // Match
 //  Dst = G_ADD SrcA, (G_ZEXT (G_ICMP Pred, SrcB, SrcC)
@@ -255,19 +267,54 @@ bool matchAddSubFromAddSub(MachineInstr &MI, MachineRegisterInfo &MRI,
   return true;
 }
 
-#define M88KPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS
-#include "M88kGenPostLegalizeGICombiner.inc"
-#undef M88KPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS
-
 namespace {
-#define M88KPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_H
+class M88kPostLegalizerCombinerImpl : public GIMatchTableExecutor {
+protected:
+  CombinerHelper &Helper;
+  const M88kPostLegalizerCombinerImplRuleConfig &RuleConfig;
+
+  const M88kSubtarget &STI;
+  MachineRegisterInfo &MRI;
+  GISelChangeObserver &Observer;
+  MachineIRBuilder &B;
+  MachineFunction &MF;
+
+public:
+  M88kPostLegalizerCombinerImpl(
+      const M88kPostLegalizerCombinerImplRuleConfig &RuleConfig,
+      const M88kSubtarget &STI, GISelChangeObserver &Observer,
+      MachineIRBuilder &B, CombinerHelper &Helper);
+
+  static const char *getName() { return "M88kPostLegalizerCombiner"; }
+
+  bool tryCombineAll(MachineInstr &I) const;
+
+private:
+#define GET_GICOMBINER_CLASS_MEMBERS
 #include "M88kGenPostLegalizeGICombiner.inc"
-#undef M88KPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_H
+#undef GET_GICOMBINER_CLASS_MEMBERS
+};
+
+#define GET_GICOMBINER_IMPL
+#include "M88kGenPostLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_IMPL
+
+M88kPostLegalizerCombinerImpl::M88kPostLegalizerCombinerImpl(
+    const M88kPostLegalizerCombinerImplRuleConfig &RuleConfig,
+    const M88kSubtarget &STI, GISelChangeObserver &Observer,
+    MachineIRBuilder &B, CombinerHelper &Helper)
+    : Helper(Helper), RuleConfig(RuleConfig), STI(STI), MRI(*B.getMRI()),
+      Observer(Observer), B(B), MF(B.getMF()),
+#define GET_GICOMBINER_CONSTRUCTOR_INITS
+#include "M88kGenPostLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_CONSTRUCTOR_INITS
+{
+}
 
 class M88kPostLegalizerCombinerInfo : public CombinerInfo {
   GISelKnownBits *KB;
   MachineDominatorTree *MDT;
-  M88kGenPostLegalizerCombinerHelperRuleConfig GeneratedRuleCfg;
+  M88kPostLegalizerCombinerImplRuleConfig RuleConfig;
 
 public:
   M88kPostLegalizerCombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
@@ -275,7 +322,7 @@ public:
       : CombinerInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
                      /*LegalizerInfo*/ nullptr, EnableOpt, OptSize, MinSize),
         KB(KB), MDT(MDT) {
-    if (!GeneratedRuleCfg.parseCommandLineOption())
+    if (!RuleConfig.parseCommandLineOption())
       report_fatal_error("Invalid rule identifier");
   }
 
@@ -286,16 +333,14 @@ public:
 bool M88kPostLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
                                             MachineInstr &MI,
                                             MachineIRBuilder &B) const {
-  const auto *LI =
-      MI.getParent()->getParent()->getSubtarget().getLegalizerInfo();
+  const auto &STI = MI.getMF()->getSubtarget<M88kSubtarget>();
+  const auto *LI = STI.getLegalizerInfo();
   CombinerHelper Helper(Observer, B, /*IsPreLegalize=*/false, KB, MDT, LI);
-  M88kGenPostLegalizerCombinerHelper Generated(GeneratedRuleCfg);
-  return Generated.tryCombineAll(Observer, MI, B, Helper);
+  M88kPostLegalizerCombinerImpl Impl(RuleConfig, STI, Observer, B, Helper);
+  Impl.setupMF(*MI.getMF(), KB);
+  return Impl.tryCombineAll(MI);
 }
 
-#define M88KPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_CPP
-#include "M88kGenPostLegalizeGICombiner.inc"
-#undef M88KPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_CPP
 
 // Pass boilerplate
 // ================

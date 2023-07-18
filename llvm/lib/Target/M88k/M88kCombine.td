@@ -47,10 +47,10 @@ def m88k_required_combines : GICombineGroup<[trivial_combines,
     funnel_shift_to_rotate, form_bitfield_extract,
     and_or_disjoint_mask, bitfield_extract_from_and_ashr]>;
 
-def M88kPreLegalizerCombinerHelper: GICombinerHelper<
-  "M88kGenPreLegalizerCombinerHelper", [m88k_combines]> {
+def M88kPreLegalizerCombiner: GICombinerHelper<
+  "M88kPreLegalizerCombinerImpl", [m88k_combines]> {
   let DisableRuleOption = "m88kprelegalizercombiner-disable-rule";
-  let StateClass = "M88kPreLegalizerCombinerHelperState";
+//  let StateClass = "M88kPreLegalizerCombinerHelperState"; Now unused?
   let AdditionalArguments = [];
 }
 
@@ -128,8 +128,8 @@ def compare_to_carry : GICombineGroup<[addsub_from_addicmp, addsub_from_addsub,
     subadd_from_subicmp, subsub_from_subicmp]>;
 
 // Post-legalization combines which are primarily optimizations.
-def M88kPostLegalizerCombinerHelper: GICombinerHelper<
-  "M88kGenPostLegalizerCombinerHelper", [
+def M88kPostLegalizerCombiner: GICombinerHelper<
+  "M88kPostLegalizerCombinerImpl", [
   compare_to_carry,
   form_bitfield_extract, // Some rules require legalizer
   rotate_out_of_range // Required for left rotates, which produce a negative constant
@@ -150,15 +150,15 @@ def insert_div_by_zero_trap : GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_UDIV, G_SDIV):$root,
          [{ return AddZeroDivCheck
-                   && (!ReplaceSignedDiv || MIs[0]->getOpcode() == TargetOpcode::G_UDIV)
+                   && (!ReplaceSignedDiv || State.MIs[0]->getOpcode() == TargetOpcode::G_UDIV)
                    && matchInsertDivByZeroTrap(*${root}, MRI, KB); }]),
   (apply [{ applyInsertDivByZeroTrap(Observer, *${root}, MRI, B); }])>;
 
 // Post-legalization combines which should happen at all optimization levels.
 // (E.g. ones that facilitate matching for the selector) For example, matching
 // pseudos.
-def M88kPostLegalizerLoweringHelper
-    : GICombinerHelper<"M88kGenPostLegalizerLoweringHelper",
+def M88kPostLegalizerLowering
+    : GICombinerHelper<"M88kPostLegalizerLoweringImpl",
                        [sdiv_to_udiv, insert_div_by_zero_trap]> {
   let DisableRuleOption = "m88kpostlegalizerlowering-disable-rule";
   let AdditionalArguments = [GICombinerHelperArg<"GISelKnownBits *", "KB">,
