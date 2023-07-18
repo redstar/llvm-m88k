@@ -24,6 +24,8 @@
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutor.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -37,12 +39,20 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 
+#define GET_GICOMBINER_DEPS
+#include "M88kGenPostLegalizeGILowering.inc"
+#undef GET_GICOMBINER_DEPS
+
 #define DEBUG_TYPE "M88K-postlegalizer-lowering"
 
 using namespace llvm;
 using namespace MIPatternMatch;
 
 namespace {
+#define GET_GICOMBINER_TYPES
+#include "M88kGenPostLegalizeGILowering.inc"
+#undef GET_GICOMBINER_TYPES
+
 // Creates a new MachineBasicBlock. The new block is inserted after/before the
 // basic block MBB, depending on flag IsSucc.
 MachineBasicBlock *createMBB(MachineBasicBlock *MBB, bool IsSucc = true) {
@@ -298,17 +308,61 @@ bool applyInsertDivByZeroTrap(GISelChangeObserver &Observer, MachineInstr &MI,
 #undef M88KPOSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_DEPS
 
 namespace {
-#define M88KPOSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_H
-#include "M88kGenPostLegalizeGILowering.inc"
-#undef M88KPOSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_H
+class M88kPostLegalizerLoweringImpl : public GIMatchTableExecutor {
+protected:
+  CombinerHelper &Helper;
+  const M88kPostLegalizerLoweringImplRuleConfig &RuleConfig;
 
+  const M88kSubtarget &STI;
+  MachineRegisterInfo &MRI;
+  GISelChangeObserver &Observer;
+  MachineIRBuilder &B;
+  MachineFunction &MF;
+
+  const bool ReplaceSignedDiv;
+  const bool AddZeroDivCheck;
+
+public:
+  M88kPostLegalizerLoweringImpl(
+      const M88kPostLegalizerLoweringImplRuleConfig &RuleConfig,
+      const M88kSubtarget &STI, GISelChangeObserver &Observer,
+      MachineIRBuilder &B, CombinerHelper &Helper, bool ReplaceSignedDiv,
+      bool AddZeroDivCheck);
+
+  static const char *getName() { return "M88kPostLegalizerCombiner"; }
+
+  bool tryCombineAll(MachineInstr &I) const;
+
+private:
+#define GET_GICOMBINER_CLASS_MEMBERS
+#include "M88kGenPostLegalizeGILowering.inc"
+#undef GET_GICOMBINER_CLASS_MEMBERS
+};
+
+#define GET_GICOMBINER_IMPL
+#include "M88kGenPostLegalizeGILowering.inc"
+#undef GET_GICOMBINER_IMPL
+
+M88kPostLegalizerLoweringImpl::M88kPostLegalizerLoweringImpl(
+    const M88kPostLegalizerLoweringImplRuleConfig &RuleConfig,
+    const M88kSubtarget &STI, GISelChangeObserver &Observer,
+    MachineIRBuilder &B, CombinerHelper &Helper, bool ReplaceSignedDiv,
+    bool AddZeroDivCheck)
+    : Helper(Helper), RuleConfig(RuleConfig), STI(STI), MRI(*B.getMRI()),
+      Observer(Observer), B(B), MF(B.getMF()),
+      ReplaceSignedDiv(ReplaceSignedDiv), AddZeroDivCheck(AddZeroDivCheck),
+#define GET_GICOMBINER_CONSTRUCTOR_INITS
+#include "M88kGenPostLegalizeGILowering.inc"
+#undef GET_GICOMBINER_CONSTRUCTOR_INITS
+{
+}
 class M88kPostLegalizerLoweringInfo : public CombinerInfo {
   GISelKnownBits *KB;
   const bool ReplaceSignedDiv;
   const bool AddZeroDivCheck;
 
 public:
-  M88kGenPostLegalizerLoweringHelperRuleConfig GeneratedRuleCfg;
+  M88kPostLegalizerLoweringImplRuleConfig RuleConfig;
 
   M88kPostLegalizerLoweringInfo(bool OptSize, bool MinSize, GISelKnownBits *KB,
                                 bool ReplaceSignedDiv, bool AddZeroDivCheck)
@@ -317,7 +371,7 @@ public:
                      MinSize),
         KB(KB), ReplaceSignedDiv(ReplaceSignedDiv),
         AddZeroDivCheck(AddZeroDivCheck) {
-    if (!GeneratedRuleCfg.parseCommandLineOption())
+    if (!RuleConfig.parseCommandLineOption())
       report_fatal_error("Invalid rule identifier");
   }
 
@@ -328,7 +382,12 @@ public:
 bool M88kPostLegalizerLoweringInfo::combine(GISelChangeObserver &Observer,
                                             MachineInstr &MI,
                                             MachineIRBuilder &B) const {
-  M88kGenPostLegalizerLoweringHelper Generated(GeneratedRuleCfg);
+  const auto &STI = MI.getMF()->getSubtarget<M88kSubtarget>();
+  const auto *LI = STI.getLegalizerInfo();
+  CombinerHelper Helper(Observer, B, /*IsPreLegalize=*/false, KB, nullptr, LI);
+  M88kPostLegalizerLoweringImpl Impl(RuleConfig, STI, Observer, B, Helper,
+                                     ReplaceSignedDiv, AddZeroDivCheck);
+  Impl.setupMF(*MI.getMF(), KB);
 
   // If the instruction is commutable and the first operand is a constant, then
   // swap the operands. The matcher generated from the SDAG patterns expects the
@@ -352,15 +411,11 @@ bool M88kPostLegalizerLoweringInfo::combine(GISelChangeObserver &Observer,
     }
   }
 
-  if (Generated.tryCombineAll(Observer, MI, B, KB, ReplaceSignedDiv,
-                              AddZeroDivCheck))
+  if (Impl.tryCombineAll(MI))
     return true;
   return false;
 }
 
-#define M88KPOSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_CPP
-#include "M88kGenPostLegalizeGILowering.inc"
-#undef M88KPOSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_CPP
 
 class M88kPostLegalizerLowering : public MachineFunctionPass {
 public:

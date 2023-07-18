@@ -25,6 +25,8 @@
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutor.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -36,29 +38,57 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 
+#define GET_GICOMBINER_DEPS
+#include "M88kGenPreLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_DEPS
+
 #define DEBUG_TYPE "m88k-prelegalizer-combiner"
 
 using namespace llvm;
 using namespace MIPatternMatch;
 
-class M88kPreLegalizerCombinerHelperState {
+namespace {
+#define GET_GICOMBINER_TYPES
+#include "M88kGenPreLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_TYPES
+
+class M88kPreLegalizerCombinerImpl : public GIMatchTableExecutor {
 protected:
   CombinerHelper &Helper;
+  const M88kPreLegalizerCombinerImplRuleConfig &RuleConfig;
+
+  const M88kSubtarget &STI;
+  MachineRegisterInfo &MRI;
+  GISelChangeObserver &Observer;
+  MachineIRBuilder &B;
+  MachineFunction &MF;
 
 public:
-  M88kPreLegalizerCombinerHelperState(CombinerHelper &Helper)
-      : Helper(Helper) {}
+  M88kPreLegalizerCombinerImpl(
+      const M88kPreLegalizerCombinerImplRuleConfig &RuleConfig,
+      const M88kSubtarget &STI, GISelChangeObserver &Observer,
+      MachineIRBuilder &B, CombinerHelper &Helper);
 
+  static const char *getName() { return "M88kPostLegalizerCombiner"; }
+
+  bool tryCombineAll(MachineInstr &I) const;
+
+private:
   bool matchBitfieldExtractFromAndAShr(
       MachineInstr &MI, MachineRegisterInfo &MRI,
       std::function<void(MachineIRBuilder &)> &MatchInfo) const;
+
+#define GET_GICOMBINER_CLASS_MEMBERS
+#include "M88kGenPreLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_CLASS_MEMBERS
 };
+}
 
 /// Form a G_UBFX from "(a sra b) & mask", where b and mask are constants.
 /// This is similar to CombinerHelper::matchBitfieldExtractFromAnd(), but
 /// matches an arithmetic shift right instructions (instead of locigal shift
 /// right). However, it requires more reasoning about the value.
-bool M88kPreLegalizerCombinerHelperState::matchBitfieldExtractFromAndAShr(
+bool M88kPreLegalizerCombinerImpl::matchBitfieldExtractFromAndAShr(
     MachineInstr &MI, MachineRegisterInfo &MRI,
     std::function<void(MachineIRBuilder &)> &MatchInfo) const {
   assert(MI.getOpcode() == TargetOpcode::G_AND);
@@ -102,19 +132,27 @@ bool M88kPreLegalizerCombinerHelperState::matchBitfieldExtractFromAndAShr(
   return true;
 }
 
-#define M88KPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS
+#define GET_GICOMBINER_IMPL
 #include "M88kGenPreLegalizeGICombiner.inc"
-#undef M88KPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS
+#undef GET_GICOMBINER_IMPL
 
 namespace {
-#define M88KPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_H
+M88kPreLegalizerCombinerImpl::M88kPreLegalizerCombinerImpl(
+    const M88kPreLegalizerCombinerImplRuleConfig &RuleConfig,
+    const M88kSubtarget &STI, GISelChangeObserver &Observer,
+    MachineIRBuilder &B, CombinerHelper &Helper)
+    : Helper(Helper), RuleConfig(RuleConfig), STI(STI), MRI(*B.getMRI()),
+      Observer(Observer), B(B), MF(B.getMF()),
+#define GET_GICOMBINER_CONSTRUCTOR_INITS
 #include "M88kGenPreLegalizeGICombiner.inc"
-#undef M88KPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_H
+#undef GET_GICOMBINER_CONSTRUCTOR_INITS
+{
+}
 
 class M88kPreLegalizerCombinerInfo : public CombinerInfo {
   GISelKnownBits *KB;
   MachineDominatorTree *MDT;
-  M88kGenPreLegalizerCombinerHelperRuleConfig GeneratedRuleCfg;
+  M88kPreLegalizerCombinerImplRuleConfig RuleConfig;
 
 public:
   M88kPreLegalizerCombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
@@ -122,7 +160,7 @@ public:
       : CombinerInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
                      /*LegalizerInfo*/ nullptr, EnableOpt, OptSize, MinSize),
         KB(KB), MDT(MDT) {
-    if (!GeneratedRuleCfg.parseCommandLineOption())
+    if (!RuleConfig.parseCommandLineOption())
       report_fatal_error("Invalid rule identifier");
   }
 
@@ -133,18 +171,14 @@ public:
 bool M88kPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
                                            MachineInstr &MI,
                                            MachineIRBuilder &B) const {
-  CombinerHelper Helper(Observer, B, /*IsPreLegalize=*/true, KB, MDT);
-  M88kGenPreLegalizerCombinerHelper Generated(GeneratedRuleCfg, Helper);
-
-  if (Generated.tryCombineAll(Observer, MI, B))
-    return true;
-
-  return false;
+  const auto &STI = MI.getMF()->getSubtarget<M88kSubtarget>();
+  const auto *LI = STI.getLegalizerInfo();
+  CombinerHelper Helper(Observer, B, /*IsPreLegalize=*/true, KB, MDT, LI);
+  M88kPreLegalizerCombinerImpl Impl(RuleConfig, STI, Observer, B, Helper);
+  Impl.setupMF(*MI.getMF(), KB);
+  return Impl.tryCombineAll(MI);
 }
 
-#define M88KPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_CPP
-#include "M88kGenPreLegalizeGICombiner.inc"
-#undef M88KPRELEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_CPP
 
 // Pass boilerplate
 // ================
