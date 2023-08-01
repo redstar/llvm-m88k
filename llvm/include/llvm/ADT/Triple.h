@@ -58,6 +58,8 @@ public:
     bpfeb,          // eBPF or extended BPF or 64-bit BPF (big endian)
     csky,           // CSKY: csky
     hexagon,        // Hexagon: hexagon
+    m88k,           // M88000 (big endian): m88k
+    m88kel,         // M88000: (little endian) m88kel
     mips,           // MIPS: mips, mipsallegrex, mipsr6
     mipsel,         // MIPSEL: mipsel, mipsallegrexe, mipsr6el
     mips64,         // MIPS64: mips64, mips64r6, mipsn32, mipsn32r6
@@ -733,6 +735,11 @@ public:
                    getEnvironment() == Triple::GNUILP32
                ? PointerWidth == 32
                : PointerWidth == 64;
+  }
+
+  /// Tests whether the target is M88k.
+  bool isM88k() const {
+    return getArch() == Triple::m88k;
   }
 
   /// Tests whether the target is MIPS 32-bit (little and big endian).

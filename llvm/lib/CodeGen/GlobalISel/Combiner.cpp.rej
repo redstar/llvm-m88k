@@ -1,0 +1,15 @@
+diff a/llvm/lib/CodeGen/GlobalISel/Combiner.cpp b/llvm/lib/CodeGen/GlobalISel/Combiner.cpp	(rejected hunks)
+@@ -143,11 +144,12 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
+       }
+     }
+     WorkList.finalize();
++    MatchSets.reserve(WorkList.size());
+     // Main Loop. Process the instructions here.
+     while (!WorkList.empty()) {
+       MachineInstr *CurrInst = WorkList.pop_back_val();
+       LLVM_DEBUG(dbgs() << "\nTry combining " << *CurrInst;);
+-      Changed |= CInfo.combine(WrapperObserver, *CurrInst, B);
++      Changed |= CInfo.combine(MatchSets, WrapperObserver, *CurrInst, B);
+       Observer.reportFullyCreatedInstrs();
+     }
+     MFChanged |= Changed;
