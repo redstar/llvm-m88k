@@ -912,6 +912,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
   case ELF::EM_68K:
 #include "llvm/BinaryFormat/ELFRelocs/M68k.def"
     break;
+  case ELF::EM_88K:
+#include "llvm/BinaryFormat/ELFRelocs/M88k.def"
+    break;
   case ELF::EM_LOONGARCH:
 #include "llvm/BinaryFormat/ELFRelocs/LoongArch.def"
     break;
