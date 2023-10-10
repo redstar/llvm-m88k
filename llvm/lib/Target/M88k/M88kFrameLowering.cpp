@@ -145,7 +145,7 @@ bool M88kFrameLowering::assignCalleeSavedSpillSlots(
   int64_t CurOffset = -4;
   for (auto &CS : CSI) {
     Register Reg = CS.getReg();
-    if (M88k::GPRRCRegClass.contains(Reg)) {
+    if (M88k::GPRRegClass.contains(Reg)) {
       CS.setFrameIdx(MFI.CreateFixedSpillStackObject(4, CurOffset));
       CurOffset -= 4;
     } else {
