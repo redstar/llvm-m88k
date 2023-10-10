@@ -118,7 +118,7 @@ void M88kInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   // FIXME: A virtual register must be used initially, as the register
   // scavenger won't work with empty blocks (SIInstrInfo::insertIndirectBranch
   // uses the same workaround).
-  Register ScratchReg = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+  Register ScratchReg = MRI.createVirtualRegister(&M88k::GPRRegClass);
   auto I = MBB.end();
 
   // Load address of destination BB.
@@ -134,7 +134,7 @@ void M88kInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   MachineInstr *MI = BuildMI(MBB, I, DL, get(M88k::JMP)).addReg(ScratchReg);
 
   RS->enterBasicBlockEnd(MBB);
-  unsigned Scav = RS->scavengeRegisterBackwards(M88k::GPRRCRegClass,
+  unsigned Scav = RS->scavengeRegisterBackwards(M88k::GPRRegClass,
                                                 MI->getIterator(), false, 0);
 
   // TODO: The case when there is no scavenged register needs special handling.
@@ -493,7 +493,7 @@ void M88kInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                 MCRegister SrcReg, bool KillSrc) const {
   // Split 64-bit GPR moves into two 64-bit moves. Add implicit uses of the
   // super register in case one of the subregs is undefined.
-  if (M88k::GPR64RCRegClass.contains(DestReg, SrcReg)) {
+  if (M88k::GPR64RegClass.contains(DestReg, SrcReg)) {
     copyPhysReg(MBB, MBBI, DL, RI.getSubReg(DestReg, M88k::sub_hi),
                 RI.getSubReg(SrcReg, M88k::sub_hi), KillSrc);
     MachineInstrBuilder(*MBB.getParent(), std::prev(MBBI))
@@ -505,7 +505,7 @@ void M88kInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
-  if (M88k::GPRRCRegClass.contains(DestReg, SrcReg)) {
+  if (M88k::GPRRegClass.contains(DestReg, SrcReg)) {
     BuildMI(MBB, MBBI, DL, get(M88k::ORrr), DestReg)
         .addReg(M88k::R0)
         .addReg(SrcReg, getKillRegState(KillSrc));
@@ -513,19 +513,19 @@ void M88kInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   }
 
   unsigned Opc;
-  if (M88k::XRRCRegClass.contains(DestReg, SrcReg))
+  if (M88k::XRRegClass.contains(DestReg, SrcReg))
     Opc = M88k::MOVxx;
-  else if (M88k::GPRRCRegClass.contains(DestReg) &&
-           M88k::XRRCRegClass.contains(SrcReg))
+  else if (M88k::GPRRegClass.contains(DestReg) &&
+           M88k::XRRegClass.contains(SrcReg))
     Opc = M88k::MOVrxs;
-  else if (M88k::GPR64RCRegClass.contains(DestReg) &&
-           M88k::XRRCRegClass.contains(SrcReg))
+  else if (M88k::GPR64RegClass.contains(DestReg) &&
+           M88k::XRRegClass.contains(SrcReg))
     Opc = M88k::MOVrxd;
-  else if (M88k::XRRCRegClass.contains(DestReg) &&
-           M88k::GPRRCRegClass.contains(SrcReg))
+  else if (M88k::XRRegClass.contains(DestReg) &&
+           M88k::GPRRegClass.contains(SrcReg))
     Opc = M88k::MOVxrs;
-  else if (M88k::XRRCRegClass.contains(DestReg) &&
-           M88k::GPR64RCRegClass.contains(SrcReg))
+  else if (M88k::XRRegClass.contains(DestReg) &&
+           M88k::GPR64RegClass.contains(SrcReg))
     Opc = M88k::MOVxrd;
   else
     llvm_unreachable("m88: Impossible reg-to-reg copy");
