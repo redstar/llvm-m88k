@@ -12,6 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 /// Register banks.
-def GRRegBank : RegisterBank<"GR", [GPRRC, GPR64RC]>;
-def XRRegBank : RegisterBank<"XR", [XRRC]>;
-def CRRegBank : RegisterBank<"CR", [CRRC]>;
+def GRRegBank : RegisterBank<"GRRB", [GPR, GPR64]>;
+def XRRegBank : RegisterBank<"XRB", [XR]>;
+def CRRegBank : RegisterBank<"CRB", [CR]>;
