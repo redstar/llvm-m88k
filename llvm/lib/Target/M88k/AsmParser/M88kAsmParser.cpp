@@ -283,7 +283,7 @@ private:
 
 unsigned M88kAsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
                                                    unsigned Kind) {
-  if (Kind == MCK_GPR64RC && AsmOp.isReg()) {
+  if (Kind == MCK_GPR64 && AsmOp.isReg()) {
     switch (AsmOp.getReg()) {
     case M88k::R0:
     case M88k::R2:
