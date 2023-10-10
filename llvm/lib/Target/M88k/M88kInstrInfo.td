@@ -322,14 +322,14 @@ def ADJCALLSTACKUP : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
 // ---------------------------------------------------------------------------//
 
 multiclass BinaryOpPat<string Inst, SDPatternOperator OpNode> {
-  def : Pat<(OpNode GPR:$rs1, GPR:$rs2),
-            (!cast<InstM88k>(Inst#"rr") GPR:$rs1, GPR:$rs2)>;
-  def : Pat<(OpNode GPR:$rs1, uimm16:$imm16),
-            (!cast<InstM88k>(Inst#"ri") GPR:$rs1, uimm16:$imm16)>;
+  def : Pat<(OpNode GPROpnd:$rs1, GPROpnd:$rs2),
+            (!cast<InstM88k>(Inst#"rr") GPROpnd:$rs1, GPROpnd:$rs2)>;
+  def : Pat<(OpNode GPROpnd:$rs1, uimm16:$imm16),
+            (!cast<InstM88k>(Inst#"ri") GPROpnd:$rs1, uimm16:$imm16)>;
 }
 
 class UnaryOpPat<InstM88k Inst, SDPatternOperator OpNode>
-  : Pat<(OpNode GPR:$rs1), (Inst GPR:$rs1)>;
+  : Pat<(OpNode GPROpnd:$rs1), (Inst GPROpnd:$rs1)>;
 
 // ---------------------------------------------------------------------------//
 // Logic and bit field instructions.
@@ -342,9 +342,9 @@ multiclass LogicImm<bits<2> FuncI, string OpcStr, SDNode OpNode> {
   defvar OPHI = !if(!eq(OpcStr, "and"), imm32hi16c, imm32hi16);
 
   def ri  : F_LI<FuncI, /*upper=*/0b0, OPLO, OpcStr,
-                 [(set i32:$rd, (OpNode GPR:$rs1, OPLO:$imm16))]>;
+                 [(set i32:$rd, (OpNode GPROpnd:$rs1, OPLO:$imm16))]>;
   def riu : F_LI<FuncI, /*upper=*/0b1, OPHI, OpcStr,
-                 [(set i32:$rd, (OpNode GPR:$rs1, OPHI:$imm16))]>;
+                 [(set i32:$rd, (OpNode GPROpnd:$rs1, OPHI:$imm16))]>;
 }
 
 // Multiclass for logical instructions with triadic registers or immediates.
@@ -352,9 +352,9 @@ multiclass Logic<bits<5> FuncR, bits<2> FuncI, string OpcStr, SDNode OpNode>
   : LogicImm<FuncI, OpcStr, OpNode> {
   let isCommutable = 1 in
     def rr : F_LR<FuncR, /*comp=*/0b0, OpcStr,
-                  [(set i32:$rd, (OpNode GPR:$rs1, GPR:$rs2))]>;
+                  [(set i32:$rd, (OpNode GPROpnd:$rs1, GPROpnd:$rs2))]>;
   def rrc : F_LR<FuncR, /*comp=*/0b1, OpcStr,
-                 [(set i32:$rd, (OpNode GPR:$rs1, (not GPR:$rs2)))]>;
+                 [(set i32:$rd, (OpNode GPROpnd:$rs1, (not GPROpnd:$rs2)))]>;
 }
 
 defm MASK : LogicImm<0b01, "mask", and>;
@@ -366,9 +366,9 @@ defm OR  : Logic<0b01011, 0b11, "or", or>;
 multiclass Bitfield<bits<6> Func, string OpcStr> {
   def rr  : F_BR<Func, OpcStr>;
   if !eq(OpcStr, "rot") then {
-    def rwo : F_BIOFS<Func, (ins GPR:$rs1, bfoffset:$o5), OpcStr>;
+    def rwo : F_BIOFS<Func, (ins GPROpnd:$rs1, bfoffset:$o5), OpcStr>;
   } else {
-    def rwo : F_BI<Func, (ins GPR:$rs1, bfwidth:$w5, bfoffset:$o5), OpcStr>;
+    def rwo : F_BI<Func, (ins GPROpnd:$rs1, bfwidth:$w5, bfoffset:$o5), OpcStr>;
   }
 }
 
@@ -380,30 +380,30 @@ defm MAK  : Bitfield<0b101000, "mak">;
 defm ROT  : Bitfield<0b101010, "rot">;
 
 // Pattern for shifts
-def : Pat<(sra GPR:$rs1, GPR:$rs2), (EXTrr GPR:$rs1, GPR:$rs2)>;
-def : Pat<(srl GPR:$rs1, GPR:$rs2), (EXTUrr GPR:$rs1, GPR:$rs2)>;
-def : Pat<(shl GPR:$rs1, GPR:$rs2), (MAKrr GPR:$rs1, GPR:$rs2)>;
-def : Pat<(rotr GPR:$rs1, GPR:$rs2), (ROTrr GPR:$rs1, GPR:$rs2)>;
-def : Pat<(sra GPR:$rs1, bfoffset:$o5), (EXTrwo GPR:$rs1, 0, bfoffset:$o5)>;
-def : Pat<(srl GPR:$rs1, bfoffset:$o5), (EXTUrwo GPR:$rs1, 0, bfoffset:$o5)>;
-def : Pat<(shl GPR:$rs1, bfoffset:$o5), (MAKrwo GPR:$rs1, 0, bfoffset:$o5)>;
-def : Pat<(rotr GPR:$rs1, bfoffset:$o5), (ROTrwo GPR:$rs1, bfoffset:$o5)>;
+def : Pat<(sra GPROpnd:$rs1, GPROpnd:$rs2), (EXTrr GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(srl GPROpnd:$rs1, GPROpnd:$rs2), (EXTUrr GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(shl GPROpnd:$rs1, GPROpnd:$rs2), (MAKrr GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(rotr GPROpnd:$rs1, GPROpnd:$rs2), (ROTrr GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(sra GPROpnd:$rs1, bfoffset:$o5), (EXTrwo GPROpnd:$rs1, 0, bfoffset:$o5)>;
+def : Pat<(srl GPROpnd:$rs1, bfoffset:$o5), (EXTUrwo GPROpnd:$rs1, 0, bfoffset:$o5)>;
+def : Pat<(shl GPROpnd:$rs1, bfoffset:$o5), (MAKrwo GPROpnd:$rs1, 0, bfoffset:$o5)>;
+def : Pat<(rotr GPROpnd:$rs1, bfoffset:$o5), (ROTrwo GPROpnd:$rs1, bfoffset:$o5)>;
 
 class FindBF<bits<6> Func, string OpcStr> :
-  F_BF<Func, (outs GPR:$rd), (ins GPR:$rs2), OpcStr>;
+  F_BF<Func, (outs GPROpnd:$rd), (ins GPROpnd:$rs2), OpcStr>;
 
 def FF1r : FindBF<0b111010, "ff1">;
 def FF0r : FindBF<0b111011, "ff0">;
 
 // ctlz = ff1 ^ 0x1f
 // This inverts the lower 5 bits, returning the required range.
-def : Pat<(ctlz GPR:$rs), (XORri (FF1r GPR:$rs), 31)>;
+def : Pat<(ctlz GPROpnd:$rs), (XORri (FF1r GPROpnd:$rs), 31)>;
 
 // ctlz_zero_undef is similar.
 // But since 0 is poison some simple patterns allow for better code.
-def : Pat<(sub 31, (ctlz_zero_undef GPR:$rs)), (FF1r GPR:$rs)>;
-def : Pat<(xor (ctlz_zero_undef GPR:$rs), 31), (FF1r GPR:$rs)>;
-def : Pat<(ctlz_zero_undef GPR:$rs), (XORri (FF1r GPR:$rs), 31)>;
+def : Pat<(sub 31, (ctlz_zero_undef GPROpnd:$rs)), (FF1r GPROpnd:$rs)>;
+def : Pat<(xor (ctlz_zero_undef GPROpnd:$rs), 31), (FF1r GPROpnd:$rs)>;
+def : Pat<(ctlz_zero_undef GPROpnd:$rs), (XORri (FF1r GPROpnd:$rs), 31)>;
 
 // ---------------------------------------------------------------------------//
 // Integer arithmetic instructions.
@@ -413,7 +413,7 @@ def : Pat<(ctlz_zero_undef GPR:$rs), (XORri (FF1r GPR:$rs), 31)>;
 multiclass ArithTri<bits<6> Func, string OpcStr, bit IsReMat = 0> {
   def rr : F_IRC<Func, /*carryin=*/0b0, /*carryout=*/0b0, OpcStr>;
   let isReMaterializable = IsReMat in
-    def ri : F_II<Func, (ins GPR:$rs1, uimm16:$imm16), OpcStr>;
+    def ri : F_II<Func, (ins GPROpnd:$rs1, uimm16:$imm16), OpcStr>;
 }
 
 // Multiclass for arithmetic instructions with triadic registers or immediates,
@@ -443,9 +443,9 @@ let isCompare = 1 in
   defm CMP : ArithTri<0b011111, "cmp">;
 
 let Predicates = [MC88110] in {
-  def DIVUrrd : F_IRCD<0b011010, GPR64, GPR, "divu.d">;
+  def DIVUrrd : F_IRCD<0b011010, GPR64Opnd, GPROpnd, "divu.d">;
   let isCommutable = 1 in
-    def MULUrrd : F_IRCD<0b011011, GPR, GPR, "mulu.d">;
+    def MULUrrd : F_IRCD<0b011011, GPROpnd, GPROpnd, "mulu.d">;
 }
 
 // TODO Aliases div -> divs, mul -> mulu. Renames from 88100
@@ -454,8 +454,8 @@ defm : BinaryOpPat<"SUBU", sub>;
 defm : BinaryOpPat<"MULU", mul>;
 defm : BinaryOpPat<"DIVU", udiv>;
 defm : BinaryOpPat<"DIVS", sdiv>;
-//def : Pat<(umullohi GPR:$rs1, GPR:$rs2), (MULUrrd GPR:$rs1, GPR:$rs2)>;
-def : Pat<(ineg GPR:$rs2), (SUBUrr (i32 R0), GPR:$rs2)>;
+//def : Pat<(umullohi GPROpnd:$rs1, GPROpnd:$rs2), (MULUrrd GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(ineg GPROpnd:$rs2), (SUBUrr (i32 R0), GPROpnd:$rs2)>;
 
 // ---------------------------------------------------------------------------//
 // Materialize immediates & constants.
@@ -463,22 +463,22 @@ def : Pat<(ineg GPR:$rs2), (SUBUrr (i32 R0), GPR:$rs2)>;
 
 // Match G_SHL $dst, (G_AND $src, (2**width - 1)), offset
 // Lower to MAKrwo $dst, $src, width<offset>
-def : Pat<(shl (and GPR:$rs1, mask32:$imm), bfoffset:$ofs),
-          (MAKrwo GPR:$rs1, (CPOP $imm), bfoffset:$ofs)>;
+def : Pat<(shl (and GPROpnd:$rs1, mask32:$imm), bfoffset:$ofs),
+          (MAKrwo GPROpnd:$rs1, (CPOP $imm), bfoffset:$ofs)>;
 
 // Pattern for logial operations with shifted masks.
-def : Pat<(or GPR:$rs1, shmask32:$imm),
-          (SETrwo GPR:$rs1, (CPOP $imm), (CTZ $imm))>;
-def : Pat<(and GPR:$rs1, invshmask32:$imm),
-          (CLRrwo GPR:$rs1, (CPOPINV $imm), (CTZINV $imm))>;
+def : Pat<(or GPROpnd:$rs1, shmask32:$imm),
+          (SETrwo GPROpnd:$rs1, (CPOP $imm), (CTZ $imm))>;
+def : Pat<(and GPROpnd:$rs1, invshmask32:$imm),
+          (CLRrwo GPROpnd:$rs1, (CPOPINV $imm), (CTZINV $imm))>;
 
 // Pattern for logial operations with 32 bit constants.
-def : Pat<(and GPR:$rs1, uimm32:$imm),
-          (ANDri (ANDriu GPR:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
-def : Pat<(or GPR:$rs1, uimm32:$imm),
-          (ORri (ORriu GPR:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
-def : Pat<(xor GPR:$rs1, uimm32:$imm),
-          (XORri (XORriu GPR:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
+def : Pat<(and GPROpnd:$rs1, uimm32:$imm),
+          (ANDri (ANDriu GPROpnd:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
+def : Pat<(or GPROpnd:$rs1, uimm32:$imm),
+          (ORri (ORriu GPROpnd:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
+def : Pat<(xor GPROpnd:$rs1, uimm32:$imm),
+          (XORri (XORriu GPROpnd:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
 
 // Zero constant.
 def : Pat<(i32 0), (ORri (i32 R0), 0)>;
@@ -530,42 +530,42 @@ defm ADDRrs16 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<16>"
 class FLoadIndexImm<bits<4> func, bits<2> ty, string option,
                     RegisterOperand cls, ValueType vt,
                     SDPatternOperator operator>
-  : F_LS<func, ty, (outs cls:$rd), (ins GPR:$rs1, uimm16:$si16),
+  : F_LS<func, ty, (outs cls:$rd), (ins GPROpnd:$rs1, uimm16:$si16),
          !if(!eq(option,""), "ld", !strconcat("ld.", option)),
-         [(set (vt cls:$rd), (operator (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]> {}
+         [(set (vt cls:$rd), (operator (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)))]> {}
 
 class FStoreIndexImm<bits<4> func, bits<2> ty, string option,
                      RegisterOperand cls, ValueType vt,
                      SDPatternOperator operator>
-  : F_LS<func, ty, (outs), (ins cls:$rd, GPR:$rs1, uimm16:$si16),
+  : F_LS<func, ty, (outs), (ins cls:$rd, GPROpnd:$rs1, uimm16:$si16),
          !if(!eq(option,""), "st", !strconcat("st.", option)),
-         [(operator (vt cls:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16))]> {}
+         [(operator (vt cls:$rd), (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))]> {}
 
 // Multiclass for load and store instructions.
 multiclass LoadIndexImm {
   defvar Func = 0b0001;
-  def riw  : FLoadIndexImm<Func, /*ty=*/ 0b01, "", GPR, i32, load>;
-  def rib  : FLoadIndexImm<Func, /*ty=*/ 0b11, "b", GPR, i32, sextloadi8>;
-  def rih  : FLoadIndexImm<Func, /*ty=*/ 0b10, "h", GPR, i32, sextloadi16>;
-  def rid  : FLoadIndexImm<Func, /*ty=*/ 0b00, "d", GPR64, i64, load>;
+  def riw  : FLoadIndexImm<Func, /*ty=*/ 0b01, "", GPROpnd, i32, load>;
+  def rib  : FLoadIndexImm<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, sextloadi8>;
+  def rih  : FLoadIndexImm<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, sextloadi16>;
+  def rid  : FLoadIndexImm<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, load>;
   let Predicates = [MC88110], DecoderNamespace = "MC88110" in {
-    def xi  : FLoadIndexImm<0b0000, /*ty=*/ 0b01, "", XR, f32, load>;
-    def xid  : FLoadIndexImm<0b0000, /*ty=*/ 0b00, "d", XR, f64, load>;
-    def xix  : FLoadIndexImm<0b0011, /*ty=*/ 0b11, "x", XR, f80, load>;
+    def xi  : FLoadIndexImm<0b0000, /*ty=*/ 0b01, "", XROpnd, f32, load>;
+    def xid  : FLoadIndexImm<0b0000, /*ty=*/ 0b00, "d", XROpnd, f64, load>;
+    def xix  : FLoadIndexImm<0b0011, /*ty=*/ 0b11, "x", XROpnd, f80, load>;
   }
 }
 
 multiclass StoreIndexImm {
   defvar FuncG = 0b0010;
-  def riw  : FStoreIndexImm<FuncG, /*ty=*/ 0b01, "", GPR, i32, store>;
-  def rib  : FStoreIndexImm<FuncG, /*ty=*/ 0b11, "b", GPR, i32, truncstorei8>;
-  def rih  : FStoreIndexImm<FuncG, /*ty=*/ 0b10, "h", GPR, i32, truncstorei16>;
-  def rid  : FStoreIndexImm<FuncG, /*ty=*/ 0b00, "d", GPR64, i64, store>;
+  def riw  : FStoreIndexImm<FuncG, /*ty=*/ 0b01, "", GPROpnd, i32, store>;
+  def rib  : FStoreIndexImm<FuncG, /*ty=*/ 0b11, "b", GPROpnd, i32, truncstorei8>;
+  def rih  : FStoreIndexImm<FuncG, /*ty=*/ 0b10, "h", GPROpnd, i32, truncstorei16>;
+  def rid  : FStoreIndexImm<FuncG, /*ty=*/ 0b00, "d", GPR64Opnd, i64, store>;
   let Predicates = [MC88110], DecoderNamespace = "MC88110" in {
     defvar FuncX = 0b0011;
-    def xis  : FStoreIndexImm<FuncX, /*ty=*/ 0b01, "", XR, f32, store>;
-    def xid  : FStoreIndexImm<FuncX, /*ty=*/ 0b00, "d", XR, f64, store>;
-    def xix  : FStoreIndexImm<FuncX, /*ty=*/ 0b10, "x", XR, f80, store>;
+    def xis  : FStoreIndexImm<FuncX, /*ty=*/ 0b01, "", XROpnd, f32, store>;
+    def xid  : FStoreIndexImm<FuncX, /*ty=*/ 0b00, "d", XROpnd, f64, store>;
+    def xix  : FStoreIndexImm<FuncX, /*ty=*/ 0b10, "x", XROpnd, f80, store>;
   }
 }
 
@@ -573,60 +573,60 @@ multiclass FLoadUnsigned<bits<1> ty, string option, RegisterOperand cls,
                          ValueType vt, SDPatternOperator operator,
                          ComplexPattern addr> {
   def u # option : F_LSINDUSCUNS</*ty=*/ ty, /*user=*/ 0b0, (outs cls:$rd),
-                                 (ins GPR:$rs1, GPR:$rs2),
+                                 (ins GPROpnd:$rs1, GPROpnd:$rs2),
                                  !strconcat("ld.", option, "u"),
                                  [(set (vt cls:$rd),
-                                       (operator (ADDRrr (i32 GPR:$rs1),
-                                                         (i32 GPR:$rs2))))]> {}
+                                       (operator (ADDRrr (i32 GPROpnd:$rs1),
+                                                         (i32 GPROpnd:$rs2))))]> {}
   def u # option # u : F_LSINDUSCUNS</*ty=*/ ty, /*user=*/ 0b1, (outs cls:$rd),
-                                     (ins GPR:$rs1, GPR:$rs2),
+                                     (ins GPROpnd:$rs1, GPROpnd:$rs2),
                                      !strconcat("ld.", option, "u.usr")> {}
   def s # option : F_LSINDSCUNS</*ty=*/ ty, /*user=*/ 0b0, (outs cls:$rd),
-                                (ins GPR:$rs1, GPR:$rs2),
+                                (ins GPROpnd:$rs1, GPROpnd:$rs2),
                                 !strconcat("ld.", option, "u"),
                                 [(set (vt cls:$rd),
-                                      (operator (addr (i32 GPR:$rs1),
-                                                      (i32 GPR:$rs2))))]> {}
+                                      (operator (addr (i32 GPROpnd:$rs1),
+                                                      (i32 GPROpnd:$rs2))))]> {}
   def s # option # u : F_LSINDSCUNS</*ty=*/ ty, /*user=*/ 0b1, (outs cls:$rd),
-                                    (ins GPR:$rs1, GPR:$rs2),
+                                    (ins GPROpnd:$rs1, GPROpnd:$rs2),
                                     !strconcat("ld.", option, "u.usr")> {}
 }
 
 multiclass LoadUnsigned {
-  def urih : F_LU<0b0, (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
+  def urih : F_LU<0b0, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$si16),
                   "ld.hu",
-                  [(set (i32 GPR:$rd), (zextloadi16 (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]>;
-  def urib : F_LU<0b1, (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
+                  [(set (i32 GPROpnd:$rd), (zextloadi16 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)))]>;
+  def urib : F_LU<0b1, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$si16),
                   "ld.bu",
-                  [(set (i32 GPR:$rd), (zextloadi8 (ADDRri (i32 GPR:$rs1), uimm16:$si16)))]>;
-  defm urr : FLoadUnsigned</*ty=*/ 0b1, "b", GPR, i32, zextloadi8, ADDRrs1>;
-  defm urr : FLoadUnsigned</*ty=*/ 0b0, "h", GPR, i32, zextloadi16, ADDRrs2>;
+                  [(set (i32 GPROpnd:$rd), (zextloadi8 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)))]>;
+  defm urr : FLoadUnsigned</*ty=*/ 0b1, "b", GPROpnd, i32, zextloadi8, ADDRrs1>;
+  defm urr : FLoadUnsigned</*ty=*/ 0b0, "h", GPROpnd, i32, zextloadi16, ADDRrs2>;
 }
 
 // Instruction formats with semantics.
 multiclass FLoadUnscaled<bits<4> func, bits<2> ty, string option,
                          RegisterOperand cls, ValueType vt,
                          SDPatternOperator operator> {
-  def "" : F_LSINDUSC<func, ty, /*user=*/ 0b0, (outs cls:$rd), (ins GPR:$rs1, GPR:$rs2),
+  def "" : F_LSINDUSC<func, ty, /*user=*/ 0b0, (outs cls:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                       !if(!eq(option,""), "ld", !strconcat("ld.", option)),
-                      [(set (vt cls:$rd), (operator (ADDRrr (i32 GPR:$rs1),
-                                                            (i32 GPR:$rs2))))]> {}
-  def u : F_LSINDUSC<func, ty, /*user=*/ 0b1, (outs cls:$rd), (ins GPR:$rs1, GPR:$rs2),
+                      [(set (vt cls:$rd), (operator (ADDRrr (i32 GPROpnd:$rs1),
+                                                            (i32 GPROpnd:$rs2))))]> {}
+  def u : F_LSINDUSC<func, ty, /*user=*/ 0b1, (outs cls:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                      !if(!eq(option,""), "ld.usr", !strconcat("ld.", option, ".usr"))> {}
 }
 
 multiclass LoadUnscaled {
   defvar Func = 0b0001;
   let regfile = 1 in {
-    defm rrud  : FLoadUnscaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, load>;
-    defm rruw  : FLoadUnscaled<Func, /*ty=*/ 0b01, "", GPR, i32, load>;
-    defm rrub  : FLoadUnscaled<Func, /*ty=*/ 0b11, "b", GPR, i32, sextloadi8>;
-    defm rruh  : FLoadUnscaled<Func, /*ty=*/ 0b10, "h", GPR, i32, sextloadi16>;
+    defm rrud  : FLoadUnscaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, load>;
+    defm rruw  : FLoadUnscaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, load>;
+    defm rrub  : FLoadUnscaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, sextloadi8>;
+    defm rruh  : FLoadUnscaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, sextloadi16>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    defm xxuw  : FLoadUnscaled<Func, /*ty=*/ 0b01, "", XR, f32, load>;
-    defm xxud  : FLoadUnscaled<Func, /*ty=*/ 0b00, "d", XR, f64, load>;
-    defm xxuq  : FLoadUnscaled<Func, /*ty=*/ 0b10, "x", XR, f80, load>;
+    defm xxuw  : FLoadUnscaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, load>;
+    defm xxud  : FLoadUnscaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, load>;
+    defm xxuq  : FLoadUnscaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, load>;
   }
 }
 
@@ -634,26 +634,26 @@ multiclass LoadUnscaled {
 multiclass FLoadScaled<bits<4> func, bits<2> ty, string option,
                        RegisterOperand cls, ValueType vt,
                        SDPatternOperator operator, ComplexPattern addr> {
-  def "" : F_LSINDSC<func, ty, /*user=*/ 0b0, (outs cls:$rd), (ins GPR:$rs1, GPR:$rs2),
+  def "" : F_LSINDSC<func, ty, /*user=*/ 0b0, (outs cls:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option,""), "ld", !strconcat("ld.", option)),
-               [(set (vt cls:$rd), (operator (addr (i32 GPR:$rs1),
-                                                   (i32 GPR:$rs2))))]>;
-  def u : F_LSINDSC<func, ty, /*user=*/ 0b1, (outs cls:$rd), (ins GPR:$rs1, GPR:$rs2),
+               [(set (vt cls:$rd), (operator (addr (i32 GPROpnd:$rs1),
+                                                   (i32 GPROpnd:$rs2))))]>;
+  def u : F_LSINDSC<func, ty, /*user=*/ 0b1, (outs cls:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option,""), "ld.usr", !strconcat("ld.", option, ".usr"))>;
 }
 
 multiclass LoadScaled {
   defvar Func = 0b0001;
   let regfile = 1 in {
-    defm rrsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, load, ADDRrs8>;
-    defm rrsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", GPR, i32, load, ADDRrs4>;
-    defm rrsb  : FLoadScaled<Func, /*ty=*/ 0b11, "b", GPR, i32, sextloadi8, ADDRrs1>;
-    defm rrsh  : FLoadScaled<Func, /*ty=*/ 0b10, "h", GPR, i32, sextloadi16, ADDRrs2>;
+    defm rrsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, load, ADDRrs8>;
+    defm rrsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, load, ADDRrs4>;
+    defm rrsb  : FLoadScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, sextloadi8, ADDRrs1>;
+    defm rrsh  : FLoadScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, sextloadi16, ADDRrs2>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    defm xxsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", XR, f32, load, ADDRrs4>;
-    defm xxsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", XR, f64, load, ADDRrs8>;
-    defm xxsq  : FLoadScaled<Func, /*ty=*/ 0b10, "x", XR, f80, load, ADDRrs16>;
+    defm xxsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, load, ADDRrs4>;
+    defm xxsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, load, ADDRrs8>;
+    defm xxsq  : FLoadScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, load, ADDRrs16>;
   }
 }
 
@@ -662,19 +662,19 @@ multiclass FStoreUnscaled<bits<4> func, bits<2> ty, string option,
                           SDPatternOperator operator> {
   let through = 0 in {
   def "" : F_LSINDUSC<func, /*ty=*/ ty, /*user=*/ 0b0,
-               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               (outs), (ins cls:$rd, GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option, ""), "st", !strconcat("st.", option)),
-               [(operator (vt cls:$rd), (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2)))]>;
+               [(operator (vt cls:$rd), (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))]>;
   def u : F_LSINDUSC<func, /*ty=*/ ty, /*user=*/ 0b1,
-               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               (outs), (ins cls:$rd, GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option, ""), "st.usr", !strconcat("st.", option, ".usr"))>;
   }
   let through = 1 in {
   def t : F_LSINDUSC<func, /*ty=*/ ty, /*user=*/ 0b0,
-               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               (outs), (ins cls:$rd, GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option, ""), "st.wt", !strconcat("st.", option, ".wt"))>;
   def ut : F_LSINDUSC<func, /*ty=*/ ty, /*user=*/ 0b1,
-               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               (outs), (ins cls:$rd, GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option, ""), "st.usr.wt", !strconcat("st.", option, ".usr.wt"))>;
   }
 }
@@ -682,15 +682,15 @@ multiclass FStoreUnscaled<bits<4> func, bits<2> ty, string option,
 multiclass StoreUnscaled {
   defvar Func = 0b0010;
   let regfile = 1 in {
-    defm rrud : FStoreUnscaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, store>;
-    defm rruw : FStoreUnscaled<Func, /*ty=*/ 0b01, "", GPR, i32, store>;
-    defm rrub : FStoreUnscaled<Func, /*ty=*/ 0b11, "b", GPR, i32, truncstorei8>;
-    defm rruh : FStoreUnscaled<Func, /*ty=*/ 0b10, "h", GPR, i32, truncstorei16>;
+    defm rrud : FStoreUnscaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, store>;
+    defm rruw : FStoreUnscaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, store>;
+    defm rrub : FStoreUnscaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, truncstorei8>;
+    defm rruh : FStoreUnscaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, truncstorei16>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    defm xrus : FStoreUnscaled<Func, /*ty=*/ 0b01, "", XR, f32, store>;
-    defm xrud : FStoreUnscaled<Func, /*ty=*/ 0b00, "d", XR, f64, store>;
-    defm xrux : FStoreUnscaled<Func, /*ty=*/ 0b10, "x", XR, f80, store>;
+    defm xrus : FStoreUnscaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, store>;
+    defm xrud : FStoreUnscaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, store>;
+    defm xrux : FStoreUnscaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, store>;
   }
 }
 
@@ -699,19 +699,19 @@ multiclass FStoreScaled<bits<4> func, bits<2> ty, string option,
                           SDPatternOperator operator, ComplexPattern addr> {
   let through = 0 in {
   def "" : F_LSINDSC<func, /*ty=*/ ty, /*user=*/ 0b0,
-               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               (outs), (ins cls:$rd, GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option, ""), "st", !strconcat("st.", option)),
-               [(operator (vt cls:$rd), (addr (i32 GPR:$rs1), (i32 GPR:$rs2)))]>;
+               [(operator (vt cls:$rd), (addr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))]>;
   def u : F_LSINDSC<func, /*ty=*/ ty, /*user=*/ 0b1,
-               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               (outs), (ins cls:$rd, GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option, ""), "st.usr", !strconcat("st.", option, ".usr"))>;
   }
   let through = 1 in {
   def t : F_LSINDSC<func, /*ty=*/ ty, /*user=*/ 0b0,
-               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               (outs), (ins cls:$rd, GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option, ""), "st.wt", !strconcat("st.", option, ".wt"))>;
   def ut : F_LSINDSC<func, /*ty=*/ ty, /*user=*/ 0b1,
-               (outs), (ins cls:$rd, GPR:$rs1, GPR:$rs2),
+               (outs), (ins cls:$rd, GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option, ""), "st.usr.wt", !strconcat("st.", option, ".usr.wt"))>;
   }
 }
@@ -719,64 +719,64 @@ multiclass FStoreScaled<bits<4> func, bits<2> ty, string option,
 multiclass StoreScaled {
   defvar Func = 0b0010;
   let regfile = 1 in {
-    defm rrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", GPR64, i64, store, ADDRrs8>;
-    defm rrsw : FStoreScaled<Func, /*ty=*/ 0b01, "", GPR, i32, store, ADDRrs4>;
-    defm rrsb : FStoreScaled<Func, /*ty=*/ 0b11, "b", GPR, i32, truncstorei8, ADDRrs1>;
-    defm rrsh : FStoreScaled<Func, /*ty=*/ 0b10, "h", GPR, i32, truncstorei16, ADDRrs2>;
+    defm rrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, store, ADDRrs8>;
+    defm rrsw : FStoreScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, store, ADDRrs4>;
+    defm rrsb : FStoreScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, truncstorei8, ADDRrs1>;
+    defm rrsh : FStoreScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, truncstorei16, ADDRrs2>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    defm xrss : FStoreScaled<Func, /*ty=*/ 0b01, "", XR, f32, store, ADDRrs4>;
-    defm xrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", XR, f64, store, ADDRrs8>;
-    defm xrsx : FStoreScaled<Func, /*ty=*/ 0b10, "x", XR, f80, store, ADDRrs16>;
+    defm xrss : FStoreScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, store, ADDRrs4>;
+    defm xrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, store, ADDRrs8>;
+    defm xrsx : FStoreScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, store, ADDRrs16>;
   }
 }
 
 multiclass LoadAddr<string OpcStr> {
   def ds : F_LADDR</*ty=*/ 0b00, /*scl=*/ 0b1,
-                   (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                   (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                    !strconcat(OpcStr, ".d")>;
   def ws : F_LADDR</*ty=*/ 0b01, /*scl=*/ 0b1,
-                   (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                   (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                    OpcStr>;
   def hs : F_LADDR</*ty=*/ 0b10, /*scl=*/ 0b1,
-                   (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                   (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                    !strconcat(OpcStr, ".h")>;
 
   let Predicates = [NotMC88110] in
     def bs : F_LADDR</*ty=*/ 0b11, /*scl=*/ 0b1,
-                     (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                     (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                      !strconcat(OpcStr, ".b")>;
   let Predicates = [MC88110], DecoderNamespace = "MC88110" in
     def xs : F_LADDR</*ty=*/ 0b11, /*scl=*/ 0b1,
-                     (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                     (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                      !strconcat(OpcStr, ".x")>;
 
   // The unscaled versions with imm or register are only defined for MC88100.
   let Predicates = [NotMC88110] in {
     def du : F_LADDR</*ty=*/ 0b00, /*scl=*/ 0b0,
-                     (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                     (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                      !strconcat(OpcStr, ".d")>;
     def wu : F_LADDR</*ty=*/ 0b01, /*scl=*/ 0b0,
-                     (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                     (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                      OpcStr>;
     def hu : F_LADDR</*ty=*/ 0b10, /*scl=*/ 0b0,
-                     (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                     (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                      !strconcat(OpcStr, ".h")>;
     def bu : F_LADDR</*ty=*/ 0b11, /*scl=*/ 0b0,
-                     (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                     (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                      !strconcat(OpcStr, ".b")>;
 
     def rid  : F_LS</*func=*/ 0b0011, /*ty=*/ 0b00,
-                    (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
+                    (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$si16),
                     !strconcat(OpcStr, ".d")>;
     def riw  : F_LS</*func=*/ 0b0011, /*ty=*/ 0b01,
-                    (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
+                    (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$si16),
                     OpcStr>;
     def rih  : F_LS</*func=*/ 0b0011, /*ty=*/ 0b10,
-                    (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
+                    (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$si16),
                     !strconcat(OpcStr, ".h")>;
     def rib  : F_LS</*func=*/ 0b0011, /*ty=*/ 0b11,
-                    (outs GPR:$rd), (ins GPR:$rs1, uimm16:$si16),
+                    (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$si16),
                     !strconcat(OpcStr, ".b")>;
   }
 }
@@ -784,10 +784,10 @@ multiclass LoadAddr<string OpcStr> {
 multiclass Xmem {
   let Predicates = [NotMC88110] in {
     def bi : F_XMEMIMM</*ty=*/ 0b00,
-                        (outs GPR:$rd), (ins GPR:$rs1, uimm16:$imm16),
+                        (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$imm16),
                         "xmem.bu">;
     def wi : F_XMEMIMM</*ty=*/ 0b01,
-                        (outs GPR:$rd), (ins GPR:$rs1, uimm16:$imm16),
+                        (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$imm16),
                         "xmem">;
   }
 
@@ -795,16 +795,16 @@ multiclass Xmem {
     defvar Suffix = !if(U, ".usr", "");
     defvar S = !if(U, "u", "");
     def urrub#S : F_XMEMUNS</*ty=*/ 0b0, /*user=*/ U,
-                            (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                            (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                             !strconcat("xmem.bu", Suffix)>;
     def urruh#S : F_XMEMUNS</*ty=*/ 0b1, /*user=*/ U,
-                            (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                            (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                             !strconcat("xmem", Suffix)>;
     def urrsb#S : F_XMEMSC</*ty=*/ 0b0, /*user=*/ U,
-                           (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                           (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                            !strconcat("xmem.bu", Suffix)>;
     def urrsh#S : F_XMEMSC</*ty=*/ 0b1, /*user=*/ U,
-                           (outs GPR:$rd), (ins GPR:$rs1, GPR:$rs2),
+                           (outs GPROpnd:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                            !strconcat("xmem", Suffix)>;
   }
 }
@@ -827,45 +827,45 @@ let mayStore = 1 in {
 defm XMEM : Xmem;
 
 // Additional patterns for floating point types.
-def : Pat<(f32 (load (ADDRrs4 (i32 GPR:$rs1), (i32 GPR:$rs2)))),
-          (LDrrsw GPR:$rs1, GPR:$rs2)>;
-def : Pat<(f64 (load (ADDRrs8 (i32 GPR:$rs1), (i32 GPR:$rs2)))),
-          (LDrrsd GPR:$rs1, GPR:$rs2)>;
-def : Pat<(f32 (load (ADDRri (i32 GPR:$rs1), uimm16:$si16))),
-          (LDriw GPR:$rs1, uimm16:$si16)>;
-def : Pat<(f64 (load (ADDRri (i32 GPR:$rs1), uimm16:$si16))),
-          (LDrid GPR:$rs1, uimm16:$si16)>;
-def : Pat<(f32 (load (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2)))),
-          (LDrruw GPR:$rs1, GPR:$rs2)>;
-def : Pat<(f64 (load (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2)))),
-          (LDrrud GPR:$rs1, GPR:$rs2)>;
+def : Pat<(f32 (load (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+          (LDrrsw GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(f64 (load (ADDRrs8 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+          (LDrrsd GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(f32 (load (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
+          (LDriw GPROpnd:$rs1, uimm16:$si16)>;
+def : Pat<(f64 (load (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
+          (LDrid GPROpnd:$rs1, uimm16:$si16)>;
+def : Pat<(f32 (load (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+          (LDrruw GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(f64 (load (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+          (LDrrud GPROpnd:$rs1, GPROpnd:$rs2)>;
 
-def : Pat<(store (f32 GPR:$rd), (ADDRrs4 (i32 GPR:$rs1), (i32 GPR:$rs2))),
-          (STrrsw (f32 GPR:$rd), GPR:$rs1, GPR:$rs2)>;
-def : Pat<(store (f64 GPR64:$rd), (ADDRrs8 (i32 GPR:$rs1), (i32 GPR:$rs2))),
-          (STrrsd (f64 GPR64:$rd), GPR:$rs1, GPR:$rs2)>;
-def : Pat<(store (f32 GPR:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16)),
-          (STriw (f32 GPR:$rd), GPR:$rs1, uimm16:$si16)>;
-def : Pat<(store (f64 GPR64:$rd), (ADDRri (i32 GPR:$rs1), uimm16:$si16)),
-          (STrid (f64 GPR64:$rd), GPR:$rs1, uimm16:$si16)>;
-def : Pat<(store (f32 GPR:$rd), (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))),
-          (STrruw (f32 GPR:$rd), GPR:$rs1, GPR:$rs2)>;
-def : Pat<(store (f64 GPR64:$rd), (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))),
-          (STrrud (f64 GPR64:$rd), GPR:$rs1, GPR:$rs2)>;
+def : Pat<(store (f32 GPROpnd:$rd), (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+          (STrrsw (f32 GPROpnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(store (f64 GPR64Opnd:$rd), (ADDRrs8 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+          (STrrsd (f64 GPR64Opnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(store (f32 GPROpnd:$rd), (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)),
+          (STriw (f32 GPROpnd:$rd), GPROpnd:$rs1, uimm16:$si16)>;
+def : Pat<(store (f64 GPR64Opnd:$rd), (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)),
+          (STrid (f64 GPR64Opnd:$rd), GPROpnd:$rs1, uimm16:$si16)>;
+def : Pat<(store (f32 GPROpnd:$rd), (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+          (STrruw (f32 GPROpnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(store (f64 GPR64Opnd:$rd), (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+          (STrrud (f64 GPR64Opnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
 
 // Storing a zero constant.
-def : Pat<(store (i32 0), (ADDRrs4 (i32 GPR:$rs1), (i32 GPR:$rs2))),
-          (STrrsw (i32 R0), GPR:$rs1, GPR:$rs2)>;
-def : Pat<(store (i32 0), (ADDRri (i32 GPR:$rs1), uimm16:$si16)),
-          (STriw (i32 R0), GPR:$rs1, uimm16:$si16)>;
-def : Pat<(store (i32 0), (ADDRrr (i32 GPR:$rs1), (i32 GPR:$rs2))),
-          (STrruw (i32 R0), GPR:$rs1, GPR:$rs2)>;
+def : Pat<(store (i32 0), (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+          (STrrsw (i32 R0), GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(store (i32 0), (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)),
+          (STriw (i32 R0), GPROpnd:$rs1, uimm16:$si16)>;
+def : Pat<(store (i32 0), (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+          (STrruw (i32 R0), GPROpnd:$rs1, GPROpnd:$rs2)>;
 
 // Patterns to replace add/shl sequence with lda instruction.
-def : Pat<(add GPR:$rs1, (shl GPR:$rs2, (i32 1))), (LDAhs GPR:$rs1, GPR:$rs2)>;
-def : Pat<(add GPR:$rs1, (shl GPR:$rs2, (i32 2))), (LDAws GPR:$rs1, GPR:$rs2)>;
+def : Pat<(add GPROpnd:$rs1, (shl GPROpnd:$rs2, (i32 1))), (LDAhs GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(add GPROpnd:$rs1, (shl GPROpnd:$rs2, (i32 2))), (LDAws GPROpnd:$rs1, GPROpnd:$rs2)>;
 let Predicates = [MC88110] in
-  def : Pat<(add GPR:$rs1, (shl GPR:$rs2, (i32 3))), (LDAxs GPR:$rs1, GPR:$rs2)>;
+  def : Pat<(add GPROpnd:$rs1, (shl GPROpnd:$rs2, (i32 3))), (LDAxs GPROpnd:$rs1, GPROpnd:$rs2)>;
 
 // GlobalAddress, ExternalSymbol, Jumptable, ConstantPool
 def : Pat<(m88k_hi tglobaladdr:$dst), (ORriu (i32 R0), tglobaladdr:$dst)>;
@@ -876,7 +876,7 @@ def : Pat<(m88k_lo tglobaladdr:$dst), (ORri (i32 R0), tglobaladdr:$dst)>;
 // ---------------------------------------------------------------------------//
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1, isIndirectBranch = 1 in {
-  def JMP : F_JMP<0b11000, "jmp", [(brind GPR:$rs2)]>;
+  def JMP : F_JMP<0b11000, "jmp", [(brind GPROpnd:$rs2)]>;
   let hasDelaySlot = 1 in
     def JMPn : F_JMP<0b11000, "jmp">;
 }
@@ -907,41 +907,41 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
 
 let isBranch = 1, isTerminator = 1 in {
   def BB0 : F_BCOND<0b11010,
-                    (outs), (ins imm32zx5:$m5, GPR:$rs1, brtarget16:$d16),
+                    (outs), (ins imm32zx5:$m5, GPROpnd:$rs1, brtarget16:$d16),
                     "bb0">;
   def BB1 : F_BCOND<0b11011,
-                    (outs), (ins imm32zx5:$m5, GPR:$rs1, brtarget16:$d16),
+                    (outs), (ins imm32zx5:$m5, GPROpnd:$rs1, brtarget16:$d16),
                     "bb1">;
   def BCND : F_BCOND<0b11101,
-                     (outs), (ins ccode:$m5, GPR:$rs1, brtarget16:$d16),
+                     (outs), (ins ccode:$m5, GPROpnd:$rs1, brtarget16:$d16),
                      "bcnd">;
   let hasDelaySlot = 1 in {
     def BB0n : F_BCOND<0b11010,
-                       (outs), (ins imm32zx5:$m5, GPR:$rs1, brtarget16:$d16),
+                       (outs), (ins imm32zx5:$m5, GPROpnd:$rs1, brtarget16:$d16),
                        "bb0">;
     def BB1n : F_BCOND<0b11011,
-                      (outs), (ins imm32zx5:$m5, GPR:$rs1, brtarget16:$d16),
+                      (outs), (ins imm32zx5:$m5, GPROpnd:$rs1, brtarget16:$d16),
                       "bb1">;
     def BCNDn : F_BCOND<0b11101,
-                        (outs), (ins ccode:$m5, GPR:$rs1, brtarget16:$d16),
+                        (outs), (ins ccode:$m5, GPROpnd:$rs1, brtarget16:$d16),
                         "bcnd">;
   }
 }
 
 let isTrap = 1, isBarrier = 1 in {
-  def TB0 : F_TB<0b1101000, (outs), (ins imm32zx5:$b5, GPR:$rs1, Vec9:$vec9),
+  def TB0 : F_TB<0b1101000, (outs), (ins imm32zx5:$b5, GPROpnd:$rs1, Vec9:$vec9),
                  "tb0">;
-  def TB1 : F_TB<0b1101100, (outs), (ins imm32zx5:$b5, GPR:$rs1, Vec9:$vec9),
+  def TB1 : F_TB<0b1101100, (outs), (ins imm32zx5:$b5, GPROpnd:$rs1, Vec9:$vec9),
                  "tb1">;
-  def TCND : F_TCND<(outs), (ins ccode:$m5, GPR:$rs1, Vec9:$vec9), "tcnd">;
-  def TBNDi : F_TBNDIMM<(outs), (ins GPR:$rs1, uimm16:$imm16), "tbnd">;
-  def TBND : F_TBND<(outs), (ins GPR:$rs1, GPR:$rs2), "tbnd">;
+  def TCND : F_TCND<(outs), (ins ccode:$m5, GPROpnd:$rs1, Vec9:$vec9), "tcnd">;
+  def TBNDi : F_TBNDIMM<(outs), (ins GPROpnd:$rs1, uimm16:$imm16), "tbnd">;
+  def TBND : F_TBND<(outs), (ins GPROpnd:$rs1, GPROpnd:$rs2), "tbnd">;
 
   let isTerminator = 1, isCodeGenOnly = 1 in {
     // Raises trap with vector 502 if bit 0 of %rs1 is not set. This is used to
     // generate the trap after a zero division. Marked as terminator to allow
     // instruction to be last of basic block.
-    def TRAP503 : InstM88k<(outs), (ins GPR:$rs1), "tb0", "0, $rs1, 503", []> {
+    def TRAP503 : InstM88k<(outs), (ins GPROpnd:$rs1), "tb0", "0, $rs1, 503", []> {
       bits<5>  b5;
       bits<5>  rs1;
       bits<9>  vec9;
@@ -980,11 +980,11 @@ class FloatType<string optionin, ValueType vtin, int sizein, RegisterOperand cls
   bits<2> enc = encin;
 }
 
-def FTG32 : FloatType<"s", f32, 32, GPR, 0>;
-def FTG64 : FloatType<"d", f64, 64, GPR64, 1>;
-def FTX32 : FloatType<"s", f32, 32, XR, 0>;
-def FTX64 : FloatType<"d", f64, 64, XR, 1>;
-def FTX80 : FloatType<"x", f80, 80, XR, 2>;
+def FTG32 : FloatType<"s", f32, 32, GPROpnd, 0>;
+def FTG64 : FloatType<"d", f64, 64, GPR64Opnd, 1>;
+def FTX32 : FloatType<"s", f32, 32, XROpnd, 0>;
+def FTX64 : FloatType<"d", f64, 64, XROpnd, 1>;
+def FTX80 : FloatType<"x", f80, 80, XROpnd, 2>;
 
 class FloatSrc1<FloatType S1, FloatType S2> {
   dag val = !if(!lt(S1.size, S2.size),
@@ -1042,7 +1042,7 @@ multiclass FArith2<bits<4> Func, string OpcStr> {
     let regfile = 0 in {
       def gs # S2.option :
               F_SFU1D<Func, /*td=*/ 0b00, /*t1=*/ 0b00, /*t2=*/ S2.enc,
-                      (outs GPR:$rd), (ins S2.cls:$rs2),
+                      (outs GPROpnd:$rd), (ins S2.cls:$rs2),
                       !strconcat(OpcStr, ".s", S2.option)>;
     }
   }
@@ -1050,7 +1050,7 @@ multiclass FArith2<bits<4> Func, string OpcStr> {
     let regfile = 1 in {
       def xs # S2.option :
               F_SFU1D<Func, /*td=*/ 0b00, /*t1=*/ 0b00, /*t2=*/ S2.enc,
-                      (outs GPR:$rd), (ins S2.cls:$rs2),
+                      (outs GPROpnd:$rd), (ins S2.cls:$rs2),
                       !strconcat(OpcStr, ".s", S2.option)>;
     }
   }
@@ -1093,7 +1093,7 @@ multiclass FCmp<bits<4> Func, bits<2> td, string OpcStr> {
       let regfile = 0 in {
         def gs # S1.option # S2.option :
             F_SFU1<Func, /*td=*/ td, /*t1=*/ S1.enc, /*t2=*/ S2.enc,
-                   (outs GPR:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
+                   (outs GPROpnd:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
                    !strconcat(OpcStr, ".s", S1.option, S2.option)>;
       }
     }
@@ -1103,7 +1103,7 @@ multiclass FCmp<bits<4> Func, bits<2> td, string OpcStr> {
       let regfile = 1 in {
         def xs # S1.option # S2.option :
             F_SFU1<Func, /*td=*/ td, /*t1=*/ S1.enc, /*t2=*/ S2.enc,
-                   (outs GPR:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
+                   (outs GPROpnd:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
                    !strconcat(OpcStr, ".s", S1.option, S2.option)>;
       }
     }
@@ -1123,29 +1123,29 @@ let Predicates = [MC88110] in {
   defm FCVT : FUnary<0b0001, "fcvt", false>;
   defm FSQRT : FUnary<0b1111, "fsqrt", true>;
 
-  def : Pat<(fpextend (f32 GPR:$rs1)),
-            (FCVTgds GPR:$rs1)>;
-  def : Pat<(fpround (f64 GPR64:$rs1)),
-            (FCVTgsd GPR64:$rs1)>;
+  def : Pat<(fpextend (f32 GPROpnd:$rs1)),
+            (FCVTgds GPROpnd:$rs1)>;
+  def : Pat<(fpround (f64 GPR64Opnd:$rs1)),
+            (FCVTgsd GPR64Opnd:$rs1)>;
 
-  def : Pat<(f64 (fpextend (f32 XR:$rs1))),
-            (FCVTxds XR:$rs1)>;
-  def : Pat<(f80 (fpextend (f32 XR:$rs1))),
-            (FCVTxxs XR:$rs1)>;
-  def : Pat<(f80 (fpextend (f64 XR:$rs1))),
-            (FCVTxxd XR:$rs1)>;
-  def : Pat<(f32 (fpround (f64 XR:$rs1))),
-            (FCVTxsd XR:$rs1)>;
-  def : Pat<(f32 (fpround (f80 XR:$rs1))),
-            (FCVTxsx XR:$rs1)>;
-  def : Pat<(f64 (fpround (f80 XR:$rs1))),
-            (FCVTxdx XR:$rs1)>;
+  def : Pat<(f64 (fpextend (f32 XROpnd:$rs1))),
+            (FCVTxds XROpnd:$rs1)>;
+  def : Pat<(f80 (fpextend (f32 XROpnd:$rs1))),
+            (FCVTxxs XROpnd:$rs1)>;
+  def : Pat<(f80 (fpextend (f64 XROpnd:$rs1))),
+            (FCVTxxd XROpnd:$rs1)>;
+  def : Pat<(f32 (fpround (f64 XROpnd:$rs1))),
+            (FCVTxsd XROpnd:$rs1)>;
+  def : Pat<(f32 (fpround (f80 XROpnd:$rs1))),
+            (FCVTxsx XROpnd:$rs1)>;
+  def : Pat<(f64 (fpround (f80 XROpnd:$rs1))),
+            (FCVTxdx XROpnd:$rs1)>;
 }
 
-def : Pat<(fpextend (f32 GPR:$rs1)),
-          (FSUBgdss GPR:$rs1, (f32 R0))>;
-def : Pat<(fpround (f64 GPR64:$rs1)),
-          (FSUBgsds GPR64:$rs1, (f32 R0))>;
+def : Pat<(fpextend (f32 GPROpnd:$rs1)),
+          (FSUBgdss GPROpnd:$rs1, (f32 R0))>;
+def : Pat<(fpround (f64 GPR64Opnd:$rs1)),
+          (FSUBgsds GPR64Opnd:$rs1, (f32 R0))>;
 
 // Missing: fcmp, fcmpu
 defm FCMP : FCmp<0b0111, 0b00, "fcmp">;
@@ -1154,53 +1154,53 @@ let Predicates = [MC88110] in
 
 let regfile = 0 in {
 def FLTgss : F_SFU1FLT</*td=*/ 0b00,
-                       (outs GPR:$rd), (ins GPR:$rs2),
+                       (outs GPROpnd:$rd), (ins GPROpnd:$rs2),
                        "flt.ss",
-                       [(set (f32 GPR:$rd), (sint_to_fp (i32 GPR:$rs2)))]>;
+                       [(set (f32 GPROpnd:$rd), (sint_to_fp (i32 GPROpnd:$rs2)))]>;
 def FLTgds : F_SFU1FLT</*td=*/ 0b01,
-                       (outs GPR64:$rd), (ins GPR:$rs2),
+                       (outs GPR64Opnd:$rd), (ins GPROpnd:$rs2),
                        "flt.ds",
-                       [(set (f64 GPR64:$rd), (sint_to_fp (i32 GPR:$rs2)))]>;
+                       [(set (f64 GPR64Opnd:$rd), (sint_to_fp (i32 GPROpnd:$rs2)))]>;
 }
 let regfile = 1, Predicates = [MC88110] in {
 def FLTxss : F_SFU1FLT</*td=*/ 0b00,
-                       (outs XR:$rd), (ins GPR:$rs2),
+                       (outs XROpnd:$rd), (ins GPROpnd:$rs2),
                        "flt.ss",
-                       [(set (f32 XR:$rd), (sint_to_fp (i32 GPR:$rs2)))]>;
+                       [(set (f32 XROpnd:$rd), (sint_to_fp (i32 GPROpnd:$rs2)))]>;
 def FLTxds : F_SFU1FLT</*td=*/ 0b01,
-                       (outs XR:$rd), (ins GPR:$rs2),
+                       (outs XROpnd:$rd), (ins GPROpnd:$rs2),
                        "flt.ds",
-                       [(set (f64 XR:$rd), (sint_to_fp (i32 GPR:$rs2)))]>;
+                       [(set (f64 XROpnd:$rd), (sint_to_fp (i32 GPROpnd:$rs2)))]>;
 def FLTxxs : F_SFU1FLT</*td=*/ 0b10,
-                       (outs XR:$rd), (ins GPR:$rs2),
+                       (outs XROpnd:$rd), (ins GPROpnd:$rs2),
                        "flt.xs",
-                       [(set (f80 XR:$rd), (sint_to_fp (i32 GPR:$rs2)))]>;
+                       [(set (f80 XROpnd:$rd), (sint_to_fp (i32 GPROpnd:$rs2)))]>;
 }
 
 let regfile = 1, isMoveReg = 1, Predicates = [MC88110] in {
 def MOVrxs : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b00, /*t2*/0b00,
-                     (outs GPR:$rd), (ins XR:$rs2),
+                     (outs GPROpnd:$rd), (ins XROpnd:$rs2),
                      "mov.s",
-                     [(set GPR:$rd, (f32 XR:$rs2))]>;
+                     [(set GPROpnd:$rd, (f32 XROpnd:$rs2))]>;
 def MOVrxd : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b00, /*t2*/0b01,
-                     (outs GPR64:$rd), (ins XR:$rs2),
+                     (outs GPR64Opnd:$rd), (ins XROpnd:$rs2),
                      "mov.d",
-                     [(set GPR64:$rd, (f64 XR:$rs2))]>;
+                     [(set GPR64Opnd:$rd, (f64 XROpnd:$rs2))]>;
 def MOVxx : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b01, /*t2*/0b11,
-                    (outs XR:$rd), (ins XR:$rs2),
+                    (outs XROpnd:$rd), (ins XROpnd:$rs2),
                     "mov">;
-//                    [(set XR:$rd, XR:$rs2)]>;
+//                    [(set XROpnd:$rd, XROpnd:$rs2)]>;
 }
 
 let regfile = 0, isMoveReg = 1, Predicates = [MC88110] in {
 def MOVxrs : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b01, /*t2*/0b00,
-                     (outs XR:$rd), (ins GPR:$rs2),
+                     (outs XROpnd:$rd), (ins GPROpnd:$rs2),
                      "mov.s",
-                     [(set (f32 XR:$rd), GPR:$rs2)]>;
+                     [(set (f32 XROpnd:$rd), GPROpnd:$rs2)]>;
 def MOVxrd : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b01, /*t2*/0b01,
-                     (outs XR:$rd), (ins GPR64:$rs2),
+                     (outs XROpnd:$rd), (ins GPR64Opnd:$rs2),
                      "mov.d",
-                     [(set (f64 XR:$rd), GPR64:$rs2)]>;
+                     [(set (f64 XROpnd:$rd), GPR64Opnd:$rs2)]>;
 }
 
 // ---------------------------------------------------------------------------//
@@ -1209,10 +1209,10 @@ def MOVxrd : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b01, /*t2*/0b01,
 
 multiclass SetICCPat<CondCode CC, bits<5> w5, bits<5> o5> {
   assert !ne(CC.ICmpPredicate, ""), "Not integer CC: " # CC;
-  def : Pat<(setcc (i32 GPR:$lhs), (i32 GPR:$rhs), CC),
-            (EXTUrwo (CMPrr GPR:$lhs, GPR:$rhs), w5, o5)>;
-  def : Pat<(setcc (i32 GPR:$lhs), uimm16:$rhs, CC),
-            (EXTUrwo (CMPri GPR:$lhs, uimm16:$rhs), w5, o5)>;
+  def : Pat<(setcc (i32 GPROpnd:$lhs), (i32 GPROpnd:$rhs), CC),
+            (EXTUrwo (CMPrr GPROpnd:$lhs, GPROpnd:$rhs), w5, o5)>;
+  def : Pat<(setcc (i32 GPROpnd:$lhs), uimm16:$rhs, CC),
+            (EXTUrwo (CMPri GPROpnd:$lhs, uimm16:$rhs), w5, o5)>;
 }
 
 multiclass SetFCCPat<CondCode CC, bits<5> w5, bits<5> o5> {
@@ -1254,29 +1254,29 @@ defm : SetFCCPat<SETULT, 1, 16>;
 defm : SetFCCPat<SETUGE, 1, 17>;
 
 // Compares against zero use bcond instruction.
-def : Pat<(brcc SETEQ, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b00010, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETNE, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b01101, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETGT, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b00001, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETLT, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b01100, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETGE, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b00011, GPR:$rs1, bb:$dst)>;
-def : Pat<(brcc SETLE, GPR:$rs1, 0, bb:$dst),
-          (BCND 0b01110, GPR:$rs1, bb:$dst)>;
+def : Pat<(brcc SETEQ, GPROpnd:$rs1, 0, bb:$dst),
+          (BCND 0b00010, GPROpnd:$rs1, bb:$dst)>;
+def : Pat<(brcc SETNE, GPROpnd:$rs1, 0, bb:$dst),
+          (BCND 0b01101, GPROpnd:$rs1, bb:$dst)>;
+def : Pat<(brcc SETGT, GPROpnd:$rs1, 0, bb:$dst),
+          (BCND 0b00001, GPROpnd:$rs1, bb:$dst)>;
+def : Pat<(brcc SETLT, GPROpnd:$rs1, 0, bb:$dst),
+          (BCND 0b01100, GPROpnd:$rs1, bb:$dst)>;
+def : Pat<(brcc SETGE, GPROpnd:$rs1, 0, bb:$dst),
+          (BCND 0b00011, GPROpnd:$rs1, bb:$dst)>;
+def : Pat<(brcc SETLE, GPROpnd:$rs1, 0, bb:$dst),
+          (BCND 0b01110, GPROpnd:$rs1, bb:$dst)>;
 
 // Generate patterns for brcc and bcond nodes.
 multiclass BranchPat<CondCode CC, PatFrag ccop, bits<5> m5> {
-  def : Pat<(brcc CC, (i32 GPR:$rs1), (i32 GPR:$rs2), bb:$dst),
-             (BB1 m5, (CMPrr GPR:$rs1, GPR:$rs2), bb:$dst)>;
-  def : Pat<(brcc CC, (i32 GPR:$rs1), uimm16:$imm16, bb:$dst),
-             (BB1 m5, (CMPri GPR:$rs1, uimm16:$imm16), bb:$dst)>;
-  def : Pat<(brcond (i32 (ccop (i32 GPR:$lhs), (i32 GPR:$rhs))), bb:$dst),
-             (BB1 m5, (CMPrr GPR:$lhs, GPR:$rhs), bb:$dst)>;
-  def : Pat<(brcond (i32 (ccop (i32 GPR:$lhs), uimm16:$rhs)), bb:$dst),
-             (BB1 m5, (CMPri GPR:$lhs, uimm16:$rhs), bb:$dst)>;
+  def : Pat<(brcc CC, (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2), bb:$dst),
+             (BB1 m5, (CMPrr GPROpnd:$rs1, GPROpnd:$rs2), bb:$dst)>;
+  def : Pat<(brcc CC, (i32 GPROpnd:$rs1), uimm16:$imm16, bb:$dst),
+             (BB1 m5, (CMPri GPROpnd:$rs1, uimm16:$imm16), bb:$dst)>;
+  def : Pat<(brcond (i32 (ccop (i32 GPROpnd:$lhs), (i32 GPROpnd:$rhs))), bb:$dst),
+             (BB1 m5, (CMPrr GPROpnd:$lhs, GPROpnd:$rhs), bb:$dst)>;
+  def : Pat<(brcond (i32 (ccop (i32 GPROpnd:$lhs), uimm16:$rhs)), bb:$dst),
+             (BB1 m5, (CMPri GPROpnd:$lhs, uimm16:$rhs), bb:$dst)>;
 }
 
 // Compare integer registers / integer register and immediate.
@@ -1296,22 +1296,22 @@ defm : BranchPat<SETUGE, setuge, 11>;
 // ---------------------------------------------------------------------------//
 
 let rs1 = 0, rs2 = 0 in {
-def LDCR : F_SFU1CR<0b01000, (outs GPR:$rd), (ins CR:$cr),
+def LDCR : F_SFU1CR<0b01000, (outs GPROpnd:$rd), (ins CROpnd:$cr),
                     "ldcr", "$rd, $cr">;
-def FLDCR : F_SFU1CR<0b01001, (outs GPR:$rd), (ins FCR:$cr),
+def FLDCR : F_SFU1CR<0b01001, (outs GPROpnd:$rd), (ins FCROpnd:$cr),
                      "fldcr", "$rd, $cr">;
 }
 
 let rd = 0 in {
-def STCR : F_SFU1CR2<0b10000, (outs CR:$cr), (ins GPR:$rs1),
+def STCR : F_SFU1CR2<0b10000, (outs CROpnd:$cr), (ins GPROpnd:$rs1),
                      "stcr", "$rs1, $cr">;
-def FSTCR : F_SFU1CR2<0b10001, (outs FCR:$cr), (ins GPR:$rs1),
+def FSTCR : F_SFU1CR2<0b10001, (outs FCROpnd:$cr), (ins GPROpnd:$rs1),
                       "fstcr", "$rs1, $cr">;
 }
 
-def XCR : F_SFU1CR2<0b11000, (outs GPR:$rd), (ins GPR:$rs1, CR:$cr),
+def XCR : F_SFU1CR2<0b11000, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, CROpnd:$cr),
                     "xcr", "$rd, $rs1, $cr">;
-def FXCR : F_SFU1CR2<0b11001, (outs GPR:$rd), (ins GPR:$rs1, FCR:$cr),
+def FXCR : F_SFU1CR2<0b11001, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, FCROpnd:$cr),
                      "fxcr", "$rd, $rs1, $cr">;
 
 // ---------------------------------------------------------------------------//
@@ -1320,46 +1320,46 @@ def FXCR : F_SFU1CR2<0b11001, (outs GPR:$rd), (ins GPR:$rs1, FCR:$cr),
 
 multiclass PArithPixel<bits<5> func, string opc, SDNode OpNode> {
   def "": F_SFU2<func, /*sat=*/ 0b00, /*ty=*/ 0b11,
-                 (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                 (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                  opc,
                  [(set v2i32:$rd, (OpNode v2i32:$rs1, v2i32:$rs2))]>;
   def b : F_SFU2<func, /*sat=*/ 0b00, /*ty=*/ 0b01,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".b"),
                  [(set v8i8:$rd, (OpNode v8i8:$rs1, v8i8:$rs2))]>;
   def h : F_SFU2<func, /*sat=*/ 0b00, /*ty=*/ 0b10,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".h"),
                  [(set v4i16:$rd, (OpNode v4i16:$rs1, v4i16:$rs2))]>;
 }
 
 multiclass PArithPixelSat<bits<5> func, string opc> {
   def u: F_SFU2<func, /*sat=*/ 0b01, /*ty=*/ 0b11,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".u")>;
   def ub: F_SFU2<func, /*sat=*/ 0b01, /*ty=*/ 0b01,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".u.b")>;
   def uh: F_SFU2<func, /*sat=*/ 0b01, /*ty=*/ 0b10,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".u.h")>;
   def us: F_SFU2<func, /*sat=*/ 0b10, /*ty=*/ 0b11,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".us")>;
   def usb: F_SFU2<func, /*sat=*/ 0b10, /*ty=*/ 0b01,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".us.b")>;
   def ush: F_SFU2<func, /*sat=*/ 0b10, /*ty=*/ 0b10,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".us.h")>;
   def s: F_SFU2<func, /*sat=*/ 0b11, /*ty=*/ 0b11,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".s")>;
   def sb: F_SFU2<func, /*sat=*/ 0b11, /*ty=*/ 0b01,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".s.b")>;
   def sh: F_SFU2<func, /*sat=*/ 0b11, /*ty=*/ 0b10,
-                  (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".s.h")>;
 }
 
@@ -1367,46 +1367,46 @@ multiclass PPack {
   defvar func = 0b01100;
   defvar opc = "ppack";
   def "32b": F_SFU2PPACK<func, /*r=*/ 0b0010, /*ty=*/ 0b11,
-                         (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                         (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                          !strconcat(opc, ".32.b")>;
   def "32h": F_SFU2PPACK<func, /*r=*/ 0b0100, /*ty=*/ 0b11,
-                         (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                         (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                          !strconcat(opc, ".32.h")>;
   def "32": F_SFU2PPACK<func, /*r=*/ 0b1000, /*ty=*/ 0b11,
-                        (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                        (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                         !strconcat(opc, ".32")>;
   def "16h": F_SFU2PPACK<func, /*r=*/ 0b0100, /*ty=*/ 0b10,
-                         (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                         (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                          !strconcat(opc, ".16.h")>;
   def "16": F_SFU2PPACK<func, /*r=*/ 0b1000, /*ty=*/ 0b10,
-                        (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                        (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                         !strconcat(opc, ".16")>;
   def "8": F_SFU2PPACK<func, /*r=*/ 0b1000, /*ty=*/ 0b01,
-                       (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                       (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                        !strconcat(opc, ".8")>;
 }
 
 let Predicates = [Graphics] in {
 
 def PMUL : F_SFU2<0b00000, 0b00, 0b00,
-                  (outs GPR64:$rd), (ins GPR:$rs1, GPR64:$rs2),
+                  (outs GPR64Opnd:$rd), (ins GPROpnd:$rs1, GPR64Opnd:$rs2),
                   "pmul">;
 def PCMP : F_SFU2<0b00111, 0b00, 0b11,
-                  (outs GPR:$rd), (ins GPR64:$rs1, GPR64:$rs2),
+                  (outs GPROpnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   "pcmp">;
 defm PADD : PArithPixel<0b00100, "padd", add>;
 defm PSUB : PArithPixel<0b00110, "psub", sub>;
 defm PADDS : PArithPixelSat<0b00100, "padds">;
 defm PSUBS : PArithPixelSat<0b00110, "psubs">;
 defm PPACK : PPack;
-def PROTri : F_SFU2PROT<0b01110, (outs GPR64:$rd),
-                        (ins GPR64:$rs1, pixelrot:$o6), "prot">;
+def PROTri : F_SFU2PROT<0b01110, (outs GPR64Opnd:$rd),
+                        (ins GPR64Opnd:$rs1, pixelrot:$o6), "prot">;
 def PROTrr : F_SFU2<0b01111, /*sat=*/ 0b00, /*ty=*/ 0b00,
-                    (outs GPR64:$rd), (ins GPR64:$rs1, GPR64:$rs2), "prot">;
+                    (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2), "prot">;
 def PUNPKn : F_SFU2D<0b01101, /*sat=*/ 0b00, /*ty=*/ 0b00,
-                     (outs GPR64:$rd), (ins GPR64:$rs1), "punpk.n">;
+                     (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1), "punpk.n">;
 def PUNPKb : F_SFU2D<0b01101, /*sat=*/ 0b00, /*ty=*/ 0b01,
-                     (outs GPR64:$rd), (ins GPR64:$rs1), "punpk.b">;
+                     (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1), "punpk.b">;
 def PUNPKh : F_SFU2D<0b01101, /*sat=*/ 0b00, /*ty=*/ 0b10,
-                     (outs GPR64:$rd), (ins GPR64:$rs1), "punpk.h">;
+                     (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1), "punpk.h">;
 }

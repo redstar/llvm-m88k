@@ -34,12 +34,12 @@ const RegisterBank &
 M88kRegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
                                              LLT Ty) const {
   switch (RC.getID()) {
-  case M88k::GPRRCRegClassID:
-  case M88k::GPR64RCRegClassID:
+  case M88k::GPRRegClassID:
+  case M88k::GPR64RegClassID:
     return getRegBank(M88k::GRRegBankID);
-  case M88k::XRRCRegClassID:
+  case M88k::XRRegClassID:
     return getRegBank(M88k::XRRegBankID);
-  case M88k::CRRCRegClassID:
+  case M88k::CRRegClassID:
     return getRegBank(M88k::CRRegBankID);
   default:
     llvm_unreachable("Unexpected register class");

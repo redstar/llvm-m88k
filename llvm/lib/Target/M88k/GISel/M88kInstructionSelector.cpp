@@ -235,11 +235,11 @@ static const TargetRegisterClass *guessRegClass(unsigned Reg,
          "Unsupported reg bank");
 
   if (RegBank->getID() == M88k::XRRegBankID)
-    return &M88k::XRRCRegClass;
+    return &M88k::XRRegClass;
 
   if (Size == 64)
-    return &M88k::GPR64RCRegClass;
-  return &M88k::GPRRCRegClass;
+    return &M88k::GPR64RegClass;
+  return &M88k::GPRRegClass;
 }
 
 static bool selectCopy(MachineInstr &I, const TargetInstrInfo &TII,
@@ -484,7 +484,7 @@ bool M88kInstructionSelector::selectGlobalValue(
 
   const GlobalValue *GV = I.getOperand(1).getGlobal();
 
-  Register Temp = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+  Register Temp = MRI.createVirtualRegister(&M88k::GPRRegClass);
   MachineInstr *MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ORriu))
                          .addReg(Temp, RegState::Define)
                          .addReg(M88k::R0)
@@ -648,7 +648,7 @@ bool M88kInstructionSelector::selectICmp(MachineInstr &I,
       static_cast<CmpInst::Predicate>(I.getOperand(1).getPredicate());
   ICC CCCode = getCCforICMP(Pred);
   Register LHS = I.getOperand(2).getReg();
-  Register Temp = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+  Register Temp = MRI.createVirtualRegister(&M88k::GPRRegClass);
 
   auto Cst =
       getIConstantVRegValWithLookThrough(I.getOperand(2).getReg(), MRI, true);
@@ -700,7 +700,7 @@ bool M88kInstructionSelector::selectBrCond(MachineInstr &I,
                .addReg(LHS)
                .addMBB(BB);
     } else {
-      Register Temp = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+      Register Temp = MRI.createVirtualRegister(&M88k::GPRRegClass);
       ICC CCCode = getCCforICMP(Pred);
       MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::CMPri))
                .addReg(Temp, RegState::Define)
@@ -714,7 +714,7 @@ bool M88kInstructionSelector::selectBrCond(MachineInstr &I,
                .addMBB(BB);
     }
   } else if (mi_match(CC, MRI, m_GICmp(m_Pred(Pred), m_Reg(LHS), m_Reg(RHS)))) {
-    Register Temp = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+    Register Temp = MRI.createVirtualRegister(&M88k::GPRRegClass);
     ICC CCCode = getCCforICMP(Pred);
     MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::CMPrr))
              .addReg(Temp, RegState::Define)
@@ -762,7 +762,7 @@ bool M88kInstructionSelector::selectJumpTable(MachineInstr &I,
   Register Reg = I.getOperand(0).getReg();
   int JTIndex = I.getOperand(1).getIndex();
 
-  Register Temp = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+  Register Temp = MRI.createVirtualRegister(&M88k::GPRRegClass);
   MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ORriu))
            .addReg(Temp, RegState::Define)
            .addReg(M88k::R0)
@@ -792,7 +792,7 @@ bool M88kInstructionSelector::selectBrJT(MachineInstr &I,
   Register JTPtrReg = I.getOperand(0).getReg();
   Register JTIndexReg = I.getOperand(2).getReg();
 
-  Register DstReg = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+  Register DstReg = MRI.createVirtualRegister(&M88k::GPRRegClass);
   if (EntrySize == 4) {
     MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::LDrrsw))
              .addReg(DstReg, RegState::Define)
@@ -973,7 +973,7 @@ bool M88kInstructionSelector::selectExt(MachineInstr &I, MachineBasicBlock &MBB,
   if (mi_match(SrcReg, MRI,
                m_GICmp(m_Pred(Pred), m_Reg(LHS), m_ICst(SImm16))) &&
       isInt<16>(SImm16)) {
-    Register Temp = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+    Register Temp = MRI.createVirtualRegister(&M88k::GPRRegClass);
     ICC CCCode = getCCforICMP(Pred);
     MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::CMPri))
              .addReg(Temp, RegState::Define)
@@ -987,7 +987,7 @@ bool M88kInstructionSelector::selectExt(MachineInstr &I, MachineBasicBlock &MBB,
              .addImm(int64_t(CCCode));
   } else if (mi_match(SrcReg, MRI,
                       m_GICmp(m_Pred(Pred), m_Reg(LHS), m_Reg(RHS)))) {
-    Register Temp = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+    Register Temp = MRI.createVirtualRegister(&M88k::GPRRegClass);
     ICC CCCode = getCCforICMP(Pred);
     MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::CMPrr))
              .addReg(Temp, RegState::Define)
@@ -1091,7 +1091,7 @@ bool M88kInstructionSelector::selectLoadStore(MachineInstr &I,
                                            LoadStore::Imm, IsZExtLoad);
     const GlobalValue *GV = GlobalValMI->getOperand(1).getGlobal();
 
-    Register Temp = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+    Register Temp = MRI.createVirtualRegister(&M88k::GPRRegClass);
     MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ORriu))
              .addReg(Temp, RegState::Define)
              .addReg(M88k::R0)
@@ -1175,7 +1175,7 @@ bool M88kInstructionSelector::selectMergeUnmerge(
         .addImm(M88k::sub_lo)
         .addUse(HiReg)
         .addImm(M88k::sub_hi);
-    RBI.constrainGenericRegister(DstReg, M88k::GPR64RCRegClass, MRI);
+    RBI.constrainGenericRegister(DstReg, M88k::GPR64RegClass, MRI);
   } else {
     Register SrcReg = I.getOperand(2).getReg();
 
@@ -1183,13 +1183,13 @@ bool M88kInstructionSelector::selectMergeUnmerge(
     MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::COPY),
                  I.getOperand(0).getReg())
              .addReg(SrcReg, 0, M88k::sub_lo);
-    RBI.constrainGenericRegister(I.getOperand(0).getReg(), M88k::GPRRCRegClass,
+    RBI.constrainGenericRegister(I.getOperand(0).getReg(), M88k::GPRRegClass,
                                  MRI);
 
     MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::COPY),
                  I.getOperand(1).getReg())
              .addReg(SrcReg, 0, M88k::sub_hi);
-    RBI.constrainGenericRegister(I.getOperand(1).getReg(), M88k::GPRRCRegClass,
+    RBI.constrainGenericRegister(I.getOperand(1).getReg(), M88k::GPRRegClass,
                                  MRI);
   }
   I.eraseFromParent();
@@ -1212,7 +1212,7 @@ bool M88kInstructionSelector::selectIntrinsic(MachineInstr &I,
 
     unsigned Depth = I.getOperand(2).getImm();
     Register DstReg = I.getOperand(0).getReg();
-    RBI.constrainGenericRegister(DstReg, M88k::GPRRCRegClass, MRI);
+    RBI.constrainGenericRegister(DstReg, M88k::GPRRegClass, MRI);
 
     if (Depth == 0 && IntrinID == Intrinsic::returnaddress) {
       if (!MFReturnAddr) {
@@ -1220,7 +1220,7 @@ bool M88kInstructionSelector::selectIntrinsic(MachineInstr &I,
         // clobbered by anything.
         MFI.setReturnAddressIsTaken(true);
         MFReturnAddr = getFunctionLiveInPhysReg(
-            MF, TII, M88k::R1, M88k::GPRRCRegClass, I.getDebugLoc());
+            MF, TII, M88k::R1, M88k::GPRRegClass, I.getDebugLoc());
       }
 
       MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::COPY), DstReg)
@@ -1233,7 +1233,7 @@ bool M88kInstructionSelector::selectIntrinsic(MachineInstr &I,
     MFI.setFrameAddressIsTaken(true);
     Register FrameAddr(M88k::R30);
     while (Depth--) {
-      Register NextFrame = MRI.createVirtualRegister(&M88k::GPRRCRegClass);
+      Register NextFrame = MRI.createVirtualRegister(&M88k::GPRRegClass);
       MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::LDriw), NextFrame)
                .addUse(FrameAddr)
                .addImm(0);
@@ -1276,7 +1276,7 @@ bool M88kInstructionSelector::preISelLower(MachineInstr &I) {
       auto Copy = MIB.buildCopy(LLT::scalar(32), SrcOp);
       Register NewSrc = Copy.getReg(0);
       SrcOp.setReg(NewSrc);
-      RBI.constrainGenericRegister(NewSrc, M88k::GPRRCRegClass, MRI);
+      RBI.constrainGenericRegister(NewSrc, M88k::GPRRegClass, MRI);
       Changed = true;
     }
     return Changed;
