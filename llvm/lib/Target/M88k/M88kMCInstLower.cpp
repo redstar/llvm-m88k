@@ -93,7 +93,7 @@ MCOperand M88kMCInstLower::lowerOperand(const MachineOperand &MO, const TargetRe
     Register Reg = MO.getReg();
     assert(Register::isPhysicalRegister(Reg));
     assert(!MO.getSubReg() && "Subregs should be eliminated!");
-    if(M88k::GPR64RCRegClass.contains(Reg))
+    if(M88k::GPR64RegClass.contains(Reg))
       Reg = TRI->getSubReg(Reg, M88k::sub_hi);
     return MCOperand::createReg(Reg);
   }
