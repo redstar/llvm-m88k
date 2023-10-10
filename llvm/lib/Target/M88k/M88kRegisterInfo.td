@@ -18,11 +18,6 @@ class M88kCRReg<bits<6> Enc, string n> : Register<n> {
   let Namespace = "M88k";
 }
 
-class M88kRegWithSubregs<string n, list<Register> subregs>
-  : RegisterWithSubRegs<n, subregs> {
-  let Namespace = "M88k";
-}
-
 // Multiclass to define RegisterClass and RegisterOperand together.
 multiclass M88kRegisterClass<list<ValueType> types, int size, int alignment,
                              dag regList, bit allocatable = 1, int copycost = 1> {
@@ -47,17 +42,6 @@ foreach I = 0-31 in {
     def R#I : M88kReg<I, "r"#I>;
 }
 
-// Register pairs.
-// TODO Check let isArtificial = 1
-//let AsmName = "", SubRegIndices = [sub_hi, sub_lo], CoveredBySubRegs = true in {
-//  foreach I = 0-15 in {
-//    defvar Rx = "R" # !mul(2,I);
-//    defvar Ry = "R" # !add(!mul(2,I),1);
-//    def Rx#_#Ry : M88kRegWithSubregs<Rx#_#Ry,
-//                                    [!cast<Register>(Rx), !cast<Register>(Ry)]>;
-//  }
-//}
-
 defm GPR : M88kRegisterClass<[i32, f32], 32, 32,
                              (add (sequence "R%u", 0, 31))>;
 
@@ -68,12 +52,6 @@ def GRPair : RegisterTuples<[sub_hi, sub_lo],
 
 defm GPR64 : M88kRegisterClass<[i64, f64, v8i8, v4i16, v2i32], 64, 32,
                                (add GRPair), 1, 2>;
-
-//defm GPR64 : M88kRegisterClass<[i64, f64], 64, 32,
-//                               (add R0_R1, R2_R3, R4_R5, R6_R7, R8_R9,
-//                                    R10_R11, R12_R13, R14_R15, R16_R17, R18_R19,
-//                                    R20_R21, R22_R23, R24_R25, R26_R27, R28_R29,
-//                                    R30_R31)>;
 
 // Extended (floating point) registers.
 foreach I = 0-31 in {
@@ -100,6 +78,34 @@ foreach I = 0-63 in {
 
 defm CR : M88kRegisterClass<[i32], 32, 32, (add (sequence "CR%u", 0, 63)), 0>;
 defm FCR : M88kRegisterClass<[i32], 32, 32, (add (sequence "FCR%u", 0, 63)), 0>;
+
+/*
+Defining the register pairs as a register:
+
+class M88kRegWithSubregs<string n, list<Register> subregs>
+  : RegisterWithSubRegs<n, subregs> {
+  let Namespace = "M88k";
+}
+
+// Register pairs.
+// TODO Check let isArtificial = 1
+let AsmName = "", SubRegIndices = [sub_hi, sub_lo], CoveredBySubRegs = true in {
+ foreach I = 0-15 in {
+   defvar Rx = "R" # !mul(2,I);
+   defvar Ry = "R" # !add(!mul(2,I),1);
+   def Rx#_#Ry : M88kRegWithSubregs<Rx#_#Ry,
+                                   [!cast<Register>(Rx), !cast<Register>(Ry)]>;
+ }
+}
+
+defm GPR64 : M88kRegisterClass<[i64, f64], 64, 32,
+                              (add R0_R1, R2_R3, R4_R5, R6_R7, R8_R9,
+                                   R10_R11, R12_R13, R14_R15, R16_R17, R18_R19,
+                                   R20_R21, R22_R23, R24_R25, R26_R27, R28_R29,
+                                   R30_R31)>;
+
+
+*/
 
 /*
 Ideas:
