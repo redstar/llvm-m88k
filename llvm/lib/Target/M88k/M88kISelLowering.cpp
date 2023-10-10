@@ -20,9 +20,9 @@ using namespace llvm;
 M88kTargetLowering::M88kTargetLowering(const TargetMachine &TM,
                                        const M88kSubtarget &STI)
     : TargetLowering(TM), Subtarget(STI) {
-  addRegisterClass(MVT::i32, &M88k::GPRRCRegClass);
-  addRegisterClass(MVT::f32, &M88k::GPRRCRegClass);
-  addRegisterClass(MVT::f64, &M88k::GPR64RCRegClass);
+  addRegisterClass(MVT::i32, &M88k::GPRRegClass);
+  addRegisterClass(MVT::f32, &M88k::GPRRegClass);
+  addRegisterClass(MVT::f64, &M88k::GPR64RegClass);
 
   // Compute derived properties from the register classes
   computeRegisterProperties(Subtarget.getRegisterInfo());

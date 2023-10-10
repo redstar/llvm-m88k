@@ -22,11 +22,11 @@ class M88kCRReg<bits<6> Enc, string n> : Register<n> {
 multiclass M88kRegisterClass<list<ValueType> types, int size, int alignment,
                              dag regList, bit allocatable = 1, int copycost = 1> {
   let isAllocatable = allocatable in
-    def RC : RegisterClass<"M88k", types, alignment, regList> {
+    def "" : RegisterClass<"M88k", types, alignment, regList> {
       let Size = size;
       let CopyCost = copycost;
     }
-  def "" : RegisterOperand<!cast<RegisterClass>(NAME#"RC")> {
+  def Opnd : RegisterOperand<!cast<RegisterClass>(NAME)> {
     let DecoderMethod = "decode"#NAME#"RegisterClass";
   }
 }
