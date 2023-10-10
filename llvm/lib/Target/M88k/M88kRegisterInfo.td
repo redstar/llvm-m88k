@@ -19,16 +19,15 @@ class M88kCRReg<bits<6> Enc, string n> : Register<n> {
 }
 
 // Multiclass to define RegisterClass and RegisterOperand together.
-multiclass M88kRegisterClass<list<ValueType> types, int size, int alignment,
-                             dag regList, bit allocatable = 1, int copycost = 1> {
-  let isAllocatable = allocatable in
-    def "" : RegisterClass<"M88k", types, alignment, regList> {
+class M88kRegisterClass<list<ValueType> types, int size, int alignment,
+                        dag regList, int copycost = 1>
+  : RegisterClass<"M88k", types, alignment, regList> {
       let Size = size;
       let CopyCost = copycost;
-    }
-  def Opnd : RegisterOperand<!cast<RegisterClass>(NAME)> {
-    let DecoderMethod = "decode"#NAME#"RegisterClass";
-  }
+}
+
+class M88kRegisterOperand<RegisterClass RC> : RegisterOperand<RC> {
+  let DecoderMethod = "decode"#RC#"RegisterClass";
 }
 
 let Namespace = "M88k" in {
@@ -42,16 +41,20 @@ foreach I = 0-31 in {
     def R#I : M88kReg<I, "r"#I>;
 }
 
-defm GPR : M88kRegisterClass<[i32, f32], 32, 32,
-                             (add (sequence "R%u", 0, 31))>;
+def GPR : M88kRegisterClass<[i32, f32], 32, 32,
+                            (add (sequence "R%u", 0, 31))>;
+def GPROpnd : M88kRegisterOperand<GPR> {
+  let GIZeroRegister = R0;
+}
 
 // Register class representing a pair of even-odd GRs.
 def GRPair : RegisterTuples<[sub_hi, sub_lo],
                             [(add (sequence "R%u", 0, 30, 2)),
                              (add (sequence "R%u", 1, 31, 2))]>;
 
-defm GPR64 : M88kRegisterClass<[i64, f64, v8i8, v4i16, v2i32], 64, 32,
-                               (add GRPair), 1, 2>;
+def GPR64 : M88kRegisterClass<[i64, f64, v8i8, v4i16, v2i32], 64, 32,
+                              (add GRPair), 2>;
+def GPR64Opnd : M88kRegisterOperand<GPR64>;
 
 // Extended (floating point) registers.
 foreach I = 0-31 in {
@@ -59,8 +62,11 @@ foreach I = 0-31 in {
     def X#I : M88kReg<I, "x"#I>;
 }
 
-defm XR : M88kRegisterClass<[f32, f64, f80], 128, 32,
-                            (add (sequence "X%u", 0, 31))>;
+def XR : M88kRegisterClass<[f32, f64, f80], 128, 32,
+                           (add (sequence "X%u", 0, 31))>;
+def XROpnd : M88kRegisterOperand<XR> {
+  let GIZeroRegister = X0;
+}
 
 // Control registers.
 foreach I = 0-63 in {
@@ -76,8 +82,12 @@ foreach I = 0-63 in {
   def FCR#I : M88kCRReg<I, "fcr"#I>;
 }
 
-defm CR : M88kRegisterClass<[i32], 32, 32, (add (sequence "CR%u", 0, 63)), 0>;
-defm FCR : M88kRegisterClass<[i32], 32, 32, (add (sequence "FCR%u", 0, 63)), 0>;
+let isAllocatable = 0 in {
+  def CR : M88kRegisterClass<[i32], 32, 32, (add (sequence "CR%u", 0, 63))>;
+  def FCR : M88kRegisterClass<[i32], 32, 32, (add (sequence "FCR%u", 0, 63))>;
+}
+def CROpnd : M88kRegisterOperand<CR>;
+def FCROpnd : M88kRegisterOperand<FCR>;
 
 /*
 Defining the register pairs as a register:
