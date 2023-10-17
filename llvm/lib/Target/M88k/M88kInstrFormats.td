@@ -363,7 +363,7 @@ class F_JMP<bits<5> func, string asm, list<dag> pattern = []>
   let Inst{31-26} = 0b111101;
   let Inst{25-16} = 0b0000000000;
   let Inst{15-11} = func;
-  let Inst{10}    = !if(hasDelaySlot, 1, 0);
+  let Inst{10}    = hasDelaySlot;
   let Inst{9-5}   = 0b00000;
   let Inst{4-0}   = rs2;
 }
