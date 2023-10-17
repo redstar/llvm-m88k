@@ -1,0 +1,40 @@
+//===-- M88k.td - Describe the M88000 Target Machine -------*- tablegen -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+//
+//===----------------------------------------------------------------------===//
+
+//===----------------------------------------------------------------------===//
+// Target-independent interfaces which we are implementing
+//===----------------------------------------------------------------------===//
+
+include "llvm/Target/Target.td"
+
+//===----------------------------------------------------------------------===//
+// Register File, Calling Conv, Instruction Descriptions
+//===----------------------------------------------------------------------===//
+
+include "M88kRegisterInfo.td"
+include "M88kInstrFormats.td"
+include "M88kInstrInfo.td"
+
+//===----------------------------------------------------------------------===//
+// Declare the target which we are implementing
+//===----------------------------------------------------------------------===//
+
+def M88kInstrInfo : InstrInfo;
+def M88kAsmParser : AsmParser;
+def M88kAsmParserVariant : AsmParserVariant {
+  let RegisterPrefix = "%";
+}
+
+def M88k : Target {
+  let InstructionSet = M88kInstrInfo;
+  let AssemblyParsers  = [M88kAsmParser];
+  let AssemblyParserVariants = [M88kAsmParserVariant];
+}
