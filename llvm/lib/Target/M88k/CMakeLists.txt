@@ -20,5 +20,6 @@ add_llvm_target(M88kCodeGen
   )
 
 add_subdirectory(AsmParser)
+add_subdirectory(Disassembler)
 add_subdirectory(TargetInfo)
 add_subdirectory(MCTargetDesc)
