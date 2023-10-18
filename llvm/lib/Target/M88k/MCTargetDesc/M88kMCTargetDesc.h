@@ -31,13 +31,6 @@ class raw_ostream;
 
 MCCodeEmitter *createM88kMCCodeEmitter(const MCInstrInfo &MCII,
                                        MCContext &Ctx);
-
-MCAsmBackend *createM88kMCAsmBackend(const Target &T,
-                                     const MCSubtargetInfo &STI,
-                                     const MCRegisterInfo &MRI,
-                                     const MCTargetOptions &Options);
-
-std::unique_ptr<MCObjectTargetWriter> createM88kObjectWriter(uint8_t OSABI);
 } // end namespace llvm
 
 // Defines symbolic names for M88k registers.

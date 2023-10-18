@@ -33,8 +33,15 @@ def M88kAsmParserVariant : AsmParserVariant {
   let RegisterPrefix = "%";
 }
 
+def M88kAsmWriter : AsmWriter {
+  string AsmWriterClassName  = "InstPrinter";
+  int PassSubtarget = 1;
+  int Variant = 0;
+}
+
 def M88k : Target {
   let InstructionSet = M88kInstrInfo;
   let AssemblyParsers  = [M88kAsmParser];
   let AssemblyParserVariants = [M88kAsmParserVariant];
+  let AssemblyWriters = [M88kAsmWriter];
 }
