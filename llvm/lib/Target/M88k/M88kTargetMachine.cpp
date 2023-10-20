@@ -102,7 +102,7 @@ M88kTargetMachine::M88kTargetMachine(const Target &T, const Triple &TT,
                                      const TargetOptions &Options,
                                      std::optional<Reloc::Model> RM,
                                      std::optional<CodeModel::Model> CM,
-                                     CodeGenOpt::Level OL, bool JIT)
+                                     CodeGenOptLevel OL, bool JIT)
     : LLVMTargetMachine(T, computeDataLayout(TT, CPU, FS), TT, CPU, FS, Options,
                         getEffectiveRelocModel(RM),
                         getEffectiveCodeModel(CM, CodeModel::Medium), OL),
@@ -181,7 +181,7 @@ void M88kPassConfig::addPreEmitPass() {
   // Enable the delay slot filler for optimizing builds or if explicitly
   // requested.
   // TODO: When targetting MC88110 it might be better to not enable it.
-  if ((getOptLevel() != CodeGenOpt::None &&
+  if ((getOptLevel() != CodeGenOptLevel::None &&
        EnableDelaySlotFiller != cl::BOU_FALSE) ||
       EnableDelaySlotFiller == cl::BOU_TRUE)
     addPass(createM88kDelaySlotFiller());
@@ -203,7 +203,7 @@ bool M88kPassConfig::addLegalizeMachineIR() {
 }
 
 void M88kPassConfig::addPreRegBankSelect() {
-  bool IsOptNone = getOptLevel() == CodeGenOpt::None;
+  bool IsOptNone = getOptLevel() == CodeGenOptLevel::None;
   addPass(createM88kPostLegalizerCombiner(IsOptNone));
   addPass(createM88kPostLegalizerLowering());
 }
