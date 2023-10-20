@@ -56,8 +56,6 @@ public:
   bool isCtlzFast() const override;
   Register getRegisterByName(const char *RegName, LLT Ty,
                              const MachineFunction &MF) const override;
-  bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
-                                              LLT Ty2) const override;
 };
 
 } // end namespace llvm
