@@ -86,7 +86,8 @@ public:
   InstructionMappings
   getInstrAlternativeMappings(const MachineInstr &MI) const override;
 
-  void applyMappingImpl(const OperandsMapper &OpdMapper) const override;
+  void applyMappingImpl(MachineIRBuilder &Builder,
+                        const OperandsMapper &OpdMapper) const override;
 };
 } // end namespace llvm
 #endif
