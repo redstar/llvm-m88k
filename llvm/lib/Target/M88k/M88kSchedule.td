@@ -46,15 +46,15 @@ let SchedModel = M88100SchedModel in {
   }
   def M88100Div : SchedWriteRes<[M88100UnitFPAdd]> {
     let Latency = 38;
-    let ResourceCycles = [33];
+    let ReleaseAtCycles = [33];
   }
   def M88100DivS : SchedWriteRes<[M88100UnitFPAdd]> {
     let Latency = 30;
-    let ResourceCycles = [25];
+    let ReleaseAtCycles = [25];
   }
   def M88100DivD : SchedWriteRes<[M88100UnitFPAdd]> {
     let Latency = 60;
-    let ResourceCycles = [54];
+    let ReleaseAtCycles = [54];
   }
 
   // The FP mul unit: multiplication instructions.

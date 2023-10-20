@@ -68,9 +68,3 @@ M88kTargetLowering::getRegisterByName(const char *RegName, LLT Ty,
   report_fatal_error(
       Twine("Invalid register name \"" + StringRef(RegName) + "\"."));
 }
-
-bool M88kTargetLowering::isConstantUnsignedBitfieldExtractLegal(unsigned Opc,
-                                                                LLT Ty1,
-                                                                LLT Ty2) const {
-  return Ty1 == LLT::scalar(32) && Ty2 == LLT::scalar(32);
-}
