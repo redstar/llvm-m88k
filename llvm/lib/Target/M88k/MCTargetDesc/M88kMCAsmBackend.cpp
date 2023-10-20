@@ -71,7 +71,8 @@ class M88kMCAsmBackend : public MCAsmBackend {
   uint8_t OSABI;
 
 public:
-  M88kMCAsmBackend(uint8_t osABI) : MCAsmBackend(support::big), OSABI(osABI) {}
+  M88kMCAsmBackend(uint8_t osABI)
+      : MCAsmBackend(endianness::big), OSABI(osABI) {}
 
   // Override MCAsmBackend
   unsigned getNumFixupKinds() const override;
