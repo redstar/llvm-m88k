@@ -406,6 +406,6 @@ M88kRegisterBankInfo::getInstrAlternativeMappings(
 }
 
 void M88kRegisterBankInfo::applyMappingImpl(
-    const OperandsMapper &OpdMapper) const {
+    MachineIRBuilder &Builder, const OperandsMapper &OpdMapper) const {
   return applyDefaultMapping(OpdMapper);
 }
