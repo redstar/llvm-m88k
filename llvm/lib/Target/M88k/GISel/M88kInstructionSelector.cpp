@@ -1199,7 +1199,7 @@ bool M88kInstructionSelector::selectMergeUnmerge(
 bool M88kInstructionSelector::selectIntrinsic(MachineInstr &I,
                                               MachineBasicBlock &MBB,
                                               MachineRegisterInfo &MRI) {
-  unsigned IntrinID = I.getIntrinsicID();
+  unsigned IntrinID = cast<GIntrinsic>(I).getIntrinsicID();
   MachineInstr *MI = nullptr;
 
   switch (IntrinID) {
