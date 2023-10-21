@@ -16,11 +16,11 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
-#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
@@ -221,8 +221,8 @@ class M88kAsmParser : public MCTargetAsmParser {
                         SMLoc NameLoc, OperandVector &Operands) override;
   bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                      SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
-                                        SMLoc &EndLoc) override;
+  ParseStatus tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                               SMLoc &EndLoc) override;
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
 
@@ -231,18 +231,18 @@ class M88kAsmParser : public MCTargetAsmParser {
   bool parseOperand(OperandVector &Operands, StringRef Mnemonic);
   bool parseScaledRegister(OperandVector &Operands);
 
-  OperandMatchResultTy parseBFWidth(OperandVector &Operands);
-  OperandMatchResultTy parseBFOffset(OperandVector &Operands);
-  OperandMatchResultTy parsePixelRot(OperandVector &Operands);
-  OperandMatchResultTy parseConditionCode(OperandVector &Operands);
+  ParseStatus parseBFWidth(OperandVector &Operands);
+  ParseStatus parseBFOffset(OperandVector &Operands);
+  ParseStatus parsePixelRot(OperandVector &Operands);
+  ParseStatus parseConditionCode(OperandVector &Operands);
 
-  OperandMatchResultTy parsePCRel(OperandVector &Operands, unsigned Bits);
+  ParseStatus parsePCRel(OperandVector &Operands, unsigned Bits);
 
-  OperandMatchResultTy parsePCRel16(OperandVector &Operands) {
+  ParseStatus parsePCRel16(OperandVector &Operands) {
     return parsePCRel(Operands, 18);
   }
 
-  OperandMatchResultTy parsePCRel26(OperandVector &Operands) {
+  ParseStatus parsePCRel26(OperandVector &Operands) {
     return parsePCRel(Operands, 28);
   }
 
@@ -366,14 +366,16 @@ bool M88kAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
       if (getLexer().is(AsmToken::Comma)) {
         Parser.Lex();
         if (getLexer().is(AsmToken::Less) && Name == "rot")
-          Operands.push_back(M88kOperand::createToken("<", Parser.getTok().getLoc()));
+          Operands.push_back(
+              M88kOperand::createToken("<", Parser.getTok().getLoc()));
 
         if (parseOperand(Operands, Name)) {
           return Error(getLexer().getLoc(), "expected register or immediate");
         }
         // Parse bitfield width
         if (getLexer().is(AsmToken::Less)) {
-          Operands.push_back(M88kOperand::createToken("<", Parser.getTok().getLoc()));
+          Operands.push_back(
+              M88kOperand::createToken("<", Parser.getTok().getLoc()));
           if (parseOperand(Operands, Name)) {
             return Error(getLexer().getLoc(), "expected bitfield offset");
           }
@@ -395,16 +397,16 @@ bool M88kAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
 
 bool M88kAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic) {
   // Invoke a custom associated parser.
-  OperandMatchResultTy Result = MatchOperandParserImpl(Operands, Mnemonic);
+  ParseStatus Result = MatchOperandParserImpl(Operands, Mnemonic);
 
-  if (Result == MatchOperand_Success) {
-    return Result;
+  if (Result.isSuccess()) {
+    return false;
   }
-  if (Result == MatchOperand_ParseFail) {
+  if (Result.isFailure()) {
     Parser.eatToEndOfStatement();
-    return Result;
+    return true;
   }
-  assert(Result == MatchOperand_NoMatch && "Unexpected match result");
+  assert(Result.isNoMatch() && "Unexpected match result");
 
   // Check if it is a register.
   if (Lexer.is(AsmToken::Percent)) {
@@ -426,11 +428,12 @@ bool M88kAsmParser::parseOperand(OperandVector &Operands, StringRef Mnemonic) {
     Operands.push_back(M88kOperand::createImm(Expr, StartLoc, EndLoc));
     return false;
   }
-  // Failure
+
+  // Failure.
   return true;
 }
 
-OperandMatchResultTy M88kAsmParser::parseBFWidth(OperandVector &Operands) {
+ParseStatus M88kAsmParser::parseBFWidth(OperandVector &Operands) {
   // Parses the width of a bitfield. If empty and followed by <O>, then it is 0.
   // If not followed by <O>, then it is the offset, and the width is 0.
   MCContext &Ctx = getContext();
@@ -445,7 +448,7 @@ OperandMatchResultTy M88kAsmParser::parseBFWidth(OperandVector &Operands) {
   }
   if (Lexer.isNot(AsmToken::Less)) {
     if (!HasWidth)
-      return MatchOperand_NoMatch;
+      return ParseStatus::NoMatch;
     IsReallyOffset = true;
   }
 
@@ -462,21 +465,21 @@ OperandMatchResultTy M88kAsmParser::parseBFWidth(OperandVector &Operands) {
     Operands.push_back(M88kOperand::createImm(Expr, StartLoc, EndLoc));
 
   // Announce match.
-  return MatchOperand_Success;
+  return ParseStatus::Success;
 }
 
-OperandMatchResultTy M88kAsmParser::parseBFOffset(OperandVector &Operands) {
+ParseStatus M88kAsmParser::parseBFOffset(OperandVector &Operands) {
   // Parses operands like <7>.
   MCContext &Ctx = getContext();
   SMLoc StartLoc = Parser.getTok().getLoc();
 
   Parser.Lex();
   if (Lexer.isNot(AsmToken::Integer))
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
   int64_t Offset = Parser.getTok().getIntVal();
   Parser.Lex();
   if (Lexer.isNot(AsmToken::Greater))
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
   Parser.Lex();
 
   const MCExpr *Expr = MCConstantExpr::create(Offset, Ctx);
@@ -486,24 +489,24 @@ OperandMatchResultTy M88kAsmParser::parseBFOffset(OperandVector &Operands) {
   Operands.push_back(M88kOperand::createToken(">", Parser.getTok().getLoc()));
 
   // Announce match.
-  return MatchOperand_Success;
+  return ParseStatus::Success;
 }
 
-OperandMatchResultTy M88kAsmParser::parsePixelRot(OperandVector &Operands) {
+ParseStatus M88kAsmParser::parsePixelRot(OperandVector &Operands) {
   // Parses operands like <7>.
   MCContext &Ctx = getContext();
   SMLoc StartLoc = Parser.getTok().getLoc();
 
   if (Lexer.isNot(AsmToken::Less)) {
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
   }
   Parser.Lex();
   if (Lexer.isNot(AsmToken::Integer))
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
   int64_t RotateSize = Parser.getTok().getIntVal();
   Parser.Lex();
   if (Lexer.isNot(AsmToken::Greater))
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
   Parser.Lex();
 
   if (RotateSize & 0x3) {
@@ -516,18 +519,17 @@ OperandMatchResultTy M88kAsmParser::parsePixelRot(OperandVector &Operands) {
   Operands.push_back(M88kOperand::createImm(Expr, StartLoc, EndLoc));
 
   // Announce match.
-  return MatchOperand_Success;
+  return ParseStatus::Success;
 }
 
-OperandMatchResultTy
-M88kAsmParser::parseConditionCode(OperandVector &Operands) {
+ParseStatus M88kAsmParser::parseConditionCode(OperandVector &Operands) {
   // Parses condition codes for brcond/tcond.
   SMLoc StartLoc = getLexer().getLoc();
   unsigned CC;
   if (Lexer.is(AsmToken::Integer)) {
     int64_t CCVal = Lexer.getTok().getIntVal();
     if (isUInt<5>(CCVal))
-      return MatchOperand_NoMatch;
+      return ParseStatus::NoMatch;
     CC = static_cast<unsigned>(CCVal);
   } else {
     CC = StringSwitch<unsigned>(Parser.getTok().getString())
@@ -539,7 +541,7 @@ M88kAsmParser::parseConditionCode(OperandVector &Operands) {
              .Case("le0", 0xe)
              .Default(0);
     if (CC == 0)
-      return MatchOperand_NoMatch;
+      return ParseStatus::NoMatch;
   }
   Parser.Lex();
 
@@ -549,15 +551,14 @@ M88kAsmParser::parseConditionCode(OperandVector &Operands) {
   const MCExpr *CCExpr = MCConstantExpr::create(CC, getContext());
   Operands.push_back(M88kOperand::createImm(CCExpr, StartLoc, EndLoc));
 
-  return MatchOperand_Success;
+  return ParseStatus::Success;
 }
 
-OperandMatchResultTy M88kAsmParser::parsePCRel(OperandVector &Operands,
-                                               unsigned Bits) {
+ParseStatus M88kAsmParser::parsePCRel(OperandVector &Operands, unsigned Bits) {
   const MCExpr *Expr;
   SMLoc StartLoc = Parser.getTok().getLoc();
   if (getParser().parseExpression(Expr))
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
 
   const int64_t MinVal = -(1LL << Bits);
   const int64_t MaxVal = (1LL << Bits) - 1;
@@ -575,10 +576,9 @@ OperandMatchResultTy M88kAsmParser::parsePCRel(OperandVector &Operands,
   if (auto *CE = dyn_cast<MCConstantExpr>(Expr)) {
     if (isOutOfRangeConstant(CE)) {
       Error(StartLoc, "offset out of range");
-      return MatchOperand_ParseFail;
+      return ParseStatus::Failure;
     }
   }
-
 
   // For consistency with the GNU assembler, conservatively assume that a
   // constant offset must by itself be within the given size range.
@@ -586,7 +586,7 @@ OperandMatchResultTy M88kAsmParser::parsePCRel(OperandVector &Operands,
     if (isOutOfRangeConstant(BE->getLHS()) ||
         isOutOfRangeConstant(BE->getRHS())) {
       Error(StartLoc, "offset out of range");
-      return MatchOperand_ParseFail;
+      return ParseStatus::Failure;
     }
 
   SMLoc EndLoc =
@@ -594,7 +594,7 @@ OperandMatchResultTy M88kAsmParser::parsePCRel(OperandVector &Operands,
 
   Operands.push_back(M88kOperand::createImm(Expr, StartLoc, EndLoc));
 
-  return MatchOperand_Success;
+  return ParseStatus::Success;
 }
 
 // Parses register of form %(r|x|cr|fcr)<No>.
@@ -655,18 +655,17 @@ bool M88kAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                        /*RestoreOnFailure=*/false);
 }
 
-OperandMatchResultTy M88kAsmParser::tryParseRegister(MCRegister &RegNo,
-                                                     SMLoc &StartLoc,
-                                                     SMLoc &EndLoc) {
+ParseStatus M88kAsmParser::tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                                            SMLoc &EndLoc) {
   bool Result = parseRegister(RegNo, StartLoc, EndLoc,
                               /*RestoreOnFailure=*/true);
   bool PendingErrors = getParser().hasPendingError();
   getParser().clearPendingErrors();
   if (PendingErrors)
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
   if (Result)
-    return MatchOperand_NoMatch;
-  return MatchOperand_Success;
+    return ParseStatus::NoMatch;
+  return ParseStatus::Success;
 }
 
 bool M88kAsmParser::MatchAndEmitInstruction(SMLoc IdLoc, unsigned &Opcode,
