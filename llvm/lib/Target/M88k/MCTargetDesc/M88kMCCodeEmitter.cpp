@@ -14,6 +14,7 @@
 #include "MCTargetDesc/M88kMCFixups.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -23,14 +24,15 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/EndianStream.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
-#include <cstdint>
 
 using namespace llvm;
 
 #define DEBUG_TYPE "mccodeemitter"
+
+STATISTIC(MCNumEmitted, "Number of MC instructions emitted");
 
 namespace {
 
@@ -39,14 +41,13 @@ class M88kMCCodeEmitter : public MCCodeEmitter {
   MCContext &Ctx;
 
 public:
-  M88kMCCodeEmitter(const MCInstrInfo &MCII,
-                    MCContext &Ctx)
+  M88kMCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx)
       : MCII(MCII), Ctx(Ctx) {}
 
   ~M88kMCCodeEmitter() override = default;
 
-  // OVerride MCCodeEmitter.
-  void encodeInstruction(const MCInst &MI, raw_ostream &OS,
+  // Override MCCodeEmitter.
+  void encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override;
 
@@ -73,15 +74,16 @@ public:
 
 } // end anonymous namespace
 
-void M88kMCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
+void M88kMCCodeEmitter::encodeInstruction(const MCInst &MI,
+                                          SmallVectorImpl<char> &CB,
                                           SmallVectorImpl<MCFixup> &Fixups,
                                           const MCSubtargetInfo &STI) const {
+  // Get instruction encoding and emit it.
   uint64_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
-  assert(MCII.get(MI.getOpcode()).getSize() == 4 && "Unexpected instr length");
+  ++MCNumEmitted; // Keep track of the number of emitted insns.
 
-  // Emit bytes in big-endian
-  for (int I = (4 - 1) * 8; I >= 0; I -= 8)
-    OS << static_cast<uint8_t>((Bits >> I) & 0xff);
+  // Emit bytes in big-endian.
+  support::endian::write<uint32_t>(CB, Bits, endianness::big);
 }
 
 static M88k::FixupKind FixupKind(const MCExpr *Expr) {
@@ -150,7 +152,7 @@ unsigned M88kMCCodeEmitter::getPC26Encoding(const MCInst &MI, unsigned OpNo,
   return 0;
 }
 
-//#define ENABLE_INSTR_PREDICATE_VERIFIER
+// #define ENABLE_INSTR_PREDICATE_VERIFIER
 #include "M88kGenMCCodeEmitter.inc"
 
 MCCodeEmitter *llvm::createM88kMCCodeEmitter(const MCInstrInfo &MCII,
