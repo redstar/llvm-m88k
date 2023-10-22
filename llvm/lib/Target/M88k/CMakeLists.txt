@@ -13,11 +13,11 @@ tablegen(LLVM M88kGenSubtargetInfo.inc -gen-subtarget)
 
 tablegen(LLVM M88kGenGlobalISel.inc -gen-global-isel)
 tablegen(LLVM M88kGenRegisterBank.inc -gen-register-bank)
-tablegen(LLVM M88kGenPreLegalizeGICombiner.inc -gen-global-isel-combiner-matchtable
+tablegen(LLVM M88kGenPreLegalizeGICombiner.inc -gen-global-isel-combiner
               -combiners="M88kPreLegalizerCombiner")
-tablegen(LLVM M88kGenPostLegalizeGICombiner.inc -gen-global-isel-combiner-matchtable
+tablegen(LLVM M88kGenPostLegalizeGICombiner.inc -gen-global-isel-combiner
               -combiners="M88kPostLegalizerCombiner")
-tablegen(LLVM M88kGenPostLegalizeGILowering.inc -gen-global-isel-combiner-matchtable
+tablegen(LLVM M88kGenPostLegalizeGILowering.inc -gen-global-isel-combiner
               -combiners="M88kPostLegalizerLowering")
 
 # Generate DAGIsel to identify problems only. It's not used.
