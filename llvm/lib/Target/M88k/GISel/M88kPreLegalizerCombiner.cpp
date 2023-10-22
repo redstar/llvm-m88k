@@ -52,26 +52,22 @@ namespace {
 #include "M88kGenPreLegalizeGICombiner.inc"
 #undef GET_GICOMBINER_TYPES
 
-class M88kPreLegalizerCombinerImpl : public GIMatchTableExecutor {
+class M88kPreLegalizerCombinerImpl : public Combiner {
 protected:
-  CombinerHelper &Helper;
+  mutable CombinerHelper Helper;
   const M88kPreLegalizerCombinerImplRuleConfig &RuleConfig;
-
   const M88kSubtarget &STI;
-  MachineRegisterInfo &MRI;
-  GISelChangeObserver &Observer;
-  MachineIRBuilder &B;
-  MachineFunction &MF;
 
 public:
   M88kPreLegalizerCombinerImpl(
+      MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+      GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
       const M88kPreLegalizerCombinerImplRuleConfig &RuleConfig,
-      const M88kSubtarget &STI, GISelChangeObserver &Observer,
-      MachineIRBuilder &B, CombinerHelper &Helper);
+      const M88kSubtarget &STI);
 
   static const char *getName() { return "M88kPostLegalizerCombiner"; }
 
-  bool tryCombineAll(MachineInstr &I) const;
+  bool tryCombineAll(MachineInstr &I) const override;
 
 private:
   bool matchBitfieldExtractFromAndAShr(
@@ -82,7 +78,7 @@ private:
 #include "M88kGenPreLegalizeGICombiner.inc"
 #undef GET_GICOMBINER_CLASS_MEMBERS
 };
-}
+} // namespace
 
 /// Form a G_UBFX from "(a sra b) & mask", where b and mask are constants.
 /// This is similar to CombinerHelper::matchBitfieldExtractFromAnd(), but
@@ -95,8 +91,8 @@ bool M88kPreLegalizerCombinerImpl::matchBitfieldExtractFromAndAShr(
   Register Dst = MI.getOperand(0).getReg();
   LLT Ty = MRI.getType(Dst);
   LLT ExtractTy = Helper.getTargetLowering().getPreferredShiftAmountTy(Ty);
-  if (!Helper.getTargetLowering().isConstantUnsignedBitfieldExtractLegal(
-          TargetOpcode::G_UBFX, Ty, ExtractTy))
+  LegalizerInfo *LI = nullptr; // TODO
+  if (LI && !LI->isLegalOrCustom({TargetOpcode::G_UBFX, {Ty, ExtractTy}}))
     return false;
 
   int64_t AndImm, ShrAmt;
@@ -138,52 +134,25 @@ bool M88kPreLegalizerCombinerImpl::matchBitfieldExtractFromAndAShr(
 
 namespace {
 M88kPreLegalizerCombinerImpl::M88kPreLegalizerCombinerImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
     const M88kPreLegalizerCombinerImplRuleConfig &RuleConfig,
-    const M88kSubtarget &STI, GISelChangeObserver &Observer,
-    MachineIRBuilder &B, CombinerHelper &Helper)
-    : Helper(Helper), RuleConfig(RuleConfig), STI(STI), MRI(*B.getMRI()),
-      Observer(Observer), B(B), MF(B.getMF()),
+    const M88kSubtarget &STI)
+    : Combiner(MF, CInfo, TPC, &KB, CSEInfo),
+      Helper(Observer, B, /*IsPreLegalize*/ true, &KB), RuleConfig(RuleConfig),
+      STI(STI),
 #define GET_GICOMBINER_CONSTRUCTOR_INITS
 #include "M88kGenPreLegalizeGICombiner.inc"
 #undef GET_GICOMBINER_CONSTRUCTOR_INITS
 {
 }
 
-class M88kPreLegalizerCombinerInfo : public CombinerInfo {
-  GISelKnownBits *KB;
-  MachineDominatorTree *MDT;
-  M88kPreLegalizerCombinerImplRuleConfig RuleConfig;
-
-public:
-  M88kPreLegalizerCombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
-                               GISelKnownBits *KB, MachineDominatorTree *MDT)
-      : CombinerInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
-                     /*LegalizerInfo*/ nullptr, EnableOpt, OptSize, MinSize),
-        KB(KB), MDT(MDT) {
-    if (!RuleConfig.parseCommandLineOption())
-      report_fatal_error("Invalid rule identifier");
-  }
-
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-                       MachineIRBuilder &B) const override;
-};
-
-bool M88kPreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
-                                           MachineInstr &MI,
-                                           MachineIRBuilder &B) const {
-  const auto &STI = MI.getMF()->getSubtarget<M88kSubtarget>();
-  const auto *LI = STI.getLegalizerInfo();
-  CombinerHelper Helper(Observer, B, /*IsPreLegalize=*/true, KB, MDT, LI);
-  M88kPreLegalizerCombinerImpl Impl(RuleConfig, STI, Observer, B, Helper);
-  Impl.setupMF(*MI.getMF(), KB);
-  return Impl.tryCombineAll(MI);
-}
-
-
 // Pass boilerplate
 // ================
 
 class M88kPreLegalizerCombiner : public MachineFunctionPass {
+  M88kPreLegalizerCombinerImplRuleConfig RuleConfig;
+
 public:
   static char ID;
 
@@ -220,20 +189,17 @@ bool M88kPreLegalizerCombiner::runOnMachineFunction(MachineFunction &MF) {
     return false;
   auto &TPC = getAnalysis<TargetPassConfig>();
 
-  // Enable CSE.
-  GISelCSEAnalysisWrapper &Wrapper =
-      getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
-  auto *CSEInfo = &Wrapper.get(TPC.getCSEConfig());
-
   const Function &F = MF.getFunction();
-  bool EnableOpt =
-      MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
   GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
-  MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
-  M88kPreLegalizerCombinerInfo PCInfo(EnableOpt, F.hasOptSize(), F.hasMinSize(),
-                                      KB, MDT);
-  Combiner C(PCInfo, &TPC);
-  return C.combineMachineInstrs(MF, CSEInfo);
+
+  const M88kSubtarget &ST = MF.getSubtarget<M88kSubtarget>();
+
+  CombinerInfo CInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
+                     /*LegalizerInfo*/ nullptr, /*EnableOpt*/ false,
+                     F.hasOptSize(), F.hasMinSize());
+  M88kPreLegalizerCombinerImpl Impl(MF, CInfo, &TPC, *KB,
+                                    /*CSEInfo*/ nullptr, RuleConfig, ST);
+  return Impl.combineMachineInstrs();
 }
 
 char M88kPreLegalizerCombiner::ID = 0;
