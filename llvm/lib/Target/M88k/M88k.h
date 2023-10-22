@@ -34,7 +34,7 @@ createM88kInstructionSelector(const M88kTargetMachine &, const M88kSubtarget &,
                               const M88kRegisterBankInfo &);
 FunctionPass *createM88kPreLegalizerCombiner();
 FunctionPass *createM88kPostLegalizerCombiner(bool IsOptNone);
-FunctionPass *createM88kPostLegalizerLowering();
+FunctionPass *createM88kPostLegalizerLowering(bool IsOptNone);
 FunctionPass *createM88kDelaySlotFiller();
 
 void initializeM88kPreLegalizerCombinerPass(PassRegistry &Registry);
