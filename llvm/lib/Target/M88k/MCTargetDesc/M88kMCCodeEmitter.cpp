@@ -15,6 +15,7 @@
 #include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/bit.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -25,8 +26,8 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/EndianStream.h"
-#include "llvm/Support/raw_ostream.h"
 #include <cassert>
+#include <cstdint>
 
 using namespace llvm;
 
@@ -37,7 +38,7 @@ STATISTIC(MCNumEmitted, "Number of MC instructions emitted");
 namespace {
 
 class M88kMCCodeEmitter : public MCCodeEmitter {
-  const MCInstrInfo &MCII;
+  [[maybe_unused]] const MCInstrInfo &MCII;
   MCContext &Ctx;
 
 public:
@@ -86,7 +87,7 @@ void M88kMCCodeEmitter::encodeInstruction(const MCInst &MI,
   support::endian::write<uint32_t>(CB, Bits, endianness::big);
 }
 
-static M88k::FixupKind FixupKind(const MCExpr *Expr) {
+static M88k::FixupKind fixupKind(const MCExpr *Expr) {
   if (const M88kMCExpr *McExpr = dyn_cast<M88kMCExpr>(Expr)) {
     M88kMCExpr::VariantKind ExprKind = McExpr->getKind();
     switch (ExprKind) {
@@ -120,7 +121,7 @@ M88kMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,
   // the begin of the instruction.
   const uint32_t Offset = 2;
   // Push fixup (all info is contained within)
-  Fixups.push_back(MCFixup::create(Offset, Expr, MCFixupKind(FixupKind(Expr))));
+  Fixups.push_back(MCFixup::create(Offset, Expr, MCFixupKind(fixupKind(Expr))));
   return 0;
 }
 
