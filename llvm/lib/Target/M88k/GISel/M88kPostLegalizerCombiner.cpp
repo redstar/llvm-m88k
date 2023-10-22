@@ -1,4 +1,5 @@
-//=== M88kPostLegalizer.cpp --------------------------------------*- C++ -*-===//
+//=== M88kPostLegalizer.cpp --------------------------------------*- C++
+//-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,8 +21,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "GISel/M88kGlobalISelUtils.h"
-#include "M88kTargetMachine.h"
+#include "M88kSubtarget.h"
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
+#include "llvm/CodeGen/GlobalISel/CSEMIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
@@ -30,13 +32,14 @@
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/Support/Debug.h"
 
 #define GET_GICOMBINER_DEPS
 #include "M88kGenPostLegalizeGICombiner.inc"
@@ -51,7 +54,7 @@ namespace {
 #define GET_GICOMBINER_TYPES
 #include "M88kGenPostLegalizeGICombiner.inc"
 #undef GET_GICOMBINER_TYPES
-}
+} // namespace
 
 // Match
 //  Dst = G_ADD SrcA, (G_ZEXT (G_ICMP Pred, SrcB, SrcC)
@@ -127,8 +130,8 @@ bool matchAddSubFromAddICmp(MachineInstr &MI, MachineRegisterInfo &MRI,
 //  Dst, UnusedCarry = G_USUBE SrcA, Zero, Carry
 // with SrcB' and SrcC' derived from SrcB and SrcC, inserting a zero constant
 // value if necessary.
-bool matchSubSubFromSubICmp(MachineInstr &SubMI, MachineInstr &ICmpMI, MachineRegisterInfo &MRI,
-                            BuildFnTy &MatchInfo) {
+bool matchSubSubFromSubICmp(MachineInstr &SubMI, MachineInstr &ICmpMI,
+                            MachineRegisterInfo &MRI, BuildFnTy &MatchInfo) {
   assert(SubMI.getOpcode() == TargetOpcode::G_SUB);
   assert(ICmpMI.getOpcode() == TargetOpcode::G_ICMP);
 
@@ -238,7 +241,7 @@ bool matchSubAddFromSubICmp(MachineInstr &SubMI, MachineInstr &ICmpMI,
 //  Dst, UnusedCarry = G_UADDE SrcA, Zero, Carry
 // inserting a zero constant value if necessary.
 bool matchAddSubFromAddSub(MachineInstr &MI, MachineRegisterInfo &MRI,
-                            BuildFnTy &MatchInfo) {
+                           BuildFnTy &MatchInfo) {
   assert(MI.getOpcode() == TargetOpcode::G_ADD);
 
   Register DstReg = MI.getOperand(0).getReg();
@@ -246,9 +249,7 @@ bool matchAddSubFromAddSub(MachineInstr &MI, MachineRegisterInfo &MRI,
   Register Carry;
   Register ZeroReg = MRI.createGenericVirtualRegister(LLT::scalar(32));
   MachineInstr *SubMI;
-  if (!mi_match(
-          MI, MRI,
-          m_GAdd(m_Reg(SrcRegA), m_GZExt(m_Reg(Carry)))))
+  if (!mi_match(MI, MRI, m_GAdd(m_Reg(SrcRegA), m_GZExt(m_Reg(Carry)))))
     return false;
   SubMI = MRI.getVRegDef(Carry);
   if (SubMI->getOpcode() != TargetOpcode::G_USUBO)
@@ -268,26 +269,23 @@ bool matchAddSubFromAddSub(MachineInstr &MI, MachineRegisterInfo &MRI,
 }
 
 namespace {
-class M88kPostLegalizerCombinerImpl : public GIMatchTableExecutor {
+class M88kPostLegalizerCombinerImpl : public Combiner {
 protected:
-  CombinerHelper &Helper;
+  mutable CombinerHelper Helper;
   const M88kPostLegalizerCombinerImplRuleConfig &RuleConfig;
-
   const M88kSubtarget &STI;
-  MachineRegisterInfo &MRI;
-  GISelChangeObserver &Observer;
-  MachineIRBuilder &B;
-  MachineFunction &MF;
 
 public:
   M88kPostLegalizerCombinerImpl(
+      MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+      GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
       const M88kPostLegalizerCombinerImplRuleConfig &RuleConfig,
-      const M88kSubtarget &STI, GISelChangeObserver &Observer,
-      MachineIRBuilder &B, CombinerHelper &Helper);
+      const M88kSubtarget &STI, MachineDominatorTree *MDT,
+      const LegalizerInfo *LI);
 
   static const char *getName() { return "M88kPostLegalizerCombiner"; }
 
-  bool tryCombineAll(MachineInstr &I) const;
+  bool tryCombineAll(MachineInstr &I) const override;
 
 private:
 #define GET_GICOMBINER_CLASS_MEMBERS
@@ -300,53 +298,27 @@ private:
 #undef GET_GICOMBINER_IMPL
 
 M88kPostLegalizerCombinerImpl::M88kPostLegalizerCombinerImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
     const M88kPostLegalizerCombinerImplRuleConfig &RuleConfig,
-    const M88kSubtarget &STI, GISelChangeObserver &Observer,
-    MachineIRBuilder &B, CombinerHelper &Helper)
-    : Helper(Helper), RuleConfig(RuleConfig), STI(STI), MRI(*B.getMRI()),
-      Observer(Observer), B(B), MF(B.getMF()),
+    const M88kSubtarget &STI, MachineDominatorTree *MDT,
+    const LegalizerInfo *LI)
+    : Combiner(MF, CInfo, TPC, &KB, CSEInfo),
+      Helper(Observer, B, /*IsPreLegalize*/ false, &KB, MDT, LI),
+      RuleConfig(RuleConfig), STI(STI),
 #define GET_GICOMBINER_CONSTRUCTOR_INITS
 #include "M88kGenPostLegalizeGICombiner.inc"
 #undef GET_GICOMBINER_CONSTRUCTOR_INITS
 {
 }
 
-class M88kPostLegalizerCombinerInfo : public CombinerInfo {
-  GISelKnownBits *KB;
-  MachineDominatorTree *MDT;
-  M88kPostLegalizerCombinerImplRuleConfig RuleConfig;
-
-public:
-  M88kPostLegalizerCombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
-                               GISelKnownBits *KB, MachineDominatorTree *MDT)
-      : CombinerInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
-                     /*LegalizerInfo*/ nullptr, EnableOpt, OptSize, MinSize),
-        KB(KB), MDT(MDT) {
-    if (!RuleConfig.parseCommandLineOption())
-      report_fatal_error("Invalid rule identifier");
-  }
-
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-                       MachineIRBuilder &B) const override;
-};
-
-bool M88kPostLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
-                                            MachineInstr &MI,
-                                            MachineIRBuilder &B) const {
-  const auto &STI = MI.getMF()->getSubtarget<M88kSubtarget>();
-  const auto *LI = STI.getLegalizerInfo();
-  CombinerHelper Helper(Observer, B, /*IsPreLegalize=*/false, KB, MDT, LI);
-  M88kPostLegalizerCombinerImpl Impl(RuleConfig, STI, Observer, B, Helper);
-  Impl.setupMF(*MI.getMF(), KB);
-  return Impl.tryCombineAll(MI);
-}
-
-
 // Pass boilerplate
 // ================
 
 class M88kPostLegalizerCombiner : public MachineFunctionPass {
   bool IsOptNone;
+  M88kPostLegalizerCombinerImplRuleConfig RuleConfig;
+
 public:
   static char ID;
 
@@ -391,19 +363,23 @@ bool M88kPostLegalizerCombiner::runOnMachineFunction(MachineFunction &MF) {
   const Function &F = MF.getFunction();
   bool EnableOpt =
       MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
+
+  const M88kSubtarget &ST = MF.getSubtarget<M88kSubtarget>();
+  const auto *LI = ST.getLegalizerInfo();
+
   GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
   MachineDominatorTree *MDT =
       IsOptNone ? nullptr : &getAnalysis<MachineDominatorTree>();
-  M88kPostLegalizerCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
-                                       F.hasMinSize(), KB, MDT);
-  GISelCSEInfo *CSEInfo = nullptr;
-  if (!IsOptNone) {
-    GISelCSEAnalysisWrapper &Wrapper =
-        getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
-    CSEInfo = &Wrapper.get(TPC->getCSEConfig());
-  }
-  Combiner C(PCInfo, TPC);
-  return C.combineMachineInstrs(MF, CSEInfo);
+  GISelCSEAnalysisWrapper &Wrapper =
+      getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
+  auto *CSEInfo = &Wrapper.get(TPC->getCSEConfig());
+
+  CombinerInfo CInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
+                     /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(),
+                     F.hasMinSize());
+  M88kPostLegalizerCombinerImpl Impl(MF, CInfo, TPC, *KB, CSEInfo, RuleConfig,
+                                     ST, MDT, LI);
+  return Impl.combineMachineInstrs();
 }
 
 char M88kPostLegalizerCombiner::ID = 0;
