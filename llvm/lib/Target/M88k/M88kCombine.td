@@ -37,8 +37,8 @@ def m88k_combines : GICombineGroup<[trivial_combines, combines_for_extload,
     const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
     shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,
     div_rem_to_divrem, funnel_shift_to_rotate, //funnel_shift_combines,
-    form_bitfield_extract, constant_fold, fabs_fneg_fold,
-    intdiv_combines, mulh_combines, redundant_neg_operands,
+    form_bitfield_extract, constant_fold_binops, constant_fold_cast_op, 
+    fabs_fneg_fold, intdiv_combines, mulh_combines, redundant_neg_operands,
     and_or_disjoint_mask, bitfield_extract_from_and_ashr]>;
 
 // Like all_combines, but removed vector and fma combines.
@@ -47,11 +47,8 @@ def m88k_required_combines : GICombineGroup<[trivial_combines,
     funnel_shift_to_rotate, form_bitfield_extract,
     and_or_disjoint_mask, bitfield_extract_from_and_ashr]>;
 
-def M88kPreLegalizerCombiner: GICombinerHelper<
+def M88kPreLegalizerCombiner: GICombiner<
   "M88kPreLegalizerCombinerImpl", [m88k_combines]> {
-  let DisableRuleOption = "m88kprelegalizercombiner-disable-rule";
-//  let StateClass = "M88kPreLegalizerCombinerHelperState"; Now unused?
-  let AdditionalArguments = [];
 }
 
 // Combine
@@ -128,15 +125,12 @@ def compare_to_carry : GICombineGroup<[addsub_from_addicmp, addsub_from_addsub,
     subadd_from_subicmp, subsub_from_subicmp]>;
 
 // Post-legalization combines which are primarily optimizations.
-def M88kPostLegalizerCombiner: GICombinerHelper<
+def M88kPostLegalizerCombiner: GICombiner<
   "M88kPostLegalizerCombinerImpl", [
   compare_to_carry,
   form_bitfield_extract, // Some rules require legalizer
   rotate_out_of_range // Required for left rotates, which produce a negative constant
   ]> {
-  let DisableRuleOption = "m88kpostlegalizercombiner-disable-rule";
-//  let StateClass = "M88kPostLegalizerCombinerHelperState";
-//  let AdditionalArguments = [];
 }
 
 // Lower G_SDIV into G_UDIV on M88100.
@@ -158,10 +152,7 @@ def insert_div_by_zero_trap : GICombineRule<
 // (E.g. ones that facilitate matching for the selector) For example, matching
 // pseudos.
 def M88kPostLegalizerLowering
-    : GICombinerHelper<"M88kPostLegalizerLoweringImpl",
-                       [sdiv_to_udiv, insert_div_by_zero_trap]> {
-  let DisableRuleOption = "m88kpostlegalizerlowering-disable-rule";
-  let AdditionalArguments = [GICombinerHelperArg<"GISelKnownBits *", "KB">,
-                             GICombinerHelperArg<"bool", "ReplaceSignedDiv">,
-                             GICombinerHelperArg<"bool", "AddZeroDivCheck">];
+    : GICombiner<"M88kPostLegalizerLoweringImpl",
+                 [sdiv_to_udiv, insert_div_by_zero_trap]> {
+  let CombineAllMethodName = "tryCombineAllImpl";
 }
