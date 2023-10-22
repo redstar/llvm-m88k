@@ -11,13 +11,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "M88kInstrInfo.h"
-#include "M88kTargetMachine.h"
+#include "M88kSubtarget.h"
+#include "MCTargetDesc/M88kMCTargetDesc.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/Register.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/Support/Debug.h"
+#include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/Pass.h"
+#include "llvm/PassRegistry.h"
+#include <cassert>
+#include <iterator>
 
 #define DEBUG_TYPE "m88k-delay-slot-filler"
 
