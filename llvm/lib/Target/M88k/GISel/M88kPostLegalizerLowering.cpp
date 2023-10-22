@@ -21,15 +21,19 @@
 
 #include "GISel/M88kLegalizerInfo.h"
 #include "M88kTargetMachine.h"
+#include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
 #include "llvm/CodeGen/GlobalISel/GIMatchTableExecutor.h"
 #include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
+#include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
+#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -308,30 +312,28 @@ bool applyInsertDivByZeroTrap(GISelChangeObserver &Observer, MachineInstr &MI,
 #undef M88KPOSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_DEPS
 
 namespace {
-class M88kPostLegalizerLoweringImpl : public GIMatchTableExecutor {
+class M88kPostLegalizerLoweringImpl : public Combiner {
 protected:
-  CombinerHelper &Helper;
+  mutable CombinerHelper Helper;
   const M88kPostLegalizerLoweringImplRuleConfig &RuleConfig;
-
   const M88kSubtarget &STI;
-  MachineRegisterInfo &MRI;
-  GISelChangeObserver &Observer;
-  MachineIRBuilder &B;
-  MachineFunction &MF;
 
   const bool ReplaceSignedDiv;
   const bool AddZeroDivCheck;
 
 public:
   M88kPostLegalizerLoweringImpl(
+      MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+      GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
       const M88kPostLegalizerLoweringImplRuleConfig &RuleConfig,
-      const M88kSubtarget &STI, GISelChangeObserver &Observer,
-      MachineIRBuilder &B, CombinerHelper &Helper, bool ReplaceSignedDiv,
-      bool AddZeroDivCheck);
+      const M88kSubtarget &STI, MachineDominatorTree *MDT,
+      const LegalizerInfo *LI, bool ReplaceSignedDiv, bool AddZeroDivCheck);
 
   static const char *getName() { return "M88kPostLegalizerCombiner"; }
 
-  bool tryCombineAll(MachineInstr &I) const;
+  bool tryCombineAll(MachineInstr &I) const override;
+
+  bool tryCombineAllImpl(MachineInstr &I) const;
 
 private:
 #define GET_GICOMBINER_CLASS_MEMBERS
@@ -344,51 +346,22 @@ private:
 #undef GET_GICOMBINER_IMPL
 
 M88kPostLegalizerLoweringImpl::M88kPostLegalizerLoweringImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
     const M88kPostLegalizerLoweringImplRuleConfig &RuleConfig,
-    const M88kSubtarget &STI, GISelChangeObserver &Observer,
-    MachineIRBuilder &B, CombinerHelper &Helper, bool ReplaceSignedDiv,
-    bool AddZeroDivCheck)
-    : Helper(Helper), RuleConfig(RuleConfig), STI(STI), MRI(*B.getMRI()),
-      Observer(Observer), B(B), MF(B.getMF()),
-      ReplaceSignedDiv(ReplaceSignedDiv), AddZeroDivCheck(AddZeroDivCheck),
+    const M88kSubtarget &STI, MachineDominatorTree *MDT,
+    const LegalizerInfo *LI, bool ReplaceSignedDiv, bool AddZeroDivCheck)
+    : Combiner(MF, CInfo, TPC, &KB, CSEInfo),
+      Helper(Observer, B, /*IsPreLegalize*/ false, &KB, MDT, LI),
+      RuleConfig(RuleConfig), STI(STI), ReplaceSignedDiv(ReplaceSignedDiv),
+      AddZeroDivCheck(AddZeroDivCheck),
 #define GET_GICOMBINER_CONSTRUCTOR_INITS
 #include "M88kGenPostLegalizeGILowering.inc"
 #undef GET_GICOMBINER_CONSTRUCTOR_INITS
 {
 }
-class M88kPostLegalizerLoweringInfo : public CombinerInfo {
-  GISelKnownBits *KB;
-  const bool ReplaceSignedDiv;
-  const bool AddZeroDivCheck;
 
-public:
-  M88kPostLegalizerLoweringImplRuleConfig RuleConfig;
-
-  M88kPostLegalizerLoweringInfo(bool OptSize, bool MinSize, GISelKnownBits *KB,
-                                bool ReplaceSignedDiv, bool AddZeroDivCheck)
-      : CombinerInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
-                     /*LegalizerInfo*/ nullptr, /*OptEnabled = */ true, OptSize,
-                     MinSize),
-        KB(KB), ReplaceSignedDiv(ReplaceSignedDiv),
-        AddZeroDivCheck(AddZeroDivCheck) {
-    if (!RuleConfig.parseCommandLineOption())
-      report_fatal_error("Invalid rule identifier");
-  }
-
-  virtual bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-                       MachineIRBuilder &B) const override;
-};
-
-bool M88kPostLegalizerLoweringInfo::combine(GISelChangeObserver &Observer,
-                                            MachineInstr &MI,
-                                            MachineIRBuilder &B) const {
-  const auto &STI = MI.getMF()->getSubtarget<M88kSubtarget>();
-  const auto *LI = STI.getLegalizerInfo();
-  CombinerHelper Helper(Observer, B, /*IsPreLegalize=*/false, KB, nullptr, LI);
-  M88kPostLegalizerLoweringImpl Impl(RuleConfig, STI, Observer, B, Helper,
-                                     ReplaceSignedDiv, AddZeroDivCheck);
-  Impl.setupMF(*MI.getMF(), KB);
-
+bool M88kPostLegalizerLoweringImpl::tryCombineAll(MachineInstr &MI) const {
   // If the instruction is commutable and the first operand is a constant, then
   // swap the operands. The matcher generated from the SDAG patterns expects the
   // constant always as the second operand, otherwise operand is not matched as
@@ -411,17 +384,17 @@ bool M88kPostLegalizerLoweringInfo::combine(GISelChangeObserver &Observer,
     }
   }
 
-  if (Impl.tryCombineAll(MI))
-    return true;
-  return false;
+  return tryCombineAllImpl(MI);
 }
 
-
 class M88kPostLegalizerLowering : public MachineFunctionPass {
+  bool IsOptNone;
+  M88kPostLegalizerLoweringImplRuleConfig RuleConfig;
+
 public:
   static char ID;
 
-  M88kPostLegalizerLowering();
+  M88kPostLegalizerLowering(bool IsOptNone = false);
 
   StringRef getPassName() const override { return "M88kPostLegalizerLowering"; }
 
@@ -433,13 +406,20 @@ public:
 void M88kPostLegalizerLowering::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
   AU.setPreservesCFG();
+  getSelectionDAGFallbackAnalysisUsage(AU);
   AU.addRequired<GISelKnownBitsAnalysis>();
   AU.addPreserved<GISelKnownBitsAnalysis>();
+  if (!IsOptNone) {
+    AU.addRequired<MachineDominatorTree>();
+    AU.addPreserved<MachineDominatorTree>();
+    AU.addRequired<GISelCSEAnalysisWrapperPass>();
+    AU.addPreserved<GISelCSEAnalysisWrapperPass>();
+  }
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 
-M88kPostLegalizerLowering::M88kPostLegalizerLowering()
-    : MachineFunctionPass(ID) {
+M88kPostLegalizerLowering::M88kPostLegalizerLowering(bool IsOptNone)
+    : MachineFunctionPass(ID), IsOptNone(IsOptNone) {
   initializeM88kPostLegalizerLoweringPass(*PassRegistry::getPassRegistry());
 }
 
@@ -457,11 +437,26 @@ bool M88kPostLegalizerLowering::runOnMachineFunction(MachineFunction &MF) {
       !TM.useDivInstr() && !MF.getSubtarget<M88kSubtarget>().isMC88110();
   bool AddZeroDivCheck =
       !TM.noZeroDivCheck() && !MF.getSubtarget<M88kSubtarget>().isMC88110();
+  bool EnableOpt =
+      MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
+
+  const M88kSubtarget &ST = MF.getSubtarget<M88kSubtarget>();
+  const auto *LI = ST.getLegalizerInfo();
+
   GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
-  M88kPostLegalizerLoweringInfo PCInfo(F.hasOptSize(), F.hasMinSize(), KB,
-                                       ReplaceSignedDiv, AddZeroDivCheck);
-  Combiner C(PCInfo, TPC);
-  return C.combineMachineInstrs(MF, /*CSEInfo*/ nullptr);
+  MachineDominatorTree *MDT =
+      IsOptNone ? nullptr : &getAnalysis<MachineDominatorTree>();
+  GISelCSEAnalysisWrapper &Wrapper =
+      getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
+  auto *CSEInfo = &Wrapper.get(TPC->getCSEConfig());
+
+  CombinerInfo CInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
+                     /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(),
+                     F.hasMinSize());
+  M88kPostLegalizerLoweringImpl Impl(MF, CInfo, TPC, *KB, CSEInfo, RuleConfig,
+                                     ST, MDT, LI, ReplaceSignedDiv,
+                                     AddZeroDivCheck);
+  return Impl.combineMachineInstrs();
 }
 
 char M88kPostLegalizerLowering::ID = 0;
@@ -474,7 +469,7 @@ INITIALIZE_PASS_END(M88kPostLegalizerLowering, DEBUG_TYPE,
                     "Lower M88k MachineInstrs after legalization", false, false)
 
 namespace llvm {
-FunctionPass *createM88kPostLegalizerLowering() {
-  return new M88kPostLegalizerLowering();
+FunctionPass *createM88kPostLegalizerLowering(bool IsOptNone) {
+  return new M88kPostLegalizerLowering(IsOptNone);
 }
 } // end namespace llvm
