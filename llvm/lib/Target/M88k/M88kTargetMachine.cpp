@@ -204,8 +204,10 @@ bool M88kPassConfig::addLegalizeMachineIR() {
 
 void M88kPassConfig::addPreRegBankSelect() {
   bool IsOptNone = getOptLevel() == CodeGenOptLevel::None;
+  // TODO IsOptNone does not work correctly!
+  IsOptNone = false;
   addPass(createM88kPostLegalizerCombiner(IsOptNone));
-  addPass(createM88kPostLegalizerLowering());
+  addPass(createM88kPostLegalizerLowering(IsOptNone));
 }
 
 bool M88kPassConfig::addRegBankSelect() {
