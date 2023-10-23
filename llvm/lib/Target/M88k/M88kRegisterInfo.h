@@ -13,7 +13,12 @@
 #ifndef LLVM_LIB_TARGET_M88K_M88KREGISTERINFO_H
 #define LLVM_LIB_TARGET_M88K_M88KREGISTERINFO_H
 
+#include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/IR/CallingConv.h"
+#include "llvm/MC/MCRegister.h"
+#include <cstdint>
 
 #define GET_REGINFO_HEADER
 #include "M88kGenRegisterInfo.inc"

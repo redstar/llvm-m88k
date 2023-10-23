@@ -11,13 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "M88kRegisterBankInfo.h"
-#include "M88kInstrInfo.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
-#include "llvm/CodeGen/GlobalISel/LegalizationArtifactCombiner.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/RegisterBank.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/ErrorHandling.h"
+#include <cassert>
 
 #define GET_TARGET_REGBANK_IMPL
 #include "M88kGenRegisterBank.inc"
@@ -95,11 +101,11 @@ M88kRegisterBankInfo::getFPOperandsMapping(const MachineInstr &MI) const {
     if (MRI.getType(MI.getOperand(0).getReg()).getScalarSizeInBits() == 80)
       RequiresXPR = true;
 
-  //const RegisterBankInfo::ValueMapping *ValMap[3];
+  // const RegisterBankInfo::ValueMapping *ValMap[3];
   SmallVector<const RegisterBankInfo::ValueMapping *, 3> ValMap;
   for (unsigned I = 0; I < NumOperands; ++I) {
-  PartialMappingIdx RBIdx = PMI_None;
-  LLT Ty = MRI.getType(MI.getOperand(I).getReg());
+    PartialMappingIdx RBIdx = PMI_None;
+    LLT Ty = MRI.getType(MI.getOperand(I).getReg());
     switch (Ty.getSizeInBits()) {
     case 32:
       RBIdx = RequiresXPR ? PMI_XR32 : PMI_GR32;
@@ -113,11 +119,11 @@ M88kRegisterBankInfo::getFPOperandsMapping(const MachineInstr &MI) const {
     default:
       llvm_unreachable("Unsupport register size");
     }
-    //ValMap[I] = getValueMapping(RBIdx);
+    // ValMap[I] = getValueMapping(RBIdx);
     ValMap.push_back(getValueMapping(RBIdx));
   }
 
-  //return getOperandsMapping(&ValMap[0], &ValMap[NumOperands-1]);
+  // return getOperandsMapping(&ValMap[0], &ValMap[NumOperands-1]);
   return getOperandsMapping(ValMap);
 }
 
@@ -198,8 +204,7 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     if (Ty.getSizeInBits() != 64 && Ty.getSizeInBits() != 32)
       return getInvalidInstructionMapping(); // TODO Support 80 bit FP.
     PartialMappingIdx RBIdx = (Ty.getSizeInBits() == 64) ? PMI_GR64 : PMI_GR32;
-    OperandsMapping = getOperandsMapping(
-        {getValueMapping(RBIdx), nullptr});
+    OperandsMapping = getOperandsMapping({getValueMapping(RBIdx), nullptr});
     break;
   }
   case TargetOpcode::G_FPEXT:
@@ -216,8 +221,8 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     if (Ty.getSizeInBits() != 64 && Ty.getSizeInBits() != 32)
       return getInvalidInstructionMapping(); // TODO Support 80 bit FP.
     PartialMappingIdx RBIdx = (Ty.getSizeInBits() == 64) ? PMI_GR64 : PMI_GR32;
-    OperandsMapping = getOperandsMapping(
-        {getValueMapping(PMI_GR32), getValueMapping(RBIdx)});
+    OperandsMapping =
+        getOperandsMapping({getValueMapping(PMI_GR32), getValueMapping(RBIdx)});
     break;
   }
   case TargetOpcode::G_SITOFP:
@@ -226,8 +231,8 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     if (Ty.getSizeInBits() != 64 && Ty.getSizeInBits() != 32)
       return getInvalidInstructionMapping(); // TODO Support 80 bit FP.
     PartialMappingIdx RBIdx = (Ty.getSizeInBits() == 64) ? PMI_GR64 : PMI_GR32;
-    OperandsMapping = getOperandsMapping(
-        {getValueMapping(RBIdx), getValueMapping(PMI_GR32)});
+    OperandsMapping =
+        getOperandsMapping({getValueMapping(RBIdx), getValueMapping(PMI_GR32)});
     break;
   }
   case TargetOpcode::G_UBFX:
@@ -292,10 +297,9 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     break;
   case TargetOpcode::G_SELECT:
     // TODO FP not handled.
-    OperandsMapping = getOperandsMapping({getValueMapping(PMI_GR32),
-                                          getValueMapping(PMI_GR32),
-                                          getValueMapping(PMI_GR32),
-                                          getValueMapping(PMI_GR32)});
+    OperandsMapping = getOperandsMapping(
+        {getValueMapping(PMI_GR32), getValueMapping(PMI_GR32),
+         getValueMapping(PMI_GR32), getValueMapping(PMI_GR32)});
     break;
   case TargetOpcode::G_MERGE_VALUES: {
     // We only support G_MERGE_VALUES for creating a 64 bit value out of two

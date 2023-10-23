@@ -8,15 +8,25 @@
 
 #include "MCTargetDesc/M88kMCFixups.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/ADT/bit.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
+#include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCFixupKindInfo.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
+#include <cassert>
+#include <cstdint>
+#include <memory>
+#include <optional>
 
 using namespace llvm;
 
@@ -29,7 +39,7 @@ uint64_t extractBitsForFixup(MCFixupKind Kind, uint64_t Value,
   if (Kind < FirstTargetFixupKind)
     return Value;
 
-  auto checkFixupInRange = [&](int64_t Min, int64_t Max) -> bool {
+  auto CheckFixupInRange = [&](int64_t Min, int64_t Max) -> bool {
     int64_t SVal = int64_t(Value);
     if (SVal < Min || SVal > Max) {
       Ctx.reportError(Fixup.getLoc(), "operand out of range (" + Twine(SVal) +
@@ -40,23 +50,23 @@ uint64_t extractBitsForFixup(MCFixupKind Kind, uint64_t Value,
     return true;
   };
 
-  auto handlePCRelFixupValue = [&](unsigned W) -> uint64_t {
+  auto HandlePCRelFixupValue = [&](unsigned W) -> uint64_t {
     if (Value % 4 != 0)
       Ctx.reportError(Fixup.getLoc(), "Non-even PC relative offset.");
-    if (!checkFixupInRange(minIntN(W) * 2, maxIntN(W) * 2))
+    if (!CheckFixupInRange(minIntN(W) * 2, maxIntN(W) * 2))
       return 0;
     return (int64_t)Value >> 2;
   };
 
   switch (unsigned(Kind)) {
   case M88k::FK_88K_DISP16:
-    return handlePCRelFixupValue(16);
+    return HandlePCRelFixupValue(16);
   case M88k::FK_88K_DISP26:
-    return handlePCRelFixupValue(26);
+    return HandlePCRelFixupValue(26);
 
   case M88k::FK_88K_HI:
   case M88k::FK_88K_LO:
-    if (!checkFixupInRange(0, maxUIntN(16)))
+    if (!CheckFixupInRange(0, maxUIntN(16)))
       return 0;
     return Value;
 
@@ -71,8 +81,8 @@ class M88kMCAsmBackend : public MCAsmBackend {
   uint8_t OSABI;
 
 public:
-  M88kMCAsmBackend(uint8_t osABI)
-      : MCAsmBackend(endianness::big), OSABI(osABI) {}
+  M88kMCAsmBackend(uint8_t OSABI)
+      : MCAsmBackend(endianness::big), OSABI(OSABI) {}
 
   // Override MCAsmBackend
   unsigned getNumFixupKinds() const override;
