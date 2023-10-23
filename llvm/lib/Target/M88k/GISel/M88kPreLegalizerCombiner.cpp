@@ -19,8 +19,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "GISel/M88kGlobalISelUtils.h"
-#include "M88kTargetMachine.h"
+#include "M88kSubtarget.h"
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
@@ -30,13 +29,21 @@
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/Utils.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/Register.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/Support/Debug.h"
+#include "llvm/Pass.h"
+#include "llvm/PassRegistry.h"
+#include <cassert>
+#include <cstdint>
+#include <functional>
 
 #define GET_GICOMBINER_DEPS
 #include "M88kGenPreLegalizeGICombiner.inc"

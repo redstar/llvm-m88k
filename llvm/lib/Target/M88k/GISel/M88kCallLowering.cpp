@@ -15,13 +15,25 @@
 #include "M88kCallLowering.h"
 #include "M88kCallingConv.h"
 #include "M88kInstrInfo.h"
+#include "M88kRegisterInfo.h"
 #include "M88kSubtarget.h"
-#include "M88kTargetMachine.h"
+#include "MCTargetDesc/M88kMCTargetDesc.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/Utils.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetCallingConv.h"
+#include "llvm/Support/Alignment.h"
+#include <cassert>
+#include <cstdint>
+#include <functional>
 
 using namespace llvm;
 
@@ -156,7 +168,7 @@ void OutgoingArgHandler::assignValueToAddress(Register ValVReg, Register Addr,
   MachineFunction &MF = MIRBuilder.getMF();
   uint64_t LocMemOffset = VA.getLocMemOffset();
 
-  auto MMO = MF.getMachineMemOperand(
+  auto *MMO = MF.getMachineMemOperand(
       MPO, MachineMemOperand::MOStore, MemTy,
       commonAlignment(Align(16) /*STI.getStackAlignment()*/, LocMemOffset));
 
@@ -170,12 +182,12 @@ Register OutgoingArgHandler::getStackAddress(uint64_t Size, int64_t Offset,
   MachineFunction &MF = MIRBuilder.getMF();
   MPO = MachinePointerInfo::getStack(MF, Offset);
 
-  LLT p0 = LLT::pointer(0, 32);
-  LLT s32 = LLT::scalar(32);
-  auto SPReg = MIRBuilder.buildCopy(p0, Register(M88k::R31));
+  LLT P0 = LLT::pointer(0, 32);
+  LLT S32 = LLT::scalar(32);
+  auto SPReg = MIRBuilder.buildCopy(P0, Register(M88k::R31));
 
-  auto OffsetReg = MIRBuilder.buildConstant(s32, Offset);
-  auto AddrReg = MIRBuilder.buildPtrAdd(p0, SPReg, OffsetReg);
+  auto OffsetReg = MIRBuilder.buildConstant(S32, Offset);
+  auto AddrReg = MIRBuilder.buildPtrAdd(P0, SPReg, OffsetReg);
   return AddrReg.getReg(0);
 }
 

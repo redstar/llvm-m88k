@@ -18,6 +18,7 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Compiler.h"
 
 using namespace llvm;
 
@@ -65,7 +66,7 @@ static MCInstPrinter *createM88kMCInstPrinter(const Triple &T,
 static MCTargetStreamer *createM88kAsmTargetStreamer(MCStreamer &S,
                                                      formatted_raw_ostream &OS,
                                                      MCInstPrinter *InstPrint,
-                                                     bool isVerboseAsm) {
+                                                     bool IsVerboseAsm) {
   return new M88kTargetAsmStreamer(S, OS);
 }
 
@@ -85,6 +86,7 @@ static MCStreamer *createMCStreamer(const Triple &T, MCContext &Context,
 }
 */
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeM88kTargetMC() {
   // Register the MCAsmInfo.
   TargetRegistry::RegisterMCAsmInfo(getTheM88kTarget(), createM88kMCAsmInfo);
