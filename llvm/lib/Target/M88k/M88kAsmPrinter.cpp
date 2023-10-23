@@ -11,18 +11,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MCTargetDesc/M88kInstPrinter.h"
-//#include "MCTargetDesc/M88kMCExpr.h"
-//#include "MCTargetDesc/M88kTargetStreamer.h"
-#include "M88k.h"
-#include "M88kInstrInfo.h"
 #include "M88kMCInstLower.h"
-#include "M88kTargetMachine.h"
+#include "M88kSubtarget.h"
+#include "MCTargetDesc/M88kInstPrinter.h"
+#include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "TargetInfo/M88kTargetInfo.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/MachineModuleInfoImpls.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -32,7 +27,10 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/raw_ostream.h"
+#include <memory>
+#include <utility>
 
 using namespace llvm;
 
@@ -103,6 +101,7 @@ void M88kAsmPrinter::emitInstruction(const MachineInstr *MI) {
 }
 
 // Force static initialization.
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeM88kAsmPrinter() {
   RegisterAsmPrinter<M88kAsmPrinter> X(getTheM88kTarget());
 }

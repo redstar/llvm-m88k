@@ -12,15 +12,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIB_TARGET_M88K_GLSEL_M88KCALLLOWERING_H
-#define LLVM_LIB_TARGET_M88K_GLSEL_M88KCALLLOWERING_H
+#ifndef LLVM_LIB_TARGET_M88K_GISEL_M88KCALLLOWERING_H
+#define LLVM_LIB_TARGET_M88K_GISEL_M88KCALLLOWERING_H
 
-#include "llvm/CodeGen/CallingConvLower.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
-#include "llvm/CodeGen/ValueTypes.h"
+#include "llvm/CodeGen/Register.h"
 
 namespace llvm {
-
+class Value;
 class M88kTargetLowering;
 
 class M88kCallLowering : public CallLowering {
@@ -44,4 +44,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_LIB_TARGET_M88K_GLSEL_M88KCALLLOWERING_H
+#endif // LLVM_LIB_TARGET_M88K_GISEL_M88KCALLLOWERING_H
