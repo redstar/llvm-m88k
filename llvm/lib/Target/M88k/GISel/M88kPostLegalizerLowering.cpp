@@ -21,6 +21,7 @@
 
 #include "GISel/M88kLegalizerInfo.h"
 #include "M88kTargetMachine.h"
+#include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
@@ -29,19 +30,25 @@
 #include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
-#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
-#include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineDominators.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/Debug.h"
+#include "llvm/Pass.h"
+#include "llvm/Support/CodeGen.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/KnownBits.h"
+#include <cassert>
+#include <tuple>
 
 #define GET_GICOMBINER_DEPS
 #include "M88kGenPostLegalizeGILowering.inc"
@@ -50,7 +57,6 @@
 #define DEBUG_TYPE "M88K-postlegalizer-lowering"
 
 using namespace llvm;
-using namespace MIPatternMatch;
 
 namespace {
 #define GET_GICOMBINER_TYPES
@@ -113,15 +119,17 @@ bool applySDivtoUDiv(GISelChangeObserver &Observer, MachineInstr &MI,
                    {NumeratorReg, DenominatorReg});
     MI.eraseFromParent();
     return true;
-  } else if (NumSignBitIsOne && DenomSignBitIsOne) {
+  }
+  if (NumSignBitIsOne && DenomSignBitIsOne) {
     MIB.setInstrAndDebugLoc(MI);
     auto NegNum = MIB.buildNeg(S32, NumeratorReg);
     auto NegDenom = MIB.buildNeg(S32, DenominatorReg);
     MIB.buildInstr(TargetOpcode::G_UDIV, {QuotientReg}, {NegNum, NegDenom});
     MI.eraseFromParent();
     return true;
-  } else if ((NumSignBitIsZero && DenomSignBitIsOne) ||
-             (NumSignBitIsOne && DenomSignBitIsZero)) {
+  }
+  if ((NumSignBitIsZero && DenomSignBitIsOne) ||
+      (NumSignBitIsOne && DenomSignBitIsZero)) {
     MIB.setInstrAndDebugLoc(MI);
     auto Div = MIB.buildInstr(
         TargetOpcode::G_UDIV, {S32},
