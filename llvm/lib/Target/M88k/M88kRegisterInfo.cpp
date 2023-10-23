@@ -11,18 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "M88kRegisterInfo.h"
-#include "M88k.h"
-//#include "M88kMachineFunctionInfo.h"
-#include "M88kSubtarget.h"
+#include "M88kFrameLowering.h"
+#include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
-#include "llvm/IR/Type.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ErrorHandling.h"
+#include "llvm/IR/CallingConv.h"
+#include "llvm/MC/MCRegister.h"
+#include "llvm/Support/MathExtras.h"
+#include <cassert>
+#include <cstdint>
 
 using namespace llvm;
 
