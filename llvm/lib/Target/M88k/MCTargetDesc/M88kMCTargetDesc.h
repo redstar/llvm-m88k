@@ -9,8 +9,7 @@
 #ifndef LLVM_LIB_TARGET_M88K_MCTARGETDESC_M88KMCTARGETDESC_H
 #define LLVM_LIB_TARGET_M88K_MCTARGETDESC_M88KMCTARGETDESC_H
 
-#include "llvm/Support/DataTypes.h"
-
+#include <cstdint>
 #include <memory>
 
 namespace llvm {

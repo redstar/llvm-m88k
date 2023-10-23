@@ -11,19 +11,27 @@
 
 #include "M88kTargetMachine.h"
 #include "M88k.h"
-//#include "M88kTargetObjectFile.h"
 #include "TargetInfo/M88kTargetInfo.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
-#include "llvm/CodeGen/GlobalISel/Localizer.h"
 #include "llvm/CodeGen/GlobalISel/RegBankSelect.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/CodeGen.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
+#include <memory>
+#include <optional>
+#include <string>
 
 using namespace llvm;
 
@@ -45,6 +53,7 @@ static cl::opt<cl::boolOrDefault>
     EnableDelaySlotFiller("m88k-enable-delay-slot-filler",
                           cl::desc("Fill delay slots."), cl::Hidden);
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeM88kTarget() {
   // Register the target and target specific passes.
   RegisterTargetMachine<M88kTargetMachine> X(getTheM88kTarget());
