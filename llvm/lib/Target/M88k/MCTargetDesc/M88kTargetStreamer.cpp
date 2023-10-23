@@ -16,7 +16,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFStreamer.h"
 #include "llvm/MC/MCSection.h"
-#include "llvm/MC/MCSectionELF.h"
+#include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/FormattedStream.h"
 
