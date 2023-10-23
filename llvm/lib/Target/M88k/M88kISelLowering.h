@@ -15,7 +15,11 @@
 #define LLVM_LIB_TARGET_M88K_M88KISELLOWERING_H
 
 #include "M88k.h"
+#include "llvm/CodeGen/ISDOpcodes.h"
+#include "llvm/CodeGen/LowLevelType.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/IR/Type.h"
 
 namespace llvm {
 
