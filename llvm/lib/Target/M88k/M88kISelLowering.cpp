@@ -11,7 +11,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "M88kISelLowering.h"
-#include "M88kTargetMachine.h"
+#include "M88kRegisterInfo.h"
+#include "M88kSubtarget.h"
+#include "MCTargetDesc/M88kMCTargetDesc.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
+#include "llvm/CodeGen/LowLevelType.h"
+#include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/MachineValueType.h"
+#include "llvm/CodeGen/Register.h"
+#include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/Support/Alignment.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 

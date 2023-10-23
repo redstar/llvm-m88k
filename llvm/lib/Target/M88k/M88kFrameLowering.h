@@ -9,8 +9,13 @@
 #ifndef LLVM_LIB_TARGET_M88K_M88KFRAMELOWERING_H
 #define LLVM_LIB_TARGET_M88K_M88KFRAMELOWERING_H
 
-#include "llvm/ADT/IndexedMap.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
+#include "llvm/Support/TypeSize.h"
+#include <cstdint>
+#include <vector>
 
 namespace llvm {
 class M88kTargetMachine;

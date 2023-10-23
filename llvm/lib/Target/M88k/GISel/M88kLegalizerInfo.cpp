@@ -12,19 +12,30 @@
 #include "M88kLegalizerInfo.h"
 #include "M88kInstrInfo.h"
 #include "M88kSubtarget.h"
+#include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/LostDebugLocObserver.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/Utils.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/Alignment.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/MathExtras.h"
+#include "llvm/Support/TypeSize.h"
+#include <cassert>
+#include <cstdint>
 
 using namespace llvm;
 using namespace LegalityPredicates;
@@ -50,9 +61,8 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   const LLT V2S32 = LLT::fixed_vector(2, 32);
   const LLT P0 = LLT::pointer(0, 32);
 
-  auto IsMC88110 = LegalityPredicate([=, &ST](const LegalityQuery &Query) {
-    return ST.isMC88110();
-  });
+  auto IsMC88110 = LegalityPredicate(
+      [=, &ST](const LegalityQuery &Query) { return ST.isMC88110(); });
 
   getActionDefinitionsBuilder(G_PHI).legalFor({S32, P0});
   getActionDefinitionsBuilder(G_SELECT)
@@ -82,7 +92,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   getActionDefinitionsBuilder({G_SEXTLOAD, G_ZEXTLOAD})
       .legalForTypesWithMemDesc({{S32, P0, S8, 8}, {S32, P0, S16, 16}})
       .customIf(typePairAndMemDescInSet(/*TypeIdx0*/ 0, /*TypeIdx1*/ 1,
-                                      /*MMOIdx*/ 0, {{S32, P0, S16, 8}}))
+                                        /*MMOIdx*/ 0, {{S32, P0, S16, 8}}))
       .lower();
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
       .legalForTypesWithMemDesc({{S32, P0, S8, 8},
@@ -130,8 +140,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
       .clampScalar(1, S32, S32);
   getActionDefinitionsBuilder({G_ADD, G_SUB})
       .legalFor({S32})
-      .legalIf(
-          all(typeInSet(0, {V8S8, V4S16, V2S32}), IsMC88110))
+      .legalIf(all(typeInSet(0, {V8S8, V4S16, V2S32}), IsMC88110))
       .clampScalar(0, S32, S32);
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE})
       .legalFor({{S32, S1}})
@@ -193,8 +202,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
       .libcallFor({S32, S64});
   getActionDefinitionsBuilder(G_FSQRT)
       .minScalar(0, S32)
-      .legalIf(
-          all(typeInSet(0, {S32, S64}), IsMC88110))
+      .legalIf(all(typeInSet(0, {S32, S64}), IsMC88110))
       .libcallFor({S32, S64});
 
   // FP to int conversion instructions
@@ -213,12 +221,12 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
       .legalForCartesianProduct({S64, S32}, {S32})
       .libcallForCartesianProduct({S64, S32}, {S64})
       .minScalar(1, S32);
-/*
-  getActionDefinitionsBuilder(G_UITOFP)
-      .libcallForCartesianProduct({S64, S32}, {S64})
-      .customForCartesianProduct({S64, S32}, {S32})
-      .minScalar(1, S32);
-*/
+  /*
+    getActionDefinitionsBuilder(G_UITOFP)
+        .libcallForCartesianProduct({S64, S32}, {S64})
+        .customForCartesianProduct({S64, S32}, {S32})
+        .minScalar(1, S32);
+  */
   getLegacyLegalizerInfo().computeTables();
 }
 
@@ -229,7 +237,6 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
   MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
   MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
 
-  const LLT S1 = LLT::scalar(1);
   const LLT S32 = LLT::scalar(32);
   const LLT S64 = LLT::scalar(64);
   const LLT P0 = LLT::pointer(0, 32);
@@ -262,7 +269,7 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
 
     // Increments AdrReg by ChunkSize, and loads the value.
     // Alos updates Offset.
-    auto incAndload = [&](Register &AdrReg) -> Register {
+    auto IncAndload = [&](Register &AdrReg) -> Register {
       Offset += ChunkSize;
       Register IncAdrReg = MRI.createGenericVirtualRegister(P0);
       MIRBuilder.buildPtrAdd(IncAdrReg, AdrReg, ChunkAmt);
@@ -273,7 +280,7 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
       AdrReg = IncAdrReg;
       return Val;
     };
-    auto combine = [&](Register ValHi, Register ValLo,
+    auto Combine = [&](Register ValHi, Register ValLo,
                        Register DstReg) -> Register {
       Register TmpReg = MRI.createGenericVirtualRegister(S32);
       MIRBuilder.buildShl(TmpReg, ValHi, ShiftAmt);
@@ -289,15 +296,15 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
         ValReg, AdrReg, *MF.getMachineMemOperand(MMO, Offset, ChunkSize));
 
     if (Parts > 2) {
-      Register NextReg = incAndload(AdrReg);
-      ValReg = combine(ValReg, NextReg, MRI.createGenericVirtualRegister(S32));
+      Register NextReg = IncAndload(AdrReg);
+      ValReg = Combine(ValReg, NextReg, MRI.createGenericVirtualRegister(S32));
 
-      NextReg = incAndload(AdrReg);
-      ValReg = combine(ValReg, NextReg, MRI.createGenericVirtualRegister(S32));
+      NextReg = IncAndload(AdrReg);
+      ValReg = Combine(ValReg, NextReg, MRI.createGenericVirtualRegister(S32));
     }
 
-    Register LastReg = incAndload(AdrReg);
-    combine(ValReg, LastReg, DstReg);
+    Register LastReg = IncAndload(AdrReg);
+    Combine(ValReg, LastReg, DstReg);
 
     MI.eraseFromParent();
     break;
@@ -324,7 +331,7 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
     auto ChunkAmt = MIRBuilder.buildConstant(S32, ChunkSize);
 
     // Stores a part of ValReg.
-    auto store = [&]() {
+    auto Store = [&]() {
       Register TmpReg;
       if (Part) {
         TmpReg = MRI.createGenericVirtualRegister(S32);
@@ -339,20 +346,20 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
 
     // Increments AdrReg by ChunkSize, and store the next part of the value.
     // Alsa updates Offset and Part.
-    auto storeNext = [&]() {
+    auto StoreNext = [&]() {
       Offset += ChunkSize;
       Part -= 1;
       Register IncAdrReg = MRI.createGenericVirtualRegister(P0);
       MIRBuilder.buildPtrAdd(IncAdrReg, AdrReg, ChunkAmt);
       AdrReg = IncAdrReg;
-      store();
+      Store();
     };
 
-    store();
-    storeNext();
+    Store();
+    StoreNext();
     if (Parts > 2) {
-      storeNext();
-      storeNext();
+      StoreNext();
+      StoreNext();
     }
 
     MI.eraseFromParent();
@@ -367,15 +374,15 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
     Register LoReg = MRI.createGenericVirtualRegister(S32);
     Register TmpReg = MRI.createGenericVirtualRegister(S32);
 
-    auto buildInstr = [&MIRBuilder, &MRI](unsigned Opcode, const DstOp &Res,
+    auto BuildInstr = [&MIRBuilder, &MRI](unsigned Opcode, const DstOp &Res,
                                           const GlobalValue *GV) {
       auto MIB = MIRBuilder.buildInstr(Opcode);
       Res.addDefToMIB(MRI, MIB);
       MIB.addGlobalAddress(GV);
     };
 
-    buildInstr(M88k::G_HI, HiReg, GV);
-    buildInstr(M88k::G_LO, LoReg, GV);
+    BuildInstr(M88k::G_HI, HiReg, GV);
+    BuildInstr(M88k::G_LO, LoReg, GV);
     MIRBuilder.buildOr(TmpReg, LoReg, HiReg);
     MIRBuilder.buildIntToPtr(DstReg, TmpReg);
     MI.eraseFromParent();
@@ -488,7 +495,6 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
     Register TVal = MI.getOperand(2).getReg();
     Register FVal = MI.getOperand(3).getReg();
     LLT DstTy = MRI.getType(Dst);
-    LLT TstTy = MRI.getType(Tst);
 
     // The type used for the calculation. If the instruction operates on
     // pointers then it is a scalar type of the same size as the pointer.
