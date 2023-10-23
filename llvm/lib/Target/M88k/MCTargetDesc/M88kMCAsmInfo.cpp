@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "M88kMCAsmInfo.h"
-#include "llvm/MC/MCContext.h"
-#include "llvm/MC/MCSectionELF.h"
+#include "llvm/MC/MCTargetOptions.h"
 
 using namespace llvm;
 
