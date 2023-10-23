@@ -17,7 +17,9 @@
 #include "M88k.h"
 #include "M88kTargetMachine.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/MathExtras.h"
+#include "llvm/TargetParser/Triple.h"
+#include <optional>
+#include <string>
 
 using namespace llvm;
 
@@ -68,7 +70,8 @@ std::optional<unsigned> M88kSubtarget::getCacheSize(unsigned Level) const {
   }
 }
 
-std::optional<unsigned> M88kSubtarget::getCacheAssociativity(unsigned Level) const {
+std::optional<unsigned>
+M88kSubtarget::getCacheAssociativity(unsigned Level) const {
   if (Level > 0)
     return std::optional<unsigned>();
   switch (M88kProc) {
