@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "M88k.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "TargetInfo/M88kTargetInfo.h"
 #include "llvm/MC/MCDecoderOps.h"
@@ -14,8 +13,8 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/MathExtras.h"
-#include <cassert>
 #include <cstdint>
 
 using namespace llvm;
@@ -32,7 +31,7 @@ public:
       : MCDisassembler(STI, Ctx) {}
   ~M88kDisassembler() override = default;
 
-  DecodeStatus getInstruction(MCInst &instr, uint64_t &Size,
+  DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
                               raw_ostream &CStream) const override;
 };
@@ -45,6 +44,7 @@ static MCDisassembler *createM88kDisassembler(const Target &T,
   return new M88kDisassembler(STI, Ctx);
 }
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeM88kDisassembler() {
   // Register the disassembler.
   TargetRegistry::RegisterMCDisassembler(getTheM88kTarget(),

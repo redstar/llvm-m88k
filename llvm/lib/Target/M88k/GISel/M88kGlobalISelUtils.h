@@ -12,7 +12,9 @@
 #ifndef LLVM_LIB_TARGET_M88K_GISEL_M88KGLOBALISELUTILS_H
 #define LLVM_LIB_TARGET_M88K_GISEL_M88KGLOBALISELUTILS_H
 
+#include "llvm/ADT/bit.h"
 #include "llvm/Support/MathExtras.h"
+#include <cstdint>
 
 namespace llvm {
 
