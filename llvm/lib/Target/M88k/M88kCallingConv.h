@@ -11,7 +11,9 @@
 
 #include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/CodeGen/CallingConvLower.h"
-#include "llvm/Support/Debug.h"
+#include "llvm/CodeGen/TargetCallingConv.h"
+#include "llvm/MC/MCRegister.h"
+#include <cassert>
 
 namespace llvm {
 
