@@ -11,6 +11,25 @@
 //===----------------------------------------------------------------------===//
 
 // ---------------------------------------------------------------------------//
+// Selection DAG Nodes.
+// ---------------------------------------------------------------------------//
+
+// Selection DAG types.
+
+// These are target-independent nodes, but have target-specific formats.
+def SDT_CallSeqStart : SDCallSeqStart<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+def SDT_CallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
+def SDT_Call         : SDTypeProfile<0, -1, [SDTCisPtrTy<0>]>;
+
+// Selection DAG nodes.
+
+def call             : SDNode<"M88kISD::CALL", SDT_Call,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
+                              SDNPVariadic]>;
+def retflag          : SDNode<"M88kISD::RET_FLAG", SDTNone,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+
+// ---------------------------------------------------------------------------//
 // Logic and bit field instructions.
 // ---------------------------------------------------------------------------//
 
@@ -26,3 +45,12 @@ multiclass Logic<bits<5> Func, string OpcStr, SDNode OpNode> {
 defm AND : Logic<0b01000, "and", and>;
 defm XOR : Logic<0b01010, "xor", xor>;
 defm OR  : Logic<0b01011, "or", or>;
+
+let isBarrier = 1, isBranch = 1, isTerminator = 1, isIndirectBranch = 1 in {
+  def JMP : F_JMP<0b11000, "jmp", [(brind GPROpnd:$rs2)]>;
+}
+
+let isReturn = 1, isTerminator = 1, isBarrier = 1, Uses = [R1],
+    AsmString = "RET" in {
+  def RET : Pseudo<(outs), (ins), [(retflag)]>;
+}

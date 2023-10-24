@@ -27,6 +27,13 @@ class InstM88k<dag outs, dag ins, string asm, string operands,
   let DecoderNamespace = "M88k";
 }
 
+class Pseudo<dag outs, dag ins, list<dag> pattern>
+  : InstM88k<outs, ins, "", "", pattern> {
+  let isCodeGenOnly       = 1;
+  let isPseudo            = 1;
+  let hasNoSchedulingInfo = 1;
+}
+
 //===----------------------------------------------------------------------===//
 // The formats follow the categories specified in the User Manual.
 //===----------------------------------------------------------------------===//
@@ -49,6 +56,21 @@ class F_LR<bits<5> func, bits<1> comp, string asm, list<dag> pattern = []>
   let Inst{31-26} = 0b111101;
   let Inst{15-11} = func;
   let Inst{10}    = comp;
+  let Inst{9-5}   = 0b00000;
+  let Inst{4-0}   = rs2;
+}
+
+// Category: Flow control.
+
+// Format: JMP/JSR
+class F_JMP<bits<5> func, string asm, list<dag> pattern = []>
+   : InstM88k<(outs), (ins GPROpnd:$rs2), asm, "$rs2", pattern> {
+  bits<5> rs2;
+
+  let Inst{31-26} = 0b111101;
+  let Inst{25-16} = 0b0000000000;
+  let Inst{15-11} = func;
+  let Inst{10}    = hasDelaySlot;
   let Inst{9-5}   = 0b00000;
   let Inst{4-0}   = rs2;
 }
