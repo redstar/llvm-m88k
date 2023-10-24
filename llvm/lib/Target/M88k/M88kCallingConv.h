@@ -21,7 +21,7 @@ inline bool CC_M88k_Custom_f64(unsigned &ValNo, MVT &ValVT, MVT &LocVT,
                                CCValAssign::LocInfo &LocInfo,
                                ISD::ArgFlagsTy &ArgFlags, CCState &State) {
 
-  static const MCPhysReg HiRegList[] = {M88k::R2, M88k::R4, M88k::R6, M88k::R6};
+  static const MCPhysReg HiRegList[] = {M88k::R2, M88k::R4, M88k::R6, M88k::R8};
   static const MCPhysReg LoRegList[] = {M88k::R3, M88k::R5, M88k::R7, M88k::R9};
   static const MCPhysReg ShadowRegList[] = {M88k::R1, M88k::R3, M88k::R5,
                                             M88k::R7};
