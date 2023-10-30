@@ -51,14 +51,15 @@ struct OutgoingArgHandler : public CallLowering::OutgoingValueHandler {
       : OutgoingValueHandler(MIRBuilder, MRI), MIB(MIB) {}
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign VA) override;
+                        const CCValAssign &VA) override;
 
   unsigned assignCustomValue(CallLowering::ArgInfo &Arg,
                              ArrayRef<CCValAssign> VAs,
                              std::function<void()> *Thunk = nullptr) override;
 
   void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
-                            MachinePointerInfo &MPO, CCValAssign &VA) override;
+                            const MachinePointerInfo &MPO,
+                            const CCValAssign &VA) override;
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
                            MachinePointerInfo &MPO,
@@ -73,10 +74,11 @@ struct M88kIncomingValueHandler : public CallLowering::IncomingValueHandler {
       : CallLowering::IncomingValueHandler(MIRBuilder, MRI) {}
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign VA) override;
+                        const CCValAssign &VA) override;
 
   void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
-                            MachinePointerInfo &MPO, CCValAssign &VA) override;
+                            const MachinePointerInfo &MPO,
+                            const CCValAssign &VA) override;
 
   Register getStackAddress(uint64_t Size, int64_t Offset,
                            MachinePointerInfo &MPO,
@@ -117,7 +119,7 @@ struct CallReturnHandler : public M88kIncomingValueHandler {
 } // namespace
 
 void OutgoingArgHandler::assignValueToReg(Register ValVReg, Register PhysReg,
-                                          CCValAssign VA) {
+                                          const CCValAssign &VA) {
   MIB.addUse(PhysReg, RegState::Implicit);
   Register ExtReg = extendRegister(ValVReg, VA);
   MIRBuilder.buildCopy(PhysReg, ExtReg);
@@ -163,8 +165,8 @@ unsigned OutgoingArgHandler::assignCustomValue(CallLowering::ArgInfo &Arg,
 
 void OutgoingArgHandler::assignValueToAddress(Register ValVReg, Register Addr,
                                               LLT MemTy,
-                                              MachinePointerInfo &MPO,
-                                              CCValAssign &VA) {
+                                              const MachinePointerInfo &MPO,
+                                              const CCValAssign &VA) {
   MachineFunction &MF = MIRBuilder.getMF();
   uint64_t LocMemOffset = VA.getLocMemOffset();
 
@@ -193,7 +195,7 @@ Register OutgoingArgHandler::getStackAddress(uint64_t Size, int64_t Offset,
 
 void M88kIncomingValueHandler::assignValueToReg(Register ValVReg,
                                                 Register PhysReg,
-                                                CCValAssign VA) {
+                                                const CCValAssign &VA) {
   assert(VA.isRegLoc() && "Value shouldn't be assigned to reg");
   assert(VA.getLocReg() == PhysReg && "Assigning to the wrong reg?");
 
@@ -217,10 +219,9 @@ void M88kIncomingValueHandler::assignValueToReg(Register ValVReg,
   }
 }
 
-void M88kIncomingValueHandler::assignValueToAddress(Register ValVReg,
-                                                    Register Addr, LLT MemTy,
-                                                    MachinePointerInfo &MPO,
-                                                    CCValAssign &VA) {
+void M88kIncomingValueHandler::assignValueToAddress(
+    Register ValVReg, Register Addr, LLT MemTy, const MachinePointerInfo &MPO,
+    const CCValAssign &VA) {
   MachineFunction &MF = MIRBuilder.getMF();
   auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOLoad, MemTy,
                                       inferAlignFromPtrInfo(MF, MPO));
