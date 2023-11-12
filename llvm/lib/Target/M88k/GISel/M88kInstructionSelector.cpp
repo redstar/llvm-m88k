@@ -1353,7 +1353,6 @@ void M88kInstructionSelector::setupMF(MachineFunction &MF, GISelKnownBits *KB,
 }
 
 bool M88kInstructionSelector::select(MachineInstr &I) {
-llvm::dbgs() << "Select: "; I.dump();
   assert(I.getParent() && "Instruction should be in a basic block!");
   assert(I.getParent()->getParent() && "Instruction should be in a function!");
 
@@ -1386,8 +1385,6 @@ llvm::dbgs() << "Select: "; I.dump();
 
   if (selectImpl(I, *CoverageInfo))
     return true;
-
-llvm::dbgs() << "Hand-coded: "; I.dump();
 
   switch (I.getOpcode()) {
   case TargetOpcode::G_INTTOPTR:
