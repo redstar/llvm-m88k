@@ -938,7 +938,7 @@ let isTrap = 1, isBarrier = 1 in {
   def TBND : F_TBND<(outs), (ins GPROpnd:$rs1, GPROpnd:$rs2), "tbnd">;
 
   let isTerminator = 1, isCodeGenOnly = 1 in {
-    // Raises trap with vector 502 if bit 0 of %rs1 is not set. This is used to
+    // Raises trap with vector 503 if bit 0 of %rs1 is not set. This is used to
     // generate the trap after a zero division. Marked as terminator to allow
     // instruction to be last of basic block.
     def TRAP503 : InstM88k<(outs), (ins GPROpnd:$rs1), "tb0", "0, $rs1, 503", []> {
