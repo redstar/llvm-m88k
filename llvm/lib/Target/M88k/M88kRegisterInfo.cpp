@@ -12,6 +12,7 @@
 
 #include "M88kRegisterInfo.h"
 #include "M88kFrameLowering.h"
+#include "M88kSubtarget.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -34,6 +35,8 @@ M88kRegisterInfo::M88kRegisterInfo() : M88kGenRegisterInfo(M88k::R1) {}
 
 const MCPhysReg *
 M88kRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
+  if (MF->getSubtarget<M88kSubtarget>().isMC88110())
+    return CSR_M88k_MC88110_SaveList;
   return CSR_M88k_SaveList;
 }
 
@@ -42,6 +45,10 @@ BitVector M88kRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 
   // R0 is always reserved.
   Reserved.set(M88k::R0);
+
+  // X0 is always reserved on the MC88110.
+  if (MF.getSubtarget<M88kSubtarget>().isMC88110())
+    Reserved.set(M88k::X0);
 
   // R28 and R29 are always reserved according to SYS-V ABI.
   Reserved.set(M88k::R28);
@@ -53,6 +60,12 @@ BitVector M88kRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // If the function uses the frame pointer, then R30 is reserved.
   if (getFrameLowering(MF)->hasFP(MF))
     Reserved.set(M88k::R30);
+
+  // X30 and X31 are reserved for future ABI use.
+  if (MF.getSubtarget<M88kSubtarget>().isMC88110()) {
+    Reserved.set(M88k::X30);
+    Reserved.set(M88k::X31);
+  }
 
   return Reserved;
 }
