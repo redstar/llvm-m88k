@@ -5,7 +5,7 @@
 ; CHECK-LABLE: name: f1
 ; CHECK:       body:
 ; CHECK:         liveins: $r1
-; CHECK:         RET implicit $r1
+; CHECK:         RET
 define void @f1() {
   ret void
 }
@@ -19,7 +19,7 @@ define void @callf1() {
 ; CHECK:       body:
 ; CHECK:         liveins: $r1, $r2
 ; CHECK:         [[CP:%[0-9]+]]:_(s32) = COPY $r2
-; CHECK:         RET implicit $r1
+; CHECK:         RET
 define void @f2(i32 %a) {
   ret void
 }
@@ -34,7 +34,7 @@ define void @callf2() {
 ; CHECK:         liveins: $r1, $r2
 ; CHECK:         [[CP:%[0-9]+]]:_(s32) = COPY $r2
 ; CHECK:         $r2 = COPY [[CP]](s32)
-; CHECK:         RET implicit $r1, implicit $r2
+; CHECK:         RET implicit $r2
 define i32 @f3(i32 %a) {
   ret i32 %a
 }
@@ -51,7 +51,7 @@ define i32 @callf3() {
 ; CHECK:           [[CP1:%[0-9]+]]:_(s32) = COPY $r3
 ; CHECK:           [[RES:%[0-9]+]]:_(s32) = G_AND [[CP0]], [[CP1]]
 ; CHECK:           $r2 = COPY [[RES]](s32)
-; CHECK:           RET implicit $r1, implicit $r2
+; CHECK:           RET implicit $r2
 define i32 @f4(i32 %a, i32 %b) {
   %res = and i32 %a, %b
   ret i32 %res
@@ -82,7 +82,7 @@ define i16 @f5(i16 %a, i16 %b) {
 ; CHECK:           [[UM1:%[0-9]+]]:_(s32), [[UM2:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[RES]](s64)
 ; CHECK:           $r3 = COPY [[UM1]](s32)
 ; CHECK:           $r2 = COPY [[UM2]](s32)
-; CHECK:           RET implicit $r1, implicit $r3, implicit $r2
+; CHECK:           RET implicit $r3, implicit $r2
 define i64 @f6(i64 %a, i64 %b) {
   %res = and i64 %a, %b
   ret i64 %res
