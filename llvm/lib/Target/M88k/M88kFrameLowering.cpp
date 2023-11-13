@@ -30,25 +30,26 @@
 
 /*
  * The M88k stack layout:
- * +-------------------------+ High Address
- * |                         |
- * |                         |
- * | Argument Area           | <- SP before call
- * +-------------------------+    Pointer to last allocated word
- * |                         |    16-byte aligned
- * | Temporary Space /       |
- * | Local Variable Space    |
- * | (optional)              |
- * | return address          |
- * | previous FP             | <- FP after prologue
- * +-------------------------+    16-byte aligned
- * |                         |
- * |                         |
- * | Argument Area           | <- SP after call
- * +-------------------------+    16-byte aligned
- * |                         |
- * |                         |
- * +-------------------------+ <- Low Address
+ * +------------------------------+ High Address
+ * |                              |
+ * |                              |
+ * | Argument Area                | <- SP before call
+ * +------------------------------+    Pointer to last allocated word
+ * |                              |    16-byte aligned
+ * | Temporary Space /            |
+ * | Local Variable Space         |
+ * | (optional)                   |
+ * | return address               |
+ * | previous FP                  | <- FP after prologue
+ * +------------------------------+    16-byte aligned
+ * | Preserved registers r25..r14 |
+ * | Preserved registers x29..x22 |
+ * | Dynamic allocated space      |
+ * | Argument Area                | <- SP after call
+ * +------------------------------+    16-byte aligned
+ * |                              |
+ * |                              |
+ * +------------------------------+ <- Low Address
  *
  * Prologue pattern:
  * 1. Allocate new stack frame
@@ -67,9 +68,34 @@
  *   st       %r30,%r31,16 | Store r30 aka FP
  *   addu     %r30,%r31,16 | Establish new FP
  *
+ * or with callee-saved registers:
+ *   subu     %r31,%r31,64 | Allocate 64 bytes
+ *   st       %r1,%r31,52  | Store r1 aka RA
+ *   st       %r30,%r31,48 | Store r30 aka FP
+ *   st.d     %r24,%r31,40 | Store r24 and r25 (callee saved) 
+ *   st.d     %r22,%r31,32 | Store r22 and r23 (callee saved) 
+ *   st.d     %r20,%r31,24 | Store r20 and r21 (callee saved) 
+ *   st.d     %r18,%r31,16 | Store r18 and r19 (callee saved) 
+ *   st.d     %r16,%r31,8  | Store r16 and r17 (callee saved) 
+ *   addu     %r30,%r31,48 | Establish new FP
+ *
  * SP and FP are 16-byte aligned.
  *
  * The frame pointer can be omitted in leaf functions upon request.
+ *
+ * Registers r1 and r30 must be saved when generating debug information.
+ *
+ * Epilogue for the latter prologue example:
+ *   subu     %r31,%r30,48 | Adjust SP
+ *   ld       %r1,%r31,52  | Load r1 aka RA
+ *   ld       %r30,%r31,48 | Load r30 aka FP
+ *   ld.d     %r24,%r31,40 | Load r24 and r25 (callee saved)
+ *   ld.d     %r22,%r31,32 | Store r22 and r23 (callee saved)
+ *   ld.d     %r20,%r31,24 | Store r20 and r21 (callee saved)
+ *   ld.d     %r18,%r31,16 | Store r18 and r19 (callee saved)
+ *   ld.d     %r16,%r31,8  | Store r16 and r17 (callee saved)
+ *   addu     %r31,%r31,64 | Deallocate stack frame
+ *   jmp      %r1          | Return to caller
  */
 
 using namespace llvm;
