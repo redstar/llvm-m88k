@@ -891,11 +891,8 @@ let isCall = 1, Defs = [R1] in {
     def BSRn : F_BRANCH<0b11001, (ins brtarget26:$d26), "bsr">;
 }
 
-let isReturn = 1, isTerminator = 1, isBarrier = 1, Uses = [R1],
-    Opcode = "RET" in {
+let isReturn = 1, isTerminator = 1, isBarrier = 1, Opcode = "RET" in {
   def RET : Pseudo<(outs), (ins), [(retflag)]>;
-  let hasDelaySlot = 1 in
-    def RETn : Pseudo<(outs), (ins), [(retflag)]>;
 }
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
