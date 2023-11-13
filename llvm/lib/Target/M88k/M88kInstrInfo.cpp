@@ -570,10 +570,11 @@ MCInst M88kInstrInfo::getNop() const {
 }
 
 bool M88kInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
+  MachineBasicBlock &MBB = *MI.getParent();
+
   switch (MI.getOpcode()) {
   // This isn't needed since LOAD_STACK_GUARD is not used.
   case TargetOpcode::LOAD_STACK_GUARD: {
-    MachineBasicBlock &MBB = *MI.getParent();
     const Register Reg = MI.getOperand(0).getReg();
     auto *MMO = *MI.memoperands_begin();
     const GlobalValue *GV = cast<GlobalValue>(MMO->getValue());
@@ -588,14 +589,25 @@ bool M88kInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         .addReg(Reg, RegState::Kill)
         .addGlobalAddress(GV, 0, M88kII::MO_ABS_LO)
         .addMemOperand(MMO);
-
-    // Erase the LOAD_STACK_GUARD instruction.
-    MBB.erase(MI);
-    return true;
+    break;
+  }
+  case M88k::RET: {
+    MachineInstrBuilder MIB =
+        BuildMI(MBB, &MI, MI.getDebugLoc(), get(M88k::JMP)).addReg(M88k::R1);
+    // Retain any imp-use flags.
+    for (auto &MO : MI.operands()) {
+      if (MO.isImplicit())
+        MIB.add(MO);
+    }
+    break;
   }
   default:
     return false;
   }
+
+  // Erase the pseudo instruction.
+  MBB.erase(MI);
+  return true;
 }
 
 bool M88kInstrInfo::isReallyTriviallyReMaterializable(
