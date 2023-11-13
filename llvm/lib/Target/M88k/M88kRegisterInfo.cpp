@@ -35,8 +35,8 @@ M88kRegisterInfo::M88kRegisterInfo() : M88kGenRegisterInfo(M88k::R1) {}
 
 const MCPhysReg *
 M88kRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  if (MF->getSubtarget<M88kSubtarget>().isMC88110())
-    return CSR_M88k_MC88110_SaveList;
+  //if (MF->getSubtarget<M88kSubtarget>().isMC88110())
+  //  return CSR_M88k_MC88110_SaveList;
   return CSR_M88k_SaveList;
 }
 
