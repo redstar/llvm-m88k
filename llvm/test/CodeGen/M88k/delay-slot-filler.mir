@@ -29,9 +29,9 @@ body:             |
 
     renamable $r2 = ANDrr killed renamable $r2, killed renamable $r3
     ; CHECK-NOT: renamable $r2 = ANDrr killed renamable $r2, killed renamable $r3
-    RET implicit $r1, implicit $r2
+    JMP $r1, implicit $r2
     ; The ANDrr moves into the delay slot.
-    ; CHECK:      RETn implicit $r1, implicit $r2 {
+    ; CHECK:      JMPn $r1, implicit $r2 {
     ; CHECK-NEXT:   renamable $r2 = ANDrr killed renamable $r2, killed renamable $r3
     ; CHECK-NEXT: }
 
@@ -40,9 +40,9 @@ body:             |
 
     renamable $r2 = ORrr killed renamable $r2, killed renamable $r3
     ; CHECK-NOT: renamable $r2 = ORrr killed renamable $r2, killed renamable $r3
-    RET implicit $r1, implicit $r2
+    JMP $r1, implicit $r2
     ; The ORrr moves into the delay slot.
-    ; CHECK:      RETn implicit $r1, implicit $r2 {
+    ; CHECK:      JMPn $r1, implicit $r2 {
     ; CHECK-NEXT:   renamable $r2 = ORrr killed renamable $r2, killed renamable $r3
     ; CHECK-NEXT: }
 ...
@@ -80,9 +80,9 @@ body:             |
   bb.2:
     liveins: $r1, $r2
 
-    RET implicit $r1, implicit $r2
+    JMP $r1, implicit $r2
     ; There is no instruction for the delay slot.
-    ; CHECK: RET implicit $r1, implicit $r2
+    ; CHECK: JMP $r1, implicit $r2
 ...
 ---
 name:            f3
@@ -120,9 +120,9 @@ body:             |
 
     renamable $r2 = ADDUri killed renamable $r2, 42
     ; CHECK-NOT: renamable $r2 = ADDUri killed renamable $r2, 42
-    RET implicit $r1, implicit $r2
+    JMP $r1, implicit $r2
     ; The ADDUri moves into the delay slot.
-    ; CHECK:      RETn implicit $r1, implicit $r2 {
+    ; CHECK:      JMPn $r1, implicit $r2 {
     ; CHECK-NEXT:   renamable $r2 = ADDUri killed renamable $r2, 42
     ; CHECK-NEXT: }
 ...
@@ -166,9 +166,9 @@ body:             |
 
     $r2 = ORrr $r0, killed $r4
     ; CHECK-NOT: $r2 = ORrr $r0, killed $r4
-    RET implicit $r1, implicit $r2
+    JMP $r1, implicit $r2
     ; The ORrr moves into the delay slot.
-    ; CHECK:      RETn implicit $r1, implicit $r2 {
+    ; CHECK:      JMPn $r1, implicit $r2 {
     ; CHECK-NEXT:   $r2 = ORrr $r0, killed $r4
     ; CHECK-NEXT: }
 ...
@@ -193,9 +193,9 @@ body:             |
 
     ; Non-ABI compliant. Check that a call can't move into the delay slot.
     JSR killed renamable $r2
-    RET implicit $r1
+    JMP $r1
     ; CHECK: JSR killed renamable $r2
-    ; CHECK-NEXT: RET implicit $r1
+    ; CHECK-NEXT: JMP $r1
 ...
 ---
 name:            f6
@@ -219,9 +219,9 @@ body:             |
     ; Non-ABI compliant. Check that loading of return address does not move into
     ; delay slot.
     $r1 = ORrr $r0, killed $r2
-    RET implicit $r1
+    JMP $r1
     ; CHECK:      $r1 = ORrr $r0, killed $r2
-    ; CHECK-NEXT: RET implicit $r1
+    ; CHECK-NEXT: JMP $r1
 ...
 ---
 name:            f7
