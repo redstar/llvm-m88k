@@ -82,14 +82,6 @@ void M88kAsmPrinter::emitInstruction(const MachineInstr *MI) {
 
     MCInst LoweredMI;
     switch (I->getOpcode()) {
-    case M88k::RET:
-      LoweredMI = MCInstBuilder(M88k::JMP).addReg(M88k::R1);
-      break;
-
-    case M88k::RETn:
-      LoweredMI = MCInstBuilder(M88k::JMPn).addReg(M88k::R1);
-      break;
-
     default:
       M88kMCInstLower Lower(MF->getContext(), *this);
       Lower.lower(&*I, LoweredMI);
