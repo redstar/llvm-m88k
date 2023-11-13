@@ -1,12 +1,16 @@
-//===-- M88kInstrInfo.h - M88k instruction information ----------*- C++ -*-===//
+//===-- M88kInstrInfo.h - M88k instruction information
+//----------*- C++ -*-===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Part of the LLVM Project, under the Apache License
+// v2.0 with LLVM Exceptions. See
+// https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH
+// LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the M88k implementation of the TargetInstrInfo class.
+// This file contains the M88k implementation of the
+// TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -33,7 +37,9 @@ public:
   explicit M88kInstrInfo(M88kSubtarget &STI);
 
   // Return the M88kRegisterInfo, which this class owns.
-  const M88kRegisterInfo &getRegisterInfo() const { return RI; }
+  const M88kRegisterInfo &getRegisterInfo() const {
+    return RI;
+  }
 };
 
 } // end namespace llvm

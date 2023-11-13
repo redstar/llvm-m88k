@@ -1,12 +1,16 @@
-//===-- M88kRegisterInfo.cpp - M88k Register Information ------------------===//
+//===-- M88kRegisterInfo.cpp - M88k Register Information
+//------------------===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Part of the LLVM Project, under the Apache License
+// v2.0 with LLVM Exceptions. See
+// https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH
+// LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the M88k implementation of the TargetRegisterInfo class.
+// This file contains the M88k implementation of the
+// TargetRegisterInfo class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,14 +29,16 @@ using namespace llvm;
 #define GET_REGINFO_TARGET_DESC
 #include "M88kGenRegisterInfo.inc"
 
-M88kRegisterInfo::M88kRegisterInfo() : M88kGenRegisterInfo(M88k::R1) {}
+M88kRegisterInfo::M88kRegisterInfo()
+    : M88kGenRegisterInfo(M88k::R1) {}
 
-const MCPhysReg *
-M88kRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
+const MCPhysReg *M88kRegisterInfo::getCalleeSavedRegs(
+    const MachineFunction *MF) const {
   return CSR_M88k_SaveList;
 }
 
-BitVector M88kRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
+BitVector M88kRegisterInfo::getReservedRegs(
+    const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
 
   // R31 is the stack pointer.
@@ -41,12 +47,13 @@ BitVector M88kRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
-bool M88kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
-                                           int SPAdj, unsigned FIOperandNum,
-                                           RegScavenger *RS) const {
+bool M88kRegisterInfo::eliminateFrameIndex(
+    MachineBasicBlock::iterator MI, int SPAdj,
+    unsigned FIOperandNum, RegScavenger *RS) const {
   return false;
 }
 
-Register M88kRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+Register M88kRegisterInfo::getFrameRegister(
+    const MachineFunction &MF) const {
   return M88k::R30;
 }

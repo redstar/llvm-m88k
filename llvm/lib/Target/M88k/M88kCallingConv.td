@@ -14,7 +14,7 @@
 // M88k 32-bit ELF C Calling convention.
 def CC_M88k : CallingConv<[
   // Promote i8/i16 args to i32.
-  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
+  CCIfType<[i8, i16], CCPromoteToType<i32>>,
 
   // Register R12 is used to pass structure return pointer.
   CCIfSRet<CCIfType<[i32], CCAssignToReg<[R12]>>>,
@@ -28,9 +28,8 @@ def CC_M88k : CallingConv<[
 
 // M88k 32-bit ELF C return-value convention.
 def RetCC_M88k : CallingConv<[
-  // 32-bit values are returned in R2, 64-bit values in pair R2/R3.
-  CCIfType<[i32,f32], CCAssignToReg<[R2]>>,
-  CCIfType<[i64,f64], CCAssignToReg<[R2, R3]>>
+  // 32-bit values are returned in R2.
+  CCIfType<[i32], CCAssignToReg<[R2]>>,
 ]>;
 
 // M88k 32-bit ELF C callee saved registers.

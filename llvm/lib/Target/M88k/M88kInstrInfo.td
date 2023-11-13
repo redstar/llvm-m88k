@@ -26,7 +26,7 @@ def SDT_Call         : SDTypeProfile<0, -1, [SDTCisPtrTy<0>]>;
 def call             : SDNode<"M88kISD::CALL", SDT_Call,
                               [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
                               SDNPVariadic]>;
-def retflag          : SDNode<"M88kISD::RET_FLAG", SDTNone,
+def retglue          : SDNode<"M88kISD::RET_GLUE", SDTNone,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
 // ---------------------------------------------------------------------------//
@@ -50,7 +50,13 @@ let isBarrier = 1, isBranch = 1, isTerminator = 1, isIndirectBranch = 1 in {
   def JMP : F_JMP<0b11000, "jmp", [(brind GPROpnd:$rs2)]>;
 }
 
+/*
 let isReturn = 1, isTerminator = 1, isBarrier = 1, Uses = [R1],
     AsmString = "RET" in {
-  def RET : Pseudo<(outs), (ins), [(retflag)]>;
+  def RET : Pseudo<(outs), (ins), [(retglue)]>;
 }
+*/
+
+let isReturn = 1, isTerminator = 1, isBarrier = 1,
+    AsmString = "RET" in
+  def RET : Pseudo<(outs), (ins), [(retglue)]>;
