@@ -349,7 +349,7 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       // If both RB are null that means both registers are generic.
       // We shouldn't be here.
       assert(DstRB && SrcRB && "Both RegBank were nullptr");
-      unsigned Size = getSizeInBits(DstReg, MRI, TRI);
+      TypeSize Size = getSizeInBits(DstReg, MRI, TRI);
       return getInstructionMapping(
           DefaultMappingID, copyCost(*DstRB, *SrcRB, Size),
           getCopyMapping(DstRB->getID(), SrcRB->getID(), Size),
@@ -362,7 +362,7 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case TargetOpcode::G_BITCAST: {
     LLT DstTy = MRI.getType(MI.getOperand(0).getReg());
     LLT SrcTy = MRI.getType(MI.getOperand(1).getReg());
-    unsigned Size = DstTy.getSizeInBits();
+    TypeSize Size = DstTy.getSizeInBits();
     bool DstIsGPR = !DstTy.isVector() && DstTy.getSizeInBits() <= 64;
     bool SrcIsGPR = !SrcTy.isVector() && SrcTy.getSizeInBits() <= 64;
     const RegisterBank &DstRB = DstIsGPR ? M88k::GRRegBank : M88k::XRRegBank;
