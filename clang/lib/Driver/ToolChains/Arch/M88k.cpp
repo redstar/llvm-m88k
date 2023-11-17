@@ -14,8 +14,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/ArgList.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/TargetParser/Host.h"
 #include <sstream>
 
 using namespace clang::driver;
@@ -25,7 +25,7 @@ using namespace llvm::opt;
 
 static StringRef normalizeCPU(StringRef CPUName) {
   if (CPUName == "native") {
-    StringRef CPU = std::string(llvm::sys::getHostCPUName());
+    StringRef CPU = llvm::sys::getHostCPUName();
     if (!CPU.empty() && CPU != "generic")
       return CPU;
   }
