@@ -38,14 +38,10 @@ public:
   ~M88kTargetMachine() override;
   const M88kSubtarget *getSubtargetImpl(const Function &) const override;
 
-  // DO NOT IMPLEMENT: There is no such thing as a valid default subtarget,
-  // subtargets are per-function entities based on the target-specific
-  // attributes of each function.
-  const M88kSubtarget *getSubtargetImpl() const = delete;
-
-  // Override LLVMTargetMachine
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
+
   // TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
