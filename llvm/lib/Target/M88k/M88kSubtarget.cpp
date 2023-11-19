@@ -45,7 +45,7 @@ M88kSubtarget &M88kSubtarget::initializeSubtargetDependencies(
 M88kSubtarget::M88kSubtarget(const Triple &TT, const std::string &CPU,
                              const std::string &TuneCPU, const std::string &FS,
                              const TargetMachine &TM)
-    : M88kGenSubtargetInfo(TT, CPU, TuneCPU, FS), TargetTriple(TT),
+    : M88kGenSubtargetInfo(TT, CPU, TuneCPU, FS),
       InstrInfo(initializeSubtargetDependencies(CPU, TuneCPU, FS)),
       TLInfo(TM, *this), FrameLowering(*this) {
   // GlobalISEL
