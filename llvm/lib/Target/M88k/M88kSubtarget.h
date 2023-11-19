@@ -50,8 +50,6 @@ class M88kSubtarget : public M88kGenSubtargetInfo {
 
   M88kProcEnum M88kProc;
 
-  Triple TargetTriple;
-
   M88kInstrInfo InstrInfo;
   M88kTargetLowering TLInfo;
   // SelectionDAGTargetInfo TSInfo;
@@ -92,18 +90,16 @@ public:
   const TargetFrameLowering *getFrameLowering() const override {
     return &FrameLowering;
   }
+
   const M88kInstrInfo *getInstrInfo() const override { return &InstrInfo; }
+
   const M88kRegisterInfo *getRegisterInfo() const override {
     return &InstrInfo.getRegisterInfo();
   }
+
   const M88kTargetLowering *getTargetLowering() const override {
     return &TLInfo;
   }
-#if 0
-  const SelectionDAGTargetInfo *getSelectionDAGInfo() const override {
-    return &TSInfo;
-  }
-#endif
 
   // GlobalISEL
   const CallLowering *getCallLowering() const override {
