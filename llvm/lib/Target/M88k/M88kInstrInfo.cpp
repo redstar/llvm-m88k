@@ -457,8 +457,30 @@ void M88kInstrInfo::storeRegToStackSlot(
   MachineMemOperand *MMO =
       getMachineMemOperand(MBB, FrameIndex, MachineMemOperand::MOStore);
 
-  // Build an STriw instruction.
-  BuildMI(MBB, MBBI, DL, get(M88k::STriw))
+  unsigned Opc = 0;
+  switch (TRI->getSpillSize(*RC)) {
+  case 4:
+    if (M88k::GPRRegClass.hasSubClassEq(RC))
+      Opc = M88k::STriw;
+    else if (M88k::XRRegClass.hasSubClassEq(RC))
+      Opc = M88k::STxis;
+    break;
+  case 8:
+    if (M88k::GPR64RegClass.hasSubClassEq(RC))
+      Opc = M88k::STrid;
+    else if (M88k::XRRegClass.hasSubClassEq(RC))
+      Opc = M88k::STxid;
+    break;
+  case 16:
+    if (M88k::XRRegClass.hasSubClassEq(RC))
+      Opc = M88k::STxix;
+    break;
+  }
+
+  assert(Opc && "Unknown register class");
+
+  // Build an store instruction.
+  BuildMI(MBB, MBBI, DL, get(Opc))
       .addReg(SrcReg, getKillRegState(IsKill))
       .addFrameIndex(FrameIndex)
       .addImm(0)
@@ -475,8 +497,30 @@ void M88kInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   MachineMemOperand *MMO =
       getMachineMemOperand(MBB, FrameIndex, MachineMemOperand::MOLoad);
 
-  // Build an LDriw instruction.
-  BuildMI(MBB, MBBI, DL, get(M88k::LDriw))
+  unsigned Opc = 0;
+  switch (TRI->getSpillSize(*RC)) {
+  case 4:
+    if (M88k::GPRRegClass.hasSubClassEq(RC))
+      Opc = M88k::LDriw;
+    else if (M88k::XRRegClass.hasSubClassEq(RC))
+      Opc = M88k::LDxi;
+    break;
+  case 8:
+    if (M88k::GPR64RegClass.hasSubClassEq(RC))
+      Opc = M88k::LDrid;
+    else if (M88k::XRRegClass.hasSubClassEq(RC))
+      Opc = M88k::LDxid;
+    break;
+  case 16:
+    if (M88k::XRRegClass.hasSubClassEq(RC))
+      Opc = M88k::LDxix;
+    break;
+  }
+
+  assert(Opc && "Unknown register class");
+
+  // Build a load instruction.
+  BuildMI(MBB, MBBI, DL, get(Opc))
       .addReg(DestReg, RegState::Define)
       .addFrameIndex(FrameIndex)
       .addImm(0)
