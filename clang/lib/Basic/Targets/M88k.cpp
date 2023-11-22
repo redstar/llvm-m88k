@@ -124,7 +124,7 @@ const char *const M88kTargetInfo::GCCRegNames[] = {
     "r22", "r23", "r24", "r25", "r26", "r27", "r28", "r29", "r39", "r31"};
 
 ArrayRef<const char *> M88kTargetInfo::getGCCRegNames() const {
-  return llvm::makeArrayRef(GCCRegNames);
+  return ArrayRef(GCCRegNames);
 }
 
 ArrayRef<TargetInfo::GCCRegAlias> M88kTargetInfo::getGCCRegAliases() const {
