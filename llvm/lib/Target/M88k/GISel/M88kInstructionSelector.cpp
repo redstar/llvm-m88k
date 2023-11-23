@@ -361,14 +361,7 @@ M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
   if (!Root.isReg())
     return std::nullopt;
 
-  // A frame index is always matched to the reg-imm address.
   MachineInstr *RootDef = getDefIgnoringCopies(Root.getReg(), MRI);
-  if (RootDef->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
-    return {{
-        [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
-        [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
-    }};
-  }
 
   // Match load from LO/HI address.
   MachineInstr *Lo;
@@ -383,12 +376,24 @@ M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
     }};
   }
 
-  // Handle the case of a simple address.
-  if (RootDef->getOpcode() != TargetOpcode::G_PTR_ADD) {
-    return {{
-        [=](MachineInstrBuilder &MIB) { MIB.add(RootDef->getOperand(1)); },
-        [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
-    }};
+  MachineInstr *TmpMI;
+  if (mi_match(RootDef, MRI, m_MInstr(TmpMI))) {
+    // A frame index is always matched to the reg-imm address.
+    if (TmpMI->getOpcode() == TargetOpcode::G_FRAME_INDEX) {
+      return {{
+          [=](MachineInstrBuilder &MIB) { MIB.add(TmpMI->getOperand(1)); },
+          [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+      }};
+    }
+    // Handle the case of a simple address.
+    if (TmpMI->getOpcode() != TargetOpcode::G_PTR_ADD) {
+      return {{
+          [=](MachineInstrBuilder &MIB) {
+            MIB.addReg(TmpMI->getOperand(0).getReg());
+          },
+          [=](MachineInstrBuilder &MIB) { MIB.addImm(0); },
+      }};
+    }
   }
 
   // Check for G_PTR_ADD plus 16 bit offset.
