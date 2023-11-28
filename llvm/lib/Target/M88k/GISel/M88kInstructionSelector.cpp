@@ -455,8 +455,9 @@ M88kInstructionSelector::selectAddrRegScaled(MachineOperand &Root,
     return std::nullopt;
 
   // Check for G_PTR_ADD plus shifted register.
+  MachineInstr *RootDef = getDefIgnoringCopies(Root.getReg(), MRI);
   Register Base, Scaled;
-  if (mi_match(Root.getReg(), MRI,
+  if (mi_match(RootDef, MRI,
                m_GPtrAdd(m_Reg(Base),
                          m_GShl(m_Reg(Scaled), m_SpecificICst(Width))))) {
     Register BaseReg = getRegIgnoringCopies(Base, MRI);
