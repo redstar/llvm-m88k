@@ -122,3 +122,80 @@ ftp://ftp.nluug.nl/mirror/languages/gcc/releases/gcc-3.3.6/gcc-3.3.6.tar.gz
 binutils 2.16 is last version with support for the m88k architecture. See the
 manual page at
 https://sourceware.org/binutils/docs-2.16/
+
+You can download that version from
+http://ftp.gnu.org/gnu/binutils/binutils-2.16.1a.tar.bz2
+
+### Implementation
+
+The backend is implementated like all other LLVM backends. The main classes
+involved are:
+
+```mermaid
+   classDiagram
+      TargetPassConfig <|-- M88kPassConfig
+      M88kPassConfig .. M88kTargetMachine
+      LLVMTargetMachine <|-- M88kTargetMachine
+      TargetLowering <|-- M88kTargetLowering
+      TargetLoweringObjectFileELF .. M88kTargetMachine
+      M88kGenSubtargetInfo <|-- M88kSubtarget
+      M88kGenInstrInfo <|-- M88kInstrInfo
+      M88kGenRegisterInfo <|-- M88kRegisterInfo
+      M88kTargetMachine --> M88kSubtarget
+      M88kSubtarget o-- M88kInstrInfo
+      M88kSubtarget o-- M88kTargetLowering
+      M88kInstrInfo o-- M88kRegisterInfo
+      class M88kTargetMachine{
+         +getSubtargetImpl() M88kSubtarget
+         +createPassConfig() TargetPassConfig
+         +getObjFileLowering() TargetLoweringObjectFile
+      }
+      class M88kSubtarget{
+         -M88kFrameLowering FrameLowering
+         -M88kInstrInfo InstrInfo
+         +getTargetLowering() M88kTargetLowering
+         +getInstrInfo() M88kInstrInfo
+      }
+      class M88kInstrInfo{
+         -M88kRegisterInfo RI
+         +getRegisterInfo() M88kRegisterInfo
+      }
+      class M88kGenSubtargetInfo{
+         <<Generated>>
+      }
+      class M88kGenInstrInfo{
+         <<Generated>>
+      }
+      class M88kGenRegisterInfo{
+         <<Generated>>
+      }
+```
+
+The `M88kSubtarget` also owns the main passes for GlobalISel:
+
+```mermaid
+   classDiagram
+      M88kSubtarget o-- M88kCallLowering
+      M88kSubtarget o-- M88kM88kLegalizerInfo
+      M88kSubtarget o-- M88kRegisterBankInfo
+      M88kSubtarget o-- M88kInstructionSelector
+      M88kGenSubtargetInfo <|-- M88kSubtarget
+      class M88kSubtarget{
+         -std::unique_ptr~CallLowering~ CallLoweringInfo
+         -std::unique_ptr~LegalizerInfo~ Legalizer
+         -std::unique_ptr~RegisterBankInfo~ RegBankInfo
+         -std::unique_ptr~InstructionSelector~ InstSelector
+         +getCallLowering() CallLowering
+         +getRegBankInfo() RegisterBankInfo
+         +getLegalizerInfo() LegalizerInfo
+         +getInstructionSelector() InstructionSelector
+      }
+      class M88kCallLowering{
+      }
+      class M88kM88kLegalizerInfo{
+      }
+      class M88kRegisterBankInfo{
+      }
+      class M88kInstructionSelector{
+      }
+```
