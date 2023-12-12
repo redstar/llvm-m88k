@@ -11,6 +11,7 @@
 
 #include "M88kTargetMachine.h"
 #include "M88k.h"
+#include "M88kMachineFunctionInfo.h"
 #include "TargetInfo/M88kTargetInfo.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
@@ -149,6 +150,13 @@ M88kTargetMachine::getSubtargetImpl(const Function &F) const {
   }
 
   return I.get();
+}
+
+MachineFunctionInfo *M88kTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return M88kMachineFunctionInfo::create<M88kMachineFunctionInfo>(Allocator, F,
+                                                                  STI);
 }
 
 bool M88kTargetMachine::useDivInstr() const { return UseDivInstr; }
