@@ -9,12 +9,12 @@ define i64 @udiv64(i64 %a, i64 %b) {
 ; CHECK-LABEL: udiv64:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r31, %r31, 16
-; CHECK-NEXT:    st %r1, %r31, 4
-; CHECK-NEXT:    st %r30, %r31, 0
+; CHECK-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; CHECK-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; CHECK-NEXT:    addu %r30, %r31, 0
 ; CHECK-NEXT:    bsr __udivdi3
-; CHECK-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; CHECK-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
   %quot = udiv i64 %a, %b
@@ -25,15 +25,15 @@ define i64 @udiv64with32(i64 %a, i32 %b) {
 ; MC88100-LABEL: udiv64with32:
 ; MC88100:       | %bb.0:
 ; MC88100-NEXT:    subu %r31, %r31, 16
-; MC88100-NEXT:    st %r1, %r31, 4
-; MC88100-NEXT:    st %r30, %r31, 0
+; MC88100-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; MC88100-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; MC88100-NEXT:    addu %r30, %r31, 0
 ; MC88100-NEXT:    or %r6, %r0, 0
 ; MC88100-NEXT:    or %r5, %r0, %r4
 ; MC88100-NEXT:    or %r4, %r0, %r6
 ; MC88100-NEXT:    bsr __udivdi3
-; MC88100-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; MC88100-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; MC88100-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; MC88100-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; MC88100-NEXT:    addu %r31, %r31, 16
 ; MC88100-NEXT:    jmp %r1
 ;
@@ -52,12 +52,12 @@ define i64 @sdiv64(i64 %a, i64 %b) {
 ; CHECK-LABEL: sdiv64:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r31, %r31, 16
-; CHECK-NEXT:    st %r1, %r31, 4
-; CHECK-NEXT:    st %r30, %r31, 0
+; CHECK-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; CHECK-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; CHECK-NEXT:    addu %r30, %r31, 0
 ; CHECK-NEXT:    bsr __divdi3
-; CHECK-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; CHECK-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
   %quot = sdiv i64 %a, %b
@@ -68,12 +68,12 @@ define i64 @urem64(i64 %a, i64 %b) {
 ; CHECK-LABEL: urem64:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r31, %r31, 16
-; CHECK-NEXT:    st %r1, %r31, 4
-; CHECK-NEXT:    st %r30, %r31, 0
+; CHECK-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; CHECK-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; CHECK-NEXT:    addu %r30, %r31, 0
 ; CHECK-NEXT:    bsr __umoddi3
-; CHECK-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; CHECK-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
   %quot = urem i64 %a, %b
@@ -84,12 +84,12 @@ define i64 @srem64(i64 %a, i64 %b) {
 ; CHECK-LABEL: srem64:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r31, %r31, 16
-; CHECK-NEXT:    st %r1, %r31, 4
-; CHECK-NEXT:    st %r30, %r31, 0
+; CHECK-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; CHECK-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; CHECK-NEXT:    addu %r30, %r31, 0
 ; CHECK-NEXT:    bsr __moddi3
-; CHECK-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; CHECK-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
   %quot = srem i64 %a, %b
@@ -100,12 +100,12 @@ define i64 @mul64(i64 %a, i64 %b) {
 ; CHECK-LABEL: mul64:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r31, %r31, 16
-; CHECK-NEXT:    st %r1, %r31, 4
-; CHECK-NEXT:    st %r30, %r31, 0
+; CHECK-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; CHECK-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; CHECK-NEXT:    addu %r30, %r31, 0
 ; CHECK-NEXT:    bsr __muldi3
-; CHECK-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; CHECK-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
   %mult = mul i64 %a, %b
@@ -116,8 +116,8 @@ define i64 @mul32to64(i32 %a, i32 %b) {
 ; MC88100-LABEL: mul32to64:
 ; MC88100:       | %bb.0:
 ; MC88100-NEXT:    subu %r31, %r31, 16
-; MC88100-NEXT:    st %r1, %r31, 4
-; MC88100-NEXT:    st %r30, %r31, 0
+; MC88100-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; MC88100-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; MC88100-NEXT:    addu %r30, %r31, 0
 ; MC88100-NEXT:    or %r5, %r0, %r3
 ; MC88100-NEXT:    or %r6, %r0, 0
@@ -125,8 +125,8 @@ define i64 @mul32to64(i32 %a, i32 %b) {
 ; MC88100-NEXT:    or %r3, %r0, %r2
 ; MC88100-NEXT:    or %r2, %r0, %r6
 ; MC88100-NEXT:    bsr __muldi3
-; MC88100-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; MC88100-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; MC88100-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; MC88100-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; MC88100-NEXT:    addu %r31, %r31, 16
 ; MC88100-NEXT:    jmp %r1
 ;
