@@ -5,16 +5,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// This class implements M88k specific bits of TargetFrameLowering class.
+//
+//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_LIB_TARGET_M88K_M88KFRAMELOWERING_H
 #define LLVM_LIB_TARGET_M88K_M88KFRAMELOWERING_H
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
-#include "llvm/Support/TypeSize.h"
-#include <cstdint>
 #include <vector>
 
 namespace llvm {
@@ -28,10 +29,9 @@ protected:
 public:
   M88kFrameLowering(const M88kSubtarget &Subtarget);
 
-  // Override TargetFrameLowering.
-  StackOffset getFrameIndexReference(const MachineFunction &MF, int FI,
-                                     Register &FrameReg) const override;
   void processFunctionBeforeFrameFinalized(
+      MachineFunction &MF, RegScavenger *RS = nullptr) const override;
+  void processFunctionBeforeFrameIndicesReplaced(
       MachineFunction &MF, RegScavenger *RS = nullptr) const override;
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
@@ -50,14 +50,6 @@ public:
                                  MachineBasicBlock::iterator MI,
                                  ArrayRef<CalleeSavedInfo> CSI,
                                  const TargetRegisterInfo *TRI) const override;
-  bool
-  restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
-                              MachineBasicBlock::iterator MI,
-                              MutableArrayRef<CalleeSavedInfo> CSI,
-                              const TargetRegisterInfo *TRI) const override;
-
-  int64_t resolveFrameIndexReference(const MachineFunction &MF, int FI,
-                                     Register &FrameReg) const;
 };
 } // end namespace llvm
 
