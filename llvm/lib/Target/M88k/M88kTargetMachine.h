@@ -46,6 +46,10 @@ public:
     return TLOF.get();
   }
 
+  MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const override;
+
   // Returns true if signed division instruction should be used on MC88100.
   bool useDivInstr() const;
 
