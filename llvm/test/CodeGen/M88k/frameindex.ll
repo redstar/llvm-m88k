@@ -13,16 +13,16 @@ define i32 @f0(i32 %val) {
 ; CHECK-LABEL: f0:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r31, %r31, 16
-; CHECK-NEXT:    st %r1, %r31, 4
-; CHECK-NEXT:    st %r30, %r31, 0
+; CHECK-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; CHECK-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; CHECK-NEXT:    addu %r30, %r31, 0
-; CHECK-NEXT:    add %r3, %r30, 8
-; CHECK-NEXT:    st %r2, %r30, 8
+; CHECK-NEXT:    add %r3, %r30, 12
+; CHECK-NEXT:    st %r2, %r30, 12
 ; CHECK-NEXT:    or %r2, %r0, %r3
 ; CHECK-NEXT:    bsr func
-; CHECK-NEXT:    ld %r2, %r30, 8
-; CHECK-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; CHECK-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r2, %r30, 12
+; CHECK-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
   %val.addr = alloca i32, align 4
