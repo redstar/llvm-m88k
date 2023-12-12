@@ -81,12 +81,12 @@ define i64 @f32tosi64(float %a) {
 ; CHECK-LABEL: f32tosi64:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r31, %r31, 16
-; CHECK-NEXT:    st %r1, %r31, 4
-; CHECK-NEXT:    st %r30, %r31, 0
+; CHECK-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; CHECK-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; CHECK-NEXT:    addu %r30, %r31, 0
 ; CHECK-NEXT:    bsr __fixsfdi
-; CHECK-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; CHECK-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
   %trnc = fptosi float %a to i64
@@ -97,12 +97,12 @@ define i64 @f64tosi64(double %a) {
 ; CHECK-LABEL: f64tosi64:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r31, %r31, 16
-; CHECK-NEXT:    st %r1, %r31, 4
-; CHECK-NEXT:    st %r30, %r31, 0
+; CHECK-NEXT:    st %r1, %r31, 4 | 4-byte Folded Spill
+; CHECK-NEXT:    st %r30, %r31, 0 | 4-byte Folded Spill
 ; CHECK-NEXT:    addu %r30, %r31, 0
 ; CHECK-NEXT:    bsr __fixdfdi
-; CHECK-NEXT:    ld %r30, %r30, 4 | 4-byte Folded Reload
-; CHECK-NEXT:    ld %r1, %r30, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r30, %r31, 0 | 4-byte Folded Reload
+; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
   %trnc = fptosi double %a to i64
