@@ -5,9 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// This file contains the M88k implementation of TargetFrameLowering class.
+//
+//===----------------------------------------------------------------------===//
 
 #include "M88kFrameLowering.h"
 #include "M88kInstrInfo.h"
+#include "M88kMachineFunctionInfo.h"
 #include "M88kRegisterInfo.h"
 #include "M88kSubtarget.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
@@ -21,7 +26,6 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/TypeSize.h"
 #include "llvm/Target/TargetMachine.h"
 #include <algorithm>
 #include <cassert>
@@ -100,6 +104,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "m88kframelowering" 
+
 M88kFrameLowering::M88kFrameLowering(const M88kSubtarget &Subtarget)
     : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(16),
                           /*LocalAreaOffset=*/0, Align(8),
@@ -123,35 +129,6 @@ bool M88kFrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
   return true;
 }
 
-StackOffset
-M88kFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
-                                          Register &FrameReg) const {
-  return StackOffset::getFixed(resolveFrameIndexReference(MF, FI, FrameReg));
-}
-
-int64_t
-M88kFrameLowering::resolveFrameIndexReference(const MachineFunction &MF, int FI,
-                                              Register &FrameReg) const {
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-
-  /* The offsets are against the incoming stack pointer. A negative offset
-   * refers to a local variable or spill slot, while a non-negative offset
-   * refers to an argument in the argument area of the caller. Because the stack
-   * grows down, all objects are allocated with decreasing offsets. However, the
-   * ELF ABI assumes that all objects are allocated with increasing offsets from
-   * the SP/FP of the callee. We achieve this by "mirroring" the offsets.
-   */
-  const bool HasFP = hasFP(MF);
-  FrameReg = HasFP ? M88k::R30 : M88k::R31;
-  int64_t Offset = HasFP ? 0 : MFI.getStackSize() - MFI.getMaxCallFrameSize();
-  int64_t ObjectOffset = MFI.getObjectOffset(FI);
-  if (ObjectOffset < 0)
-    Offset += -ObjectOffset - MFI.getObjectSize(FI);
-  else
-    Offset += ObjectOffset;
-  return Offset;
-}
-
 void M88kFrameLowering::determineCalleeSaves(MachineFunction &MF,
                                              BitVector &SavedRegs,
                                              RegScavenger *RS) const {
@@ -173,31 +150,35 @@ bool M88kFrameLowering::assignCalleeSavedSpillSlots(
     MachineFunction &MF, const TargetRegisterInfo *TRI,
     std::vector<CalleeSavedInfo> &CSI) const {
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  M88kMachineFunctionInfo *FuncInfo = MF.getInfo<M88kMachineFunctionInfo>();
 
-  // Allocate spill stack slots for registers. The order is determined by the
-  // callee save register definition.
-  int64_t CurOffset = -4;
-  for (auto &CS : CSI) {
-    Register Reg = CS.getReg();
+  for (std::vector<CalleeSavedInfo>::iterator I = CSI.begin(); I != CSI.end();
+       ++I) {
+    Register Reg = I->getReg();
+
+    // Replace an odd numbered register followed by the previous even numbered
+    // register with an even/odd register pair. 
     if (M88k::GPRRegClass.contains(Reg)) {
-      CS.setFrameIdx(MFI.CreateFixedSpillStackObject(4, CurOffset));
-      CurOffset -= 4;
-    } else {
-      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-      Align Alignment = TRI->getSpillAlign(*RC);
-      unsigned Size = TRI->getSpillSize(*RC);
-      Alignment = std::min(Alignment, getStackAlign());
-      CS.setFrameIdx(MFI.CreateSpillStackObject(Size, Alignment));
+      if (((Reg - M88k::R0) & 1) && I + 1 != CSI.end() &&
+          (I + 1)->getReg() == Reg - 1) {
+        Reg = TRI->getMatchingSuperReg(Reg, M88k::sub_lo, &M88k::GPR64RegClass);
+        I = CSI.erase(I);
+        *I = CalleeSavedInfo(Reg);
+      }
     }
-  }
-  return true;
-}
 
-bool M88kFrameLowering::restoreCalleeSavedRegisters(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-    MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
-  // TODO Identify register pairs and use them to restore.
-  return false;
+    // Create the spill slots. The spill slot of the previous frame pointer
+    // must have stack alignment.
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+    Align Alignment =
+        (Reg == M88k::R30) ? getStackAlign() : TRI->getSpillAlign(*RC);
+    unsigned Size = TRI->getSpillSize(*RC);
+    I->setFrameIdx(MFI.CreateSpillStackObject(Size, Alignment));
+    if (Reg == M88k::R30)
+      FuncInfo->setFramePointerIndex(I->getFrameIdx());
+  }
+  LLVM_DEBUG(MFI.dump(MF));
+  return true;
 }
 
 bool M88kFrameLowering::spillCalleeSavedRegisters(
@@ -206,7 +187,7 @@ bool M88kFrameLowering::spillCalleeSavedRegisters(
   MachineFunction *MF = MBB.getParent();
   const TargetSubtargetInfo &STI = MF->getSubtarget();
   const TargetInstrInfo *TII = STI.getInstrInfo();
-  // const Register RAReg = STI.getRegisterInfo()->getRARegister();
+  const Register RAReg = STI.getRegisterInfo()->getRARegister();
 
   for (auto &CS : CSI) {
     // Add the callee-saved register as live-in.
@@ -214,15 +195,18 @@ bool M88kFrameLowering::spillCalleeSavedRegisters(
     if (!MBB.isLiveIn(Reg))
       MBB.addLiveIn(Reg);
 
-    // We save all registers except %r1 and %r30, which are saved as part of the
-    // prologue code.
+    // Check if register is the return address register and if the return
+    // address was taken. Do not kill the register in this case.
+    bool IsRAAndRetAddrIsTaken =
+        Reg == RAReg && MF->getFrameInfo().isReturnAddressTaken();
+
     // Save in the normal TargetInstrInfo way.
-    // TODO Identify register pairs and use them to save two registers at once.
-    if (Reg != M88k::R1 && Reg != M88k::R30) {
-      const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-      TII->storeRegToStackSlot(MBB, MBBI, Reg, /*isKill=*/true,
-                               CS.getFrameIdx(), RC, TRI, Register());
-    }
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+    TII->storeRegToStackSlot(MBB, MBBI, Reg, /*isKill=*/!IsRAAndRetAddrIsTaken,
+                             CS.getFrameIdx(), RC, TRI, Register());
+
+    // Mark the store with the FrameSetup flag.
+    std::prev(MBBI)->setFlag(MachineInstr::FrameSetup);
   }
 
   return true;
@@ -248,7 +232,7 @@ void M88kFrameLowering::emitPrologue(MachineFunction &MF,
   const M88kInstrInfo &LII =
       *static_cast<const M88kInstrInfo *>(STI.getInstrInfo());
   MachineBasicBlock::iterator MBBI = MBB.begin();
-  std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+  M88kMachineFunctionInfo *FuncInfo = MF.getInfo<M88kMachineFunctionInfo>();
 
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
@@ -261,16 +245,7 @@ void M88kFrameLowering::emitPrologue(MachineFunction &MF,
 
   bool SetupFP = hasFP(MF);
   assert((SetupFP || MaxCallFrameSize == 0) && "Call frame without FP");
-  assert(!SetupFP || std::find_if(CSI.begin(), CSI.end(),
-                                  [](const CalleeSavedInfo &CS) {
-                                    return CS.getReg() == M88k::R30;
-                                  }) != CSI.end() &&
-                         "Frame pointer not saved");
-
-  bool SaveRA =
-      std::find_if(CSI.begin(), CSI.end(), [](const CalleeSavedInfo &CS) {
-        return CS.getReg() == M88k::R1;
-      }) != CSI.end();
+  assert(!SetupFP || FuncInfo->getFramePointerIndex());
 
   if (StackSize) {
     // Create subu %r31, %r31, StackSize
@@ -279,25 +254,20 @@ void M88kFrameLowering::emitPrologue(MachineFunction &MF,
         .addReg(M88k::R31)
         .addImm(StackSize)
         .setMIFlag(MachineInstr::FrameSetup);
-    if (SaveRA)
-      // Spill %r1: st %r1, %r31, <SP+4> or <new FP+4>
-      BuildMI(MBB, MBBI, DL, LII.get(M88k::STriw))
-          .addReg(M88k::R1)
-          .addReg(M88k::R31)
-          .addImm(MaxCallFrameSize + 4)
-          .setMIFlag(MachineInstr::FrameSetup);
+
+    // Skip over the register spills.
+    while (MBBI->getFlag(MachineInstr::FrameSetup))
+      ++MBBI;
+
     if (SetupFP) {
-      // Spill %r30: st %r30, %r31, <SP> or <new FP+4>
-      BuildMI(MBB, MBBI, DL, LII.get(M88k::STriw))
-          .addReg(M88k::R30, RegState::Kill)
-          .addReg(M88k::R31)
-          .addImm(MaxCallFrameSize)
-          .setMIFlag(MachineInstr::FrameSetup);
+      int64_t Offset =
+          StackSize + MFI.getObjectOffset(FuncInfo->getFramePointerIndex());
+
       // Install FP: addu %r30, %r31, MaxCallFrameSize
       BuildMI(MBB, MBBI, DL, LII.get(M88k::ADDUri))
           .addReg(M88k::R30, RegState::Define)
           .addReg(M88k::R31)
-          .addImm(MaxCallFrameSize)
+          .addImm(Offset)
           .setMIFlag(MachineInstr::FrameSetup);
     }
   }
@@ -318,10 +288,6 @@ void M88kFrameLowering::emitEpilogue(MachineFunction &MF,
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
   DebugLoc DL = MBBI->getDebugLoc();
 
-  // The epilogue generation is not symmetric to prologue generation, because we
-  // can restore all spilled registers using references to FP/SP (in
-  // restoreCalleeSavedRegisters())
-
   unsigned StackSize = MFI.getStackSize();
 
   if (StackSize) {
@@ -332,4 +298,23 @@ void M88kFrameLowering::emitEpilogue(MachineFunction &MF,
         .addImm(StackSize)
         .setMIFlag(MachineInstr::FrameDestroy);
   }
+}
+
+void M88kFrameLowering::processFunctionBeforeFrameIndicesReplaced(
+    MachineFunction &MF, RegScavenger *RS) const {
+  M88kMachineFunctionInfo *FuncInfo = MF.getInfo<M88kMachineFunctionInfo>();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+
+  // Adjust offset of spill slot of the return address register. Due to the
+  // alignment of the spill slot of the previous frame register, there may be a
+  // gap between both slots. The adjustment moves the spill slot together.
+  auto RetAddr =
+      std::find_if(CSI.begin(), CSI.end(), [](const CalleeSavedInfo &CS) {
+        return CS.getReg() == M88k::R1;
+      });
+  if (RetAddr != CSI.end() && FuncInfo->getFramePointerIndex())
+    MFI.setObjectOffset(RetAddr->getFrameIdx(),
+                        MFI.getObjectOffset(FuncInfo->getFramePointerIndex()) +
+                            4);
 }

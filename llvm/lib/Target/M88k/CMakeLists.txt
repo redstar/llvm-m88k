@@ -38,7 +38,7 @@ add_llvm_target(M88kCodeGen
   M88kFrameLowering.cpp
   M88kISelLowering.cpp
   M88kInstrInfo.cpp
-#  M88kMachineFunctionInfo.cpp
+  M88kMachineFunctionInfo.cpp
   M88kMCInstLower.cpp
   M88kRegisterInfo.cpp
   M88kSubtarget.cpp
