@@ -12,6 +12,7 @@
 
 #include "M88kRegisterInfo.h"
 #include "M88kFrameLowering.h"
+#include "M88kMachineFunctionInfo.h"
 #include "M88kSubtarget.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/ADT/BitVector.h"
@@ -25,6 +26,7 @@
 #include "llvm/Support/MathExtras.h"
 #include <cassert>
 #include <cstdint>
+#include <vector>
 
 using namespace llvm;
 
@@ -83,14 +85,52 @@ bool M88kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   MachineInstr &MI = *II;
   MachineFunction &MF = *MI.getParent()->getParent();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
 
-  Register FrameReg;
-  int64_t Offset = getFrameLowering(MF)->resolveFrameIndexReference(
-      MF, FrameIndex, FrameReg);
+  const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
+  int MinCSFI = 0;
+  int MaxCSFI = -1;
 
+  if (CSI.size()) {
+    MinCSFI = CSI[0].getFrameIdx();
+    MaxCSFI = CSI[CSI.size() - 1].getFrameIdx();
+  }
+
+  // The following stack frame objects are always referenced relative to r31:
+  //  1. Outgoing arguments.
+  //  2. Pointer to dynamically allocated stack space.
+  //  3. Locations for callee-saved registers.
+  // Everything else is referenced relative to whatever register
+  // getFrameRegister() returns.
+  Register FrameReg;
+  if (FrameIndex >= MinCSFI && FrameIndex <= MaxCSFI)
+    FrameReg = M88k::R31;
+  else if (hasStackRealignment(MF)) {
+    if (MFI.hasVarSizedObjects() && !MFI.isFixedObjectIndex(FrameIndex))
+      FrameReg = M88k::R31;
+    else if (MFI.isFixedObjectIndex(FrameIndex))
+      FrameReg = getFrameRegister(MF);
+    else
+      FrameReg = M88k::R31;
+  } else
+    FrameReg = getFrameRegister(MF);
+
+  uint64_t StackSize = MFI.getStackSize();
+  int64_t SPOffset = MFI.getObjectOffset(FrameIndex);
+
+  int64_t Offset = SPOffset + static_cast<int64_t>(StackSize);
+  // If the location is addressed using the frame pointer register, then we need
+  // to adjust the offset by the distance between the stack pointer and the
+  // frame pointer.
+  if (FrameReg == M88k::R30) {
+    M88kMachineFunctionInfo *FuncInfo = MF.getInfo<M88kMachineFunctionInfo>();
+    Offset -= (MFI.getObjectOffset(FuncInfo->getFramePointerIndex()) + static_cast<int64_t>(StackSize));
+  }
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
 
+  // TODO Implement offsets larger 16k.
   assert(isInt<16>(Offset) && "m88k: Larger offsets not yet supported.");
   MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, /*isDef=*/false);
   MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
