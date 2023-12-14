@@ -20,6 +20,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/MC/MCRegister.h"
@@ -78,6 +79,11 @@ M88kRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
   return CSR_M88k_RegMask;
 }
 
+bool M88kRegisterInfo::requiresRegisterScavenging(
+    const MachineFunction & /*MF*/) const {
+  return true;
+}
+
 bool M88kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                            int SPAdj, unsigned FIOperandNum,
                                            RegScavenger *RS) const {
@@ -130,9 +136,33 @@ bool M88kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   }
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
 
-  // TODO Implement offsets larger 16k.
-  assert(isInt<16>(Offset) && "m88k: Larger offsets not yet supported.");
-  MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, /*isDef=*/false);
+  bool IsKill = false;
+  if (!isUInt<16>(Offset)) {
+    MachineBasicBlock &MBB = *MI.getParent();
+    //MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
+    DebugLoc DL = II->getDebugLoc();
+    const M88kInstrInfo *LII = MF.getSubtarget<M88kSubtarget>().getInstrInfo();
+
+    assert(RS && "Register scavenging must be on");
+    Register Reg = RS->FindUnusedReg(&M88k::GPRRegClass);
+    if (!Reg)
+      Reg = RS->scavengeRegisterBackwards(M88k::GPRRegClass, II, false, SPAdj);
+    assert(Reg && "Register scavenger failed");
+
+    BuildMI(MBB, II, DL, LII->get(M88k::ORriu), Reg)
+        .addReg(M88k::R0)
+        .addImm(Offset >> 16);
+    BuildMI(MBB, II, DL, LII->get(M88k::ADDrr), Reg)
+        .addReg(Reg, RegState::Kill)
+        .addReg(FrameReg);
+
+    FrameReg = Reg;
+    Offset &= 0xFFFF;
+    IsKill = true;
+  }
+
+  MI.getOperand(FIOperandNum)
+      .ChangeToRegister(FrameReg, /*isDef=*/false, /*isImp*/ false, IsKill);
   MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
   return false;
 }
