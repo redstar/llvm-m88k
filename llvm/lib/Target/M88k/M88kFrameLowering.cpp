@@ -229,8 +229,7 @@ void M88kFrameLowering::emitPrologue(MachineFunction &MF,
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  const M88kInstrInfo &LII =
-      *static_cast<const M88kInstrInfo *>(STI.getInstrInfo());
+  const M88kInstrInfo &LII = *STI.getInstrInfo();
   MachineBasicBlock::iterator MBBI = MBB.begin();
   M88kMachineFunctionInfo *FuncInfo = MF.getInfo<M88kMachineFunctionInfo>();
 
@@ -239,7 +238,6 @@ void M88kFrameLowering::emitPrologue(MachineFunction &MF,
   DebugLoc DL;
 
   unsigned StackSize = MFI.getStackSize();
-  assert(isInt<16>(StackSize) && "Larger stack frame not yet implemented");
 
   unsigned MaxCallFrameSize = MFI.getMaxCallFrameSize();
 
@@ -248,12 +246,28 @@ void M88kFrameLowering::emitPrologue(MachineFunction &MF,
   assert(!SetupFP || FuncInfo->getFramePointerIndex());
 
   if (StackSize) {
-    // Create subu %r31, %r31, StackSize
-    BuildMI(MBB, MBBI, DL, LII.get(M88k::SUBUri))
-        .addReg(M88k::R31, RegState::Define)
-        .addReg(M88k::R31)
-        .addImm(StackSize)
-        .setMIFlag(MachineInstr::FrameSetup);
+    if (isInt<16>(StackSize)) {
+      // Create subu %r31, %r31, StackSize
+      BuildMI(MBB, MBBI, DL, LII.get(M88k::SUBUri), M88k::R31)
+          .addReg(M88k::R31)
+          .addImm(StackSize)
+          .setMIFlag(MachineInstr::FrameSetup);
+    } else {
+      // Load stack size into scratch register r10.
+      BuildMI(MBB, MBBI, DL, LII.get(M88k::ORriu), M88k::R10)
+          .addReg(M88k::R0)
+          .addImm(StackSize >> 16)
+          .setMIFlag(MachineInstr::FrameSetup);
+      BuildMI(MBB, MBBI, DL, LII.get(M88k::ORri), M88k::R10)
+          .addReg(M88k::R10)
+          .addImm(StackSize & 0xFFFF)
+          .setMIFlag(MachineInstr::FrameSetup);
+      // Create subu %r31, %r31, %r10
+      BuildMI(MBB, MBBI, DL, LII.get(M88k::SUBUrr), M88k::R31)
+          .addReg(M88k::R31)
+          .addReg(M88k::R10, RegState::Kill)
+          .setMIFlag(MachineInstr::FrameSetup);
+    }
 
     // Skip over the register spills.
     while (MBBI->getFlag(MachineInstr::FrameSetup))
@@ -291,12 +305,25 @@ void M88kFrameLowering::emitEpilogue(MachineFunction &MF,
   unsigned StackSize = MFI.getStackSize();
 
   if (StackSize) {
-    // Restore %r31: add %r31, %r31, StackSize
-    BuildMI(MBB, MBBI, DL, LII.get(M88k::ADDUri))
-        .addReg(M88k::R31, RegState::Define)
-        .addReg(M88k::R31)
-        .addImm(StackSize)
-        .setMIFlag(MachineInstr::FrameDestroy);
+    if (isInt<16>(StackSize)) {
+      // Restore %r31: add %r31, %r31, StackSize
+      BuildMI(MBB, MBBI, DL, LII.get(M88k::ADDUri), M88k::R31)
+          .addReg(M88k::R31)
+          .addImm(StackSize)
+          .setMIFlag(MachineInstr::FrameDestroy);
+    } else {
+      // Load stack size into scratch register r10.
+      BuildMI(MBB, MBBI, DL, LII.get(M88k::ORriu), M88k::R10)
+          .addReg(M88k::R0)
+          .addImm(StackSize >> 16);
+      BuildMI(MBB, MBBI, DL, LII.get(M88k::ORri), M88k::R10)
+          .addReg(M88k::R10)
+          .addImm(StackSize & 0xFFFF);
+      // Create subu %r31, %r31, %r10
+      BuildMI(MBB, MBBI, DL, LII.get(M88k::ADDUrr), M88k::R31)
+          .addReg(M88k::R31)
+          .addReg(M88k::R10, RegState::Kill);
+    }
   }
 }
 
