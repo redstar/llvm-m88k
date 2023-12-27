@@ -826,6 +826,20 @@ let mayStore = 1 in {
 
 defm XMEM : Xmem;
 
+// Additional patterns for extending loads.
+def : Pat<(i32 (extloadi8 (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+          (LDrrsb GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(i32 (extloadi8 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
+          (LDrib GPROpnd:$rs1, uimm16:$si16)>;
+def : Pat<(i32 (extloadi8 (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+          (LDrrub GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(i32 (extloadi16 (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+          (LDrrsh GPROpnd:$rs1, GPROpnd:$rs2)>;
+def : Pat<(i32 (extloadi16 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
+          (LDrih GPROpnd:$rs1, uimm16:$si16)>;
+def : Pat<(i32 (extloadi16 (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+          (LDrruh GPROpnd:$rs1, GPROpnd:$rs2)>;
+
 // Additional patterns for floating point types.
 def : Pat<(f32 (load (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrsw GPROpnd:$rs1, GPROpnd:$rs2)>;
