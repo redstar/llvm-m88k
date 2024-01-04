@@ -230,8 +230,9 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   getLegacyLegalizerInfo().computeTables();
 }
 
-bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
-                                       MachineInstr &MI) const {
+bool M88kLegalizerInfo::legalizeCustom(
+    LegalizerHelper &Helper, MachineInstr &MI,
+    LostDebugLocObserver &LocObserver) const {
   using namespace TargetOpcode;
 
   MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
@@ -407,9 +408,8 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
     unsigned Opc2 = Src2I->getOpcode();
 
     auto Libcall = [&]() -> bool {
-      LostDebugLocObserver LDLObserver("");
       return LegalizerHelper::UnableToLegalize !=
-             Helper.libcall(MI, LDLObserver);
+             Helper.libcall(MI, LocObserver);
     };
 
     // Check if the multiplicants are blown-up 32 bit values. If yes then the
@@ -448,9 +448,8 @@ bool M88kLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
     unsigned Opc2 = Src2I->getOpcode();
 
     auto Libcall = [&]() -> bool {
-      LostDebugLocObserver LDLObserver("");
       return LegalizerHelper::UnableToLegalize !=
-             Helper.libcall(MI, LDLObserver);
+             Helper.libcall(MI, LocObserver);
     };
 
     // Check if the divisor is a blown-up 32 bit value. If yes then the division
