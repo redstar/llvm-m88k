@@ -25,7 +25,8 @@ struct M88kLegalizerInfo : public LegalizerInfo {
 public:
   M88kLegalizerInfo(const M88kSubtarget &ST);
 
-  bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI) const override;
+  bool legalizeCustom(LegalizerHelper &Helper, MachineInstr &MI,
+                      LostDebugLocObserver &LocObserver) const override;
 };
 } // end namespace llvm
 #endif // LLVM_LIB_TARGET_M88K_GISEL_M88KLEGALIZERINFO_H
