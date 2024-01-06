@@ -243,7 +243,6 @@ void M88kFrameLowering::emitPrologue(MachineFunction &MF,
 
   bool SetupFP = hasFP(MF);
   assert((SetupFP || MaxCallFrameSize == 0) && "Call frame without FP");
-  assert(!SetupFP || FuncInfo->getFramePointerIndex());
 
   if (StackSize) {
     if (isInt<16>(StackSize)) {
