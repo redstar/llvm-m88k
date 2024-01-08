@@ -41,8 +41,18 @@ foreach I = 0-31 in {
     def R#I : M88kReg<I, "r"#I>;
 }
 
+// The allocation order of the registers is influenced by the use in the ABI.
+// First are the temporary registers, then the preserved registers, and then
+// the remaining reisters.
+// TODO Check if there is a positive impact when moving r30 before r25-r14.
+//      Saving the preserved registers creates a frame using r30 as frame
+//      pointer, but r30 could be saved/restored without using a frame pointer.
 def GPR : M88kRegisterClass<[i32, f32], 32, 32,
-                            (add (sequence "R%u", 0, 31))>;
+                            (add (sequence "R%u", 2, 9),
+                                 (sequence "R%u", 25, 14),
+                                 R0, R1,
+                                 (sequence "R%u", 10, 13),
+                                 (sequence "R%u", 26, 31))>;
 def GPROpnd : M88kRegisterOperand<GPR> {
   let GIZeroRegister = R0;
 }
