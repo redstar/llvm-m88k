@@ -17,6 +17,7 @@
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
+#include "llvm/CodeGen/GlobalISel/Localizer.h"
 #include "llvm/CodeGen/GlobalISel/RegBankSelect.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
@@ -212,6 +213,7 @@ bool M88kPassConfig::addIRTranslator() {
 
 void M88kPassConfig::addPreLegalizeMachineIR() {
   addPass(createM88kPreLegalizerCombiner());
+  addPass(new Localizer());
 }
 
 bool M88kPassConfig::addLegalizeMachineIR() {
