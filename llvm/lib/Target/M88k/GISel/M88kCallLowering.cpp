@@ -133,7 +133,7 @@ unsigned OutgoingArgHandler::assignCustomValue(CallLowering::ArgInfo &Arg,
   CCValAssign HiVA = VAs[0];
   assert(HiVA.needsCustom() && "Value doesn't need custom handling");
 
-  // Custom lowering for other types, such as f16, is currently not supported
+  // Custom lowering for other types, such as f16, is currently not supported.
   if (HiVA.getValVT() != MVT::f64)
     return 0;
 
@@ -156,11 +156,11 @@ unsigned OutgoingArgHandler::assignCustomValue(CallLowering::ArgInfo &Arg,
       assignValueToReg(NewRegs[0], LoVA.getLocReg(), LoVA);
       assignValueToReg(NewRegs[1], HiVA.getLocReg(), HiVA);
     };
-    return 1;
+    return 2;
   }
   assignValueToReg(NewRegs[0], LoVA.getLocReg(), LoVA);
   assignValueToReg(NewRegs[1], HiVA.getLocReg(), HiVA);
-  return 1;
+  return 2;
 }
 
 void OutgoingArgHandler::assignValueToAddress(Register ValVReg, Register Addr,
@@ -274,7 +274,7 @@ M88kIncomingValueHandler::assignCustomValue(CallLowering::ArgInfo &Arg,
 
   MIRBuilder.buildMergeLikeInstr(Arg.Regs[0], NewRegs);
 
-  return 1;
+  return 2;
 }
 
 bool M88kCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
