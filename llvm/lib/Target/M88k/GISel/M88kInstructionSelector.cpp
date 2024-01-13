@@ -102,12 +102,7 @@ private:
 
   ComplexRendererFns selectAddrRegImm(MachineOperand &Root) const;
   ComplexRendererFns selectAddrRegReg(MachineOperand &Root) const;
-  ComplexRendererFns selectAddrRegScaled(MachineOperand &Root,
-                                         uint32_t Width) const;
-  template <uint32_t MemSizeInBytes>
-  ComplexRendererFns selectAddrRegScaled(MachineOperand &Root) const {
-    return selectAddrRegScaled(Root, Log2_32(MemSizeInBytes));
-  }
+  ComplexRendererFns selectAddrRegScaled(MachineOperand &Root) const;
 
   bool selectFrameIndex(MachineInstr &I, MachineBasicBlock &MBB,
                         MachineRegisterInfo &MRI) const;
@@ -353,12 +348,18 @@ void M88kInstructionSelector::renderCTZINV(MachineInstrBuilder &MIB,
   MIB.addImm(countr_zero(Val) & 0x1f);
 }
 
+static bool isUnalignedAccess(MachineInstr &MI) {
+  const auto &MMO = dyn_cast<GMemOperation>(&MI)->getMMO();
+  return MMO.getAlign() < MMO.getSize();
+}
+
 InstructionSelector::ComplexRendererFns
 M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
-  MachineFunction &MF = *Root.getParent()->getParent()->getParent();
+  MachineInstr &MI = *Root.getParent();
+  MachineFunction &MF = *MI.getParent()->getParent();
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
-  if (!Root.isReg())
+  if (!Root.isReg() || isUnalignedAccess(MI))
     return std::nullopt;
 
   MachineInstr *RootDef = getDefIgnoringCopies(Root.getReg(), MRI);
@@ -424,10 +425,11 @@ M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
 
 InstructionSelector::ComplexRendererFns
 M88kInstructionSelector::selectAddrRegReg(MachineOperand &Root) const {
-  MachineFunction &MF = *Root.getParent()->getParent()->getParent();
+  MachineInstr &MI = *Root.getParent();
+  MachineFunction &MF = *MI.getParent()->getParent();
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
-  if (!Root.isReg())
+  if (!Root.isReg() || isUnalignedAccess(MI))
     return std::nullopt;
 
   // Check for G_PTR_ADD plus 16 bit offset.
@@ -446,12 +448,12 @@ M88kInstructionSelector::selectAddrRegReg(MachineOperand &Root) const {
 }
 
 InstructionSelector::ComplexRendererFns
-M88kInstructionSelector::selectAddrRegScaled(MachineOperand &Root,
-                                             uint32_t Width) const {
-  MachineFunction &MF = *Root.getParent()->getParent()->getParent();
+M88kInstructionSelector::selectAddrRegScaled(MachineOperand &Root) const {
+  GMemOperation &MI = *dyn_cast<GMemOperation>(Root.getParent());
+  MachineFunction &MF = *MI.getParent()->getParent();
   MachineRegisterInfo &MRI = MF.getRegInfo();
 
-  if (!Root.isReg())
+  if (!Root.isReg() || isUnalignedAccess(MI))
     return std::nullopt;
 
   // Check for G_PTR_ADD plus shifted register.
@@ -459,7 +461,8 @@ M88kInstructionSelector::selectAddrRegScaled(MachineOperand &Root,
   Register Base, Scaled;
   if (mi_match(RootDef, MRI,
                m_GPtrAdd(m_Reg(Base),
-                         m_GShl(m_Reg(Scaled), m_SpecificICst(Width))))) {
+                         m_GShl(m_Reg(Scaled),
+                                m_SpecificICst(Log2_32(MI.getMemSize())))))) {
     Register BaseReg = getRegIgnoringCopies(Base, MRI);
     Register ScaledReg = getRegIgnoringCopies(Scaled, MRI);
     return {{
