@@ -520,11 +520,7 @@ Register indirect with scaled index:    ld rD, rS1, [rS2]
 */
 defm ADDRri : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegImm", [], [], 10>;
 defm ADDRrr : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegReg", [], []>;
-defm ADDRrs1 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<1>", [], [], 15>;
-defm ADDRrs2 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<2>", [], [], 15>;
-defm ADDRrs4 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<4>", [], [], 15>;
-defm ADDRrs8 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<8>", [], [], 15>;
-defm ADDRrs16 : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled<16>", [], [], 15>;
+defm ADDRrs : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled", [], [], 15>;
 
 // Instruction formats with semantics.
 class FLoadIndexImm<bits<4> func, bits<2> ty, string option,
@@ -599,8 +595,8 @@ multiclass LoadUnsigned {
   def urib : F_LU<0b1, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$si16),
                   "ld.bu",
                   [(set (i32 GPROpnd:$rd), (zextloadi8 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)))]>;
-  defm urr : FLoadUnsigned</*ty=*/ 0b1, "b", GPROpnd, i32, zextloadi8, ADDRrs1>;
-  defm urr : FLoadUnsigned</*ty=*/ 0b0, "h", GPROpnd, i32, zextloadi16, ADDRrs2>;
+  defm urr : FLoadUnsigned</*ty=*/ 0b1, "b", GPROpnd, i32, zextloadi8, ADDRrs>;
+  defm urr : FLoadUnsigned</*ty=*/ 0b0, "h", GPROpnd, i32, zextloadi16, ADDRrs>;
 }
 
 // Instruction formats with semantics.
@@ -645,15 +641,15 @@ multiclass FLoadScaled<bits<4> func, bits<2> ty, string option,
 multiclass LoadScaled {
   defvar Func = 0b0001;
   let regfile = 1 in {
-    defm rrsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, load, ADDRrs8>;
-    defm rrsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, load, ADDRrs4>;
-    defm rrsb  : FLoadScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, sextloadi8, ADDRrs1>;
-    defm rrsh  : FLoadScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, sextloadi16, ADDRrs2>;
+    defm rrsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, load, ADDRrs>;
+    defm rrsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, load, ADDRrs>;
+    defm rrsb  : FLoadScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, sextloadi8, ADDRrs>;
+    defm rrsh  : FLoadScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, sextloadi16, ADDRrs>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    defm xxsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, load, ADDRrs4>;
-    defm xxsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, load, ADDRrs8>;
-    defm xxsq  : FLoadScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, load, ADDRrs16>;
+    defm xxsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, load, ADDRrs>;
+    defm xxsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, load, ADDRrs>;
+    defm xxsq  : FLoadScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, load, ADDRrs>;
   }
 }
 
@@ -719,15 +715,15 @@ multiclass FStoreScaled<bits<4> func, bits<2> ty, string option,
 multiclass StoreScaled {
   defvar Func = 0b0010;
   let regfile = 1 in {
-    defm rrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, store, ADDRrs8>;
-    defm rrsw : FStoreScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, store, ADDRrs4>;
-    defm rrsb : FStoreScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, truncstorei8, ADDRrs1>;
-    defm rrsh : FStoreScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, truncstorei16, ADDRrs2>;
+    defm rrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, store, ADDRrs>;
+    defm rrsw : FStoreScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, store, ADDRrs>;
+    defm rrsb : FStoreScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, truncstorei8, ADDRrs>;
+    defm rrsh : FStoreScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, truncstorei16, ADDRrs>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    defm xrss : FStoreScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, store, ADDRrs4>;
-    defm xrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, store, ADDRrs8>;
-    defm xrsx : FStoreScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, store, ADDRrs16>;
+    defm xrss : FStoreScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, store, ADDRrs>;
+    defm xrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, store, ADDRrs>;
+    defm xrsx : FStoreScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, store, ADDRrs>;
   }
 }
 
@@ -827,13 +823,13 @@ let mayStore = 1 in {
 defm XMEM : Xmem;
 
 // Additional patterns for extending loads.
-def : Pat<(i32 (extloadi8 (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+def : Pat<(i32 (extloadi8 (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrsb GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(i32 (extloadi8 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
           (LDrib GPROpnd:$rs1, uimm16:$si16)>;
 def : Pat<(i32 (extloadi8 (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrub GPROpnd:$rs1, GPROpnd:$rs2)>;
-def : Pat<(i32 (extloadi16 (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+def : Pat<(i32 (extloadi16 (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrsh GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(i32 (extloadi16 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
           (LDrih GPROpnd:$rs1, uimm16:$si16)>;
@@ -841,9 +837,9 @@ def : Pat<(i32 (extloadi16 (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrruh GPROpnd:$rs1, GPROpnd:$rs2)>;
 
 // Additional patterns for floating point types.
-def : Pat<(f32 (load (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+def : Pat<(f32 (load (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrsw GPROpnd:$rs1, GPROpnd:$rs2)>;
-def : Pat<(f64 (load (ADDRrs8 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+def : Pat<(f64 (load (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrsd GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(f32 (load (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
           (LDriw GPROpnd:$rs1, uimm16:$si16)>;
@@ -854,9 +850,9 @@ def : Pat<(f32 (load (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
 def : Pat<(f64 (load (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrud GPROpnd:$rs1, GPROpnd:$rs2)>;
 
-def : Pat<(store (f32 GPROpnd:$rd), (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+def : Pat<(store (f32 GPROpnd:$rd), (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
           (STrrsw (f32 GPROpnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
-def : Pat<(store (f64 GPR64Opnd:$rd), (ADDRrs8 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+def : Pat<(store (f64 GPR64Opnd:$rd), (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
           (STrrsd (f64 GPR64Opnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(store (f32 GPROpnd:$rd), (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)),
           (STriw (f32 GPROpnd:$rd), GPROpnd:$rs1, uimm16:$si16)>;
@@ -868,7 +864,7 @@ def : Pat<(store (f64 GPR64Opnd:$rd), (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$
           (STrrud (f64 GPR64Opnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
 
 // Storing a zero constant.
-def : Pat<(store (i32 0), (ADDRrs4 (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+def : Pat<(store (i32 0), (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
           (STrrsw (i32 R0), GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(store (i32 0), (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)),
           (STriw (i32 R0), GPROpnd:$rs1, uimm16:$si16)>;
