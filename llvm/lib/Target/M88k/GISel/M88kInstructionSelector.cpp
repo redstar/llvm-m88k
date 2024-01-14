@@ -1140,9 +1140,10 @@ bool M88kInstructionSelector::preISelLower(MachineInstr &I) {
   }
   // case TargetOpcode::G_PTR_ADD:
   //   return convertPtrAddToAdd(I, MRI);
+  case TargetOpcode::G_CONSTANT:
   case TargetOpcode::G_LOAD: {
     // For scalar loads of pointers, we try to convert the dest type from p0
-    // to s64 so that our imported patterns can match. Like with the G_PTR_ADD
+    // to s32 so that our imported patterns can match. Like with the G_PTR_ADD
     // conversion, this should be ok because all users should have been
     // selected already, so the type doesn't matter for them.
     Register DstReg = I.getOperand(0).getReg();
