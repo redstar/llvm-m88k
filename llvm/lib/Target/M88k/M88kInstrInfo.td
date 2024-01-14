@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 def Graphics   : Predicate<"Subtarget->hasGraphics()">;
 def MC88110    : Predicate<"Subtarget->isMC88110()">,
                            AssemblerPredicate<(all_of Proc88110), "MC88110">;
@@ -26,13 +25,8 @@ def NotMC88110 : Predicate<"!Subtarget->isMC88110()">,
 // These are target-independent nodes, but have target-specific formats.
 def SDT_CallSeqStart : SDCallSeqStart<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
 def SDT_CallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
-def SDT_Call         : SDTypeProfile<0, -1, [SDTCisPtrTy<0>]>;
 
 // Selection DAG nodes.
-
-def call             : SDNode<"M88kISD::CALL", SDT_Call,
-                              [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue,
-                              SDNPVariadic]>;
 def retflag          : SDNode<"M88kISD::RET_FLAG", SDTNone,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_CallSeqStart,
@@ -43,6 +37,10 @@ def callseq_end   : SDNode<"ISD::CALLSEQ_END", SDT_CallSeqEnd,
 // Hi16 and Lo16 nodes are used to handle global addresses.
 def m88k_hi : SDNode<"M88kISD::Hi16", SDTIntUnaryOp>;
 def m88k_lo : SDNode<"M88kISD::Lo16", SDTIntUnaryOp>;
+
+// ---------------------------------------------------------------------------//
+// Generic instructions.
+// ---------------------------------------------------------------------------//
 
 class M88kGenericInstruction : GenericInstruction {
   let Namespace = "M88k";
@@ -466,13 +464,13 @@ def : Pat<(ineg GPROpnd:$rs2), (SUBUrr (i32 R0), GPROpnd:$rs2)>;
 def : Pat<(shl (and GPROpnd:$rs1, mask32:$imm), bfoffset:$ofs),
           (MAKrwo GPROpnd:$rs1, (CPOP $imm), bfoffset:$ofs)>;
 
-// Pattern for logial operations with shifted masks.
+// Pattern for logical operations with shifted masks.
 def : Pat<(or GPROpnd:$rs1, shmask32:$imm),
           (SETrwo GPROpnd:$rs1, (CPOP $imm), (CTZ $imm))>;
 def : Pat<(and GPROpnd:$rs1, invshmask32:$imm),
           (CLRrwo GPROpnd:$rs1, (CPOPINV $imm), (CTZINV $imm))>;
 
-// Pattern for logial operations with 32 bit constants.
+// Pattern for logical operations with 32 bit constants.
 def : Pat<(and GPROpnd:$rs1, uimm32:$imm),
           (ANDri (ANDriu GPROpnd:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
 def : Pat<(or GPROpnd:$rs1, uimm32:$imm),
@@ -862,14 +860,6 @@ def : Pat<(store (f32 GPROpnd:$rd), (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs
           (STrruw (f32 GPROpnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(store (f64 GPR64Opnd:$rd), (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
           (STrrud (f64 GPR64Opnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
-
-// Storing a zero constant.
-def : Pat<(store (i32 0), (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
-          (STrrsw (i32 R0), GPROpnd:$rs1, GPROpnd:$rs2)>;
-def : Pat<(store (i32 0), (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)),
-          (STriw (i32 R0), GPROpnd:$rs1, uimm16:$si16)>;
-def : Pat<(store (i32 0), (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
-          (STrruw (i32 R0), GPROpnd:$rs1, GPROpnd:$rs2)>;
 
 // Patterns to replace add/shl sequence with lda instruction.
 def : Pat<(add GPROpnd:$rs1, (shl GPROpnd:$rs2, (i32 1))), (LDAhs GPROpnd:$rs1, GPROpnd:$rs2)>;
