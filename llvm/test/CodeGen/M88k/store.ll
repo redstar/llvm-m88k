@@ -82,10 +82,59 @@ define void @f7(ptr %p, double %val) {
   ret void
 }
 
+; Store value zero to pointer address.
+
+define void @f8(ptr %p) {
+; CHECK-LABEL: f8:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    st.b %r0, %r2, 0
+; CHECK-NEXT:    jmp %r1
+  store i8 0, ptr %p, align 1
+  ret void
+}
+
+define void @f9(ptr %p) {
+; CHECK-LABEL: f9:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    st.h %r0, %r2, 0
+; CHECK-NEXT:    jmp %r1
+  store i16 0, ptr %p, align 2
+  ret void
+}
+
+define void @f10(ptr %p) {
+; CHECK-LABEL: f10:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    st %r0, %r2, 0
+; CHECK-NEXT:    jmp %r1
+  store i32 0, ptr %p, align 4
+  ret void
+}
+
+define void @f11(ptr %p) {
+; CHECK-LABEL: f11:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    or %r5, %r0, 0
+; CHECK-NEXT:    or %r4, %r0, %r5
+; CHECK-NEXT:    st.d %r4, %r2, 0
+; CHECK-NEXT:    jmp %r1
+  store i64 0, ptr %p, align 8
+  ret void
+}
+
+define void @f12(ptr %p) {
+; CHECK-LABEL: f12:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    st %r0, %r2, 0
+; CHECK-NEXT:    jmp %r1
+  store ptr null, ptr %p, align 4
+  ret void
+}
+
 ; Store value to pointer plus constant index.
 
-define void @f8(ptr %p, i32 %val) {
-; CHECK-LABEL: f8:
+define void @f13(ptr %p, i32 %val) {
+; CHECK-LABEL: f13:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    st %r3, %r2, 8
 ; CHECK-NEXT:    jmp %r1
@@ -94,8 +143,8 @@ define void @f8(ptr %p, i32 %val) {
   ret void
 }
 
-define void @f9(ptr %p, float %val) {
-; CHECK-LABEL: f9:
+define void @f14(ptr %p, float %val) {
+; CHECK-LABEL: f14:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    st %r3, %r2, 8
 ; CHECK-NEXT:    jmp %r1
@@ -104,8 +153,8 @@ define void @f9(ptr %p, float %val) {
   ret void
 }
 
-define void @f10(ptr %p, i8 %val) {
-; CHECK-LABEL: f10:
+define void @f15(ptr %p, i8 %val) {
+; CHECK-LABEL: f15:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    st.b %r3, %r2, 2
 ; CHECK-NEXT:    jmp %r1
@@ -114,8 +163,8 @@ define void @f10(ptr %p, i8 %val) {
   ret void
 }
 
-define void @f11(ptr %p, i16 %val) {
-; CHECK-LABEL: f11:
+define void @f16(ptr %p, i16 %val) {
+; CHECK-LABEL: f16:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    st.h %r3, %r2, 4
 ; CHECK-NEXT:    jmp %r1
@@ -124,8 +173,8 @@ define void @f11(ptr %p, i16 %val) {
   ret void
 }
 
-define void @f12(ptr %p, i64 %val) {
-; CHECK-LABEL: f12:
+define void @f17(ptr %p, i64 %val) {
+; CHECK-LABEL: f17:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    | kill: def $r5 killed $r5 killed $r4_r5 def $r4_r5
 ; CHECK-NEXT:    | kill: def $r4 killed $r4 killed $r4_r5 def $r4_r5
@@ -136,8 +185,8 @@ define void @f12(ptr %p, i64 %val) {
   ret void
 }
 
-define void @f13(ptr %p, double %val) {
-; CHECK-LABEL: f13:
+define void @f18(ptr %p, double %val) {
+; CHECK-LABEL: f18:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    | kill: def $r5 killed $r5 killed $r4_r5 def $r4_r5
 ; CHECK-NEXT:    | kill: def $r4 killed $r4 killed $r4_r5 def $r4_r5
@@ -150,8 +199,8 @@ define void @f13(ptr %p, double %val) {
 
 ; Store value to pointer plus index.
 
-define void @f14(ptr %p, i32 %idx, i32 %val) {
-; CHECK-LABEL: f14:
+define void @f19(ptr %p, i32 %idx, i32 %val) {
+; CHECK-LABEL: f19:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    st %r4, %r2[%r3]
 ; CHECK-NEXT:    jmp %r1
@@ -160,8 +209,8 @@ define void @f14(ptr %p, i32 %idx, i32 %val) {
   ret void
 }
 
-define void @f15(ptr %p, i32 %idx, float %val) {
-; CHECK-LABEL: f15:
+define void @f20(ptr %p, i32 %idx, float %val) {
+; CHECK-LABEL: f20:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    st %r4, %r2[%r3]
 ; CHECK-NEXT:    jmp %r1
@@ -170,8 +219,8 @@ define void @f15(ptr %p, i32 %idx, float %val) {
   ret void
 }
 
-define void @f16(ptr %p, i32 %idx, i8 %val) {
-; CHECK-LABEL: f16:
+define void @f21(ptr %p, i32 %idx, i8 %val) {
+; CHECK-LABEL: f21:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    st.b %r4, %r2, %r3
 ; CHECK-NEXT:    jmp %r1
@@ -180,8 +229,8 @@ define void @f16(ptr %p, i32 %idx, i8 %val) {
   ret void
 }
 
-define void @f17(ptr %p, i32 %idx, i16 %val) {
-; CHECK-LABEL: f17:
+define void @f22(ptr %p, i32 %idx, i16 %val) {
+; CHECK-LABEL: f22:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    st.h %r4, %r2[%r3]
 ; CHECK-NEXT:    jmp %r1
@@ -190,8 +239,8 @@ define void @f17(ptr %p, i32 %idx, i16 %val) {
   ret void
 }
 
-define void @f18(ptr %p, i32 %idx, i64 %val) {
-; CHECK-LABEL: f18:
+define void @f23(ptr %p, i32 %idx, i64 %val) {
+; CHECK-LABEL: f23:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    | kill: def $r5 killed $r5 killed $r4_r5 def $r4_r5
 ; CHECK-NEXT:    | kill: def $r4 killed $r4 killed $r4_r5 def $r4_r5
@@ -202,8 +251,8 @@ define void @f18(ptr %p, i32 %idx, i64 %val) {
   ret void
 }
 
-define void @f19(ptr %p, i32 %idx, double %val) {
-; CHECK-LABEL: f19:
+define void @f24(ptr %p, i32 %idx, double %val) {
+; CHECK-LABEL: f24:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    | kill: def $r5 killed $r5 killed $r4_r5 def $r4_r5
 ; CHECK-NEXT:    | kill: def $r4 killed $r4 killed $r4_r5 def $r4_r5
@@ -216,8 +265,8 @@ define void @f19(ptr %p, i32 %idx, double %val) {
 
 ; Store value to global address.
 
-define void @f20(i32 %val) {
-; CHECK-LABEL: f20:
+define void @f25(i32 %val) {
+; CHECK-LABEL: f25:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r3, %r0, %hi16(mem32)
 ; CHECK-NEXT:    st %r2, %r3, %lo16(mem32)
@@ -226,8 +275,8 @@ define void @f20(i32 %val) {
   ret void
 }
 
-define void @f21(float %val) {
-; CHECK-LABEL: f21:
+define void @f26(float %val) {
+; CHECK-LABEL: f26:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r3, %r0, %hi16(memfloat)
 ; CHECK-NEXT:    st %r2, %r3, %lo16(memfloat)
@@ -236,8 +285,8 @@ define void @f21(float %val) {
   ret void
 }
 
-define void @f22(i8 %val) {
-; CHECK-LABEL: f22:
+define void @f27(i8 %val) {
+; CHECK-LABEL: f27:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r3, %r0, %hi16(mem8)
 ; CHECK-NEXT:    st.b %r2, %r3, %lo16(mem8)
@@ -246,8 +295,8 @@ define void @f22(i8 %val) {
   ret void
 }
 
-define void @f23(i16 %val) {
-; CHECK-LABEL: f23:
+define void @f28(i16 %val) {
+; CHECK-LABEL: f28:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r3, %r0, %hi16(mem16)
 ; CHECK-NEXT:    st.h %r2, %r3, %lo16(mem16)
@@ -256,8 +305,8 @@ define void @f23(i16 %val) {
   ret void
 }
 
-define void @f24(i64 %val) {
-; CHECK-LABEL: f24:
+define void @f29(i64 %val) {
+; CHECK-LABEL: f29:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    | kill: def $r3 killed $r3 killed $r2_r3 def $r2_r3
 ; CHECK-NEXT:    | kill: def $r2 killed $r2 killed $r2_r3 def $r2_r3
@@ -268,8 +317,8 @@ define void @f24(i64 %val) {
   ret void
 }
 
-define void @f25(double %val) {
-; CHECK-LABEL: f25:
+define void @f30(double %val) {
+; CHECK-LABEL: f30:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    | kill: def $r3 killed $r3 killed $r2_r3 def $r2_r3
 ; CHECK-NEXT:    | kill: def $r2 killed $r2 killed $r2_r3 def $r2_r3
@@ -280,8 +329,8 @@ define void @f25(double %val) {
   ret void
 }
 
-define void @f26(ptr %val) {
-; CHECK-LABEL: f26:
+define void @f31(ptr %val) {
+; CHECK-LABEL: f31:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r3, %r0, %hi16(memptr)
 ; CHECK-NEXT:    st %r2, %r3, %lo16(memptr)
