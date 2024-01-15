@@ -1116,6 +1116,19 @@ defm INT : FArith2<0b1001, "int">;
 defm NINT : FArith2<0b1010, "nint">;
 defm TRNC : FArith2<0b1011, "trnc">;
 
+def : Pat<(fp_to_sint (f32 GPROpnd:$rs1)),
+          (TRNCgss GPROpnd:$rs1)>;
+def : Pat<(fp_to_sint (f64 GPR64Opnd:$rs1)),
+          (TRNCgsd GPR64Opnd:$rs1)>;
+let Predicates = [MC88110] in {
+  def : Pat<(fp_to_sint (f32 XROpnd:$rs1)),
+            (TRNCxss XROpnd:$rs1)>;
+  def : Pat<(fp_to_sint (f64 XROpnd:$rs1)),
+            (TRNCxsd XROpnd:$rs1)>;
+  def : Pat<(fp_to_sint (f80 XROpnd:$rs1)),
+            (TRNCxsx XROpnd:$rs1)>;
+}
+
 let Predicates = [MC88110] in {
   defm FCVT : FUnary<0b0001, "fcvt", false>;
   defm FSQRT : FUnary<0b1111, "fsqrt", true>;
