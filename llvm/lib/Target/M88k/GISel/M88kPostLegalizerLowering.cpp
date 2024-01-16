@@ -11,8 +11,15 @@
 ///
 /// This is used to offload pattern matching from the selector.
 ///
-/// For example, this combiner will notice that a G_OR with a shifted mask as
-/// argumnet is actually MAKrwo.
+/// Provided lowerings include:
+/// - Lower G_SDIV to G_UDIV
+/// - Add check for division by zero after G_UDIV/G_SDIV
+/// - Lower G_UITOFP to G_SITPFP
+///
+/// Most of these lowerings really belong into the legalizer. However, the
+/// legalizer cannot handle changes to basic blocks, like splitting or inserting
+/// new ones. The solution is to declare the generic instruction as legal in the
+/// legalizer, and lower it here, just before instruction selection runs.
 ///
 /// General optimization combines should be handled by either the
 /// M88kPostLegalizerCombiner or the M88kPreLegalizerCombiner.
@@ -54,7 +61,7 @@
 #include "M88kGenPostLegalizeGILowering.inc"
 #undef GET_GICOMBINER_DEPS
 
-#define DEBUG_TYPE "M88K-postlegalizer-lowering"
+#define DEBUG_TYPE "m88K-postlegalizer-lowering"
 
 using namespace llvm;
 
@@ -313,7 +320,123 @@ bool applyInsertDivByZeroTrap(GISelChangeObserver &Observer, MachineInstr &MI,
   return true;
 }
 
+bool applyUItoFP(GISelChangeObserver &Observer, MachineInstr &MI,
+                 MachineRegisterInfo &MRI, MachineIRBuilder &MIB) {
+  const LLT S1 = LLT::scalar(1);
+  const LLT S32 = LLT::scalar(32);
+  const LLT S64 = LLT::scalar(64);
+
+  Register DstReg = MI.getOperand(0).getReg();
+  LLT DstType = MRI.getType(DstReg);
+
+  MachineBasicBlock *MBB = MI.getParent();
+  MachineBasicBlock *TailMBB = MBB->splitAt(MI);
+  MachineBasicBlock *AddMBB = createMBB(MBB, true);
+  AddMBB->addSuccessor(TailMBB);
+
+  // Insert a PHI into tail. Truncate the result if necessary.
+  MIB.setInsertPt(*TailMBB, TailMBB->begin());
+  MIB.setDebugLoc(MI.getDebugLoc());
+  MachineInstrBuilder PHI = MIB.buildInstr(TargetOpcode::G_PHI, {S64}, {});
+  if (DstType == S32)
+    MIB.buildFPTrunc(DstReg, PHI);
+  else
+    MIB.buildCopy(DstReg, PHI);
+
+  // Add G_SITOFP in the original MBB, and branch accordingly.
+  MIB.setInsertPt(*MBB, MBB->end());
+  MIB.setDebugLoc(MI.getDebugLoc());
+  MachineOperand &MO = MI.getOperand(1);
+  auto FP = MIB.buildSITOFP(S64, MO.getReg());
+  auto Zero = MIB.buildConstant(S32, 0);
+  MIB.buildBrCond(MIB.buildICmp(CmpInst::ICMP_SGE, S1, MO, Zero), *TailMBB);
+  MIB.buildBr(*AddMBB);
+  PHI.addReg(FP.getReg(0)).addMBB(MBB);
+
+  // Add correction if input is negative.
+  MIB.setInsertPt(*AddMBB, AddMBB->end());
+  auto Add = MIB.buildFAdd(
+      S64, FP, MIB.buildFPExt(S64, MIB.buildConstant(S32, 0x4f800000)));
+  MIB.buildBr(*TailMBB);
+  PHI.addReg(Add.getReg(0)).addMBB(AddMBB);
+
+  // Remove the G_UITOFP instruction.
+  MI.eraseFromParent();
+  return true;
+}
+//
 } // namespace
+
+/*
+TODO Add lowering for G_UITOFP
+
+i32 -> f32:
+-----------
+        flt.ds   %r6,%r2
+        bcnd     ge0,%r2,.L2
+        or.u     %r9,%r0,0x4f80
+        fadd.dds %r6,%r6,%r9
+.L2:
+        fsub.sds %r2,%r6,%r0
+
+i32 -> f64:
+-----------
+        flt.ds   %r6,%r2
+        bcnd     ge0,%r2,.L4
+        or.u     %r9,%r0,0x4f80
+        fadd.dds %r6,%r6,%r9
+.L4:
+
+i64 -> f32:
+-----------
+        or       %r24,%r0,%r2
+        or       %r25,%r0,%r3
+        or       %r4,%r0,0
+        or       %r5,%r0,0
+        bsr      __cmpdi2
+        mak      %r10,%r24,0<31>
+        bcnd     le0,%r2,.L7
+        or       %r2,%r0,%r24
+        or       %r3,%r0,%r25
+        bsr      __floatdisf
+        br       .L6
+.L7:
+        mask     %r3,%r25,1
+        mask     %r2,%r24,0
+        extu     %r11,%r25,0<1>
+        or       %r13,%r10,%r11
+        extu     %r12,%r24,0<1>
+        or       %r3,%r3,%r13
+        or       %r2,%r2,%r12
+        bsr      __floatdisf
+        fadd.sss %r2,%r2,%r2
+.L6:
+
+i64 -> f64:
+-----------
+        or       %r24,%r0,%r2
+        or       %r25,%r0,%r3
+        or       %r4,%r0,0
+        or       %r5,%r0,0
+        bsr      __cmpdi2
+        mak      %r10,%r24,0<31>
+        bcnd.n   le0,%r2,.L10
+        or       %r2,%r0,%r24
+        or       %r3,%r0,%r25
+        bsr      __floatdidf
+        br       .L9
+.L10:
+        mask     %r3,%r25,1
+        mask     %r2,%r24,0
+        extu     %r11,%r25,0<1>
+        or       %r13,%r10,%r11
+        extu     %r12,%r24,0<1>
+        or       %r3,%r3,%r13
+        or       %r2,%r2,%r12
+        bsr      __floatdidf
+        fadd.ddd %r2,%r2,%r2
+.L9:
+*/
 
 #define M88KPOSTLEGALIZERLOWERINGHELPER_GENCOMBINERHELPER_DEPS
 #include "M88kGenPostLegalizeGILowering.inc"
