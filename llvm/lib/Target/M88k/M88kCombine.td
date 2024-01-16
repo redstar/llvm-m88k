@@ -152,11 +152,16 @@ def insert_div_by_zero_trap : GICombineRule<
                    && matchInsertDivByZeroTrap(*${root}, MRI, KB); }]),
   (apply [{ applyInsertDivByZeroTrap(Observer, *${root}, MRI, B); }])>;
 
+def uitofp : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode G_UITOFP):$root),
+  (apply [{ applyUItoFP(Observer, *${root}, MRI, B); }])>;
+
 // Post-legalization combines which should happen at all optimization levels.
 // (E.g. ones that facilitate matching for the selector) For example, matching
 // pseudos.
 def M88kPostLegalizerLowering
     : GICombiner<"M88kPostLegalizerLoweringImpl",
-                 [sdiv_to_udiv, insert_div_by_zero_trap]> {
+                 [sdiv_to_udiv, insert_div_by_zero_trap, uitofp]> {
   let CombineAllMethodName = "tryCombineAllImpl";
 }
