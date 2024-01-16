@@ -62,8 +62,8 @@ define i32 @f32tosi32(float %a) {
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    trnc.ss %r2, %r2
 ; CHECK-NEXT:    jmp %r1
-  %trnc = fptosi float %a to i32
-  ret i32 %trnc
+  %fp = fptosi float %a to i32
+  ret i32 %fp
 }
 
 define i32 @f64tosi32(double %a) {
@@ -73,8 +73,8 @@ define i32 @f64tosi32(double %a) {
 ; CHECK-NEXT:    | kill: def $r2 killed $r2 killed $r2_r3 def $r2_r3
 ; CHECK-NEXT:    trnc.sd %r2, %r2
 ; CHECK-NEXT:    jmp %r1
-  %trnc = fptosi double %a to i32
-  ret i32 %trnc
+  %fp = fptosi double %a to i32
+  ret i32 %fp
 }
 
 define i64 @f32tosi64(float %a) {
@@ -89,8 +89,8 @@ define i64 @f32tosi64(float %a) {
 ; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
-  %trnc = fptosi float %a to i64
-  ret i64 %trnc
+  %fp = fptosi float %a to i64
+  ret i64 %fp
 }
 
 define i64 @f64tosi64(double %a) {
@@ -105,8 +105,49 @@ define i64 @f64tosi64(double %a) {
 ; CHECK-NEXT:    ld %r1, %r31, 4 | 4-byte Folded Reload
 ; CHECK-NEXT:    addu %r31, %r31, 16
 ; CHECK-NEXT:    jmp %r1
-  %trnc = fptosi double %a to i64
-  ret i64 %trnc
+  %fp = fptosi double %a to i64
+  ret i64 %fp
+}
+
+define float @ui32tof32(i32 %a) {
+; MC88100-LABEL: ui32tof32:
+; MC88100:       | %bb.0:
+; MC88100-NEXT:    flt.ds %r4, %r2
+; MC88100-NEXT:    bcnd ge0, %r2, .LBB8_2
+; MC88100-NEXT:  | %bb.1:
+; MC88100-NEXT:    or.u %r2, %r0, 20352
+; MC88100-NEXT:    fadd.dds %r4, %r4, %r2
+; MC88100-NEXT:  .LBB8_2:
+; MC88100-NEXT:    fsub.sds %r2, %r4, %r0
+; MC88100-NEXT:    jmp %r1
+;
+; MC88110-LABEL: ui32tof32:
+; MC88110:       | %bb.0:
+; MC88110-NEXT:    flt.ds %r4, %r2
+; MC88110-NEXT:    bcnd ge0, %r2, .LBB8_2
+; MC88110-NEXT:  | %bb.1:
+; MC88110-NEXT:    or.u %r2, %r0, 20352
+; MC88110-NEXT:    fadd.dds %r4, %r4, %r2
+; MC88110-NEXT:  .LBB8_2:
+; MC88110-NEXT:    fcvt.sd %r2, %r4
+; MC88110-NEXT:    jmp %r1
+  %fp = uitofp i32 %a to float
+  ret float %fp
+}
+
+define double @ui32tpf64(i32 %a) {
+; CHECK-LABEL: ui32tpf64:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    or %r4, %r0, %r2
+; CHECK-NEXT:    flt.ds %r2, %r2
+; CHECK-NEXT:    bcnd ge0, %r4, .LBB9_2
+; CHECK-NEXT:  | %bb.1:
+; CHECK-NEXT:    or.u %r4, %r0, 20352
+; CHECK-NEXT:    fadd.dds %r2, %r2, %r4
+; CHECK-NEXT:  .LBB9_2:
+; CHECK-NEXT:    jmp %r1
+  %fp = uitofp i32 %a to double
+  ret double %fp
 }
 
 define float @fadd1(float %a, float %b) {
