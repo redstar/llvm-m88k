@@ -64,7 +64,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   auto IsMC88110 = LegalityPredicate(
       [=, &ST](const LegalityQuery &Query) { return ST.isMC88110(); });
 
-  getActionDefinitionsBuilder(G_PHI).legalFor({S32, P0});
+  getActionDefinitionsBuilder(G_PHI).legalFor({S64, S32, P0});
   getActionDefinitionsBuilder(G_SELECT)
       .customForCartesianProduct({S32, S64, P0}, {S1})
       .clampScalar(0, S32, S64);
@@ -221,12 +221,11 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
       .legalForCartesianProduct({S64, S32}, {S32})
       .libcallForCartesianProduct({S64, S32}, {S64})
       .minScalar(1, S32);
-  /*
-    getActionDefinitionsBuilder(G_UITOFP)
-        .libcallForCartesianProduct({S64, S32}, {S64})
-        .customForCartesianProduct({S64, S32}, {S32})
-        .minScalar(1, S32);
-  */
+  getActionDefinitionsBuilder(G_UITOFP)
+      //.libcallForCartesianProduct({S64, S32}, {S64})
+      // It is not really legal - it will be lowered later.
+      .legalForCartesianProduct({S64, S32}, {S32})
+      .minScalar(1, S32);
   getLegacyLegalizerInfo().computeTables();
 }
 
