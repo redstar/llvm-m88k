@@ -26,6 +26,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/IR/IntrinsicsM88k.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 
