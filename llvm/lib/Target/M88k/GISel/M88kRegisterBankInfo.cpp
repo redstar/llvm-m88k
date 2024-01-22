@@ -13,6 +13,7 @@
 #include "M88kRegisterBankInfo.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
@@ -21,6 +22,7 @@
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/IR/IntrinsicsM88k.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
@@ -372,6 +374,22 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
         getCopyMapping(DstRB.getID(), SrcRB.getID(), Size),
         // We only care about the mapping of the destination for COPY.
         /*NumOperands*/ Opc == TargetOpcode::G_BITCAST ? 2 : 1);
+  }
+  case TargetOpcode::G_INTRINSIC: {
+    switch (cast<GIntrinsic>(MI).getIntrinsicID()) {
+    default:
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+      MI.dump();
+#endif
+      return getInvalidInstructionMapping();
+    case Intrinsic::m88k_ff1:
+    case Intrinsic::m88k_ff0: {
+      OperandsMapping = getOperandsMapping(
+          {getValueMapping(PMI_GR32), nullptr, getValueMapping(PMI_GR32)});
+      break;
+    }
+    }
+    break;
   }
   default:
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
