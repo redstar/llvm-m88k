@@ -396,12 +396,10 @@ def FF0r : FindBF<0b111011, "ff0">;
 def : Pat<(int_m88k_ff1 GPROpnd:$rs), (FF1r GPROpnd:$rs)>;
 def : Pat<(int_m88k_ff0 GPROpnd:$rs), (FF0r GPROpnd:$rs)>;
 
-// ctlz = ff1 ^ 0x1f
-// This inverts the lower 5 bits, returning the required range.
-def : Pat<(ctlz GPROpnd:$rs), (XORri (FF1r GPROpnd:$rs), 31)>;
-
-// ctlz_zero_undef is similar.
-// But since 0 is poison some simple patterns allow for better code.
+// ctlz_zero_undef = ff1 ^ 0x1f.
+// This inverts the lower 5 bits, returning the required range. However, an
+// all-zero input is mapped to 63. Since input 0 is poison we do not care.
+// Some simple patterns allow for better code.
 def : Pat<(sub 31, (ctlz_zero_undef GPROpnd:$rs)), (FF1r GPROpnd:$rs)>;
 def : Pat<(xor (ctlz_zero_undef GPROpnd:$rs), 31), (FF1r GPROpnd:$rs)>;
 def : Pat<(ctlz_zero_undef GPROpnd:$rs), (XORri (FF1r GPROpnd:$rs), 31)>;
