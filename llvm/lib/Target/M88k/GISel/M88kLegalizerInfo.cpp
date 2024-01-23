@@ -29,6 +29,7 @@
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/IntrinsicsM88k.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/Casting.h"
@@ -171,7 +172,9 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
       .clampScalar(1, S32, S32);
   getActionDefinitionsBuilder(G_ROTR).legalFor({{S32}, {S32}});
   getActionDefinitionsBuilder({G_ROTL, G_FSHL, G_FSHR}).lower();
-  getActionDefinitionsBuilder({G_CTLZ, G_CTLZ_ZERO_UNDEF})
+  getActionDefinitionsBuilder(G_CTLZ)
+    .customFor({{S32}, {S32}});
+  getActionDefinitionsBuilder(G_CTLZ_ZERO_UNDEF)
       .legalFor({{S32}, {S32}});
   getActionDefinitionsBuilder({G_SMAX, G_UMAX, G_SMIN, G_UMIN}).lower();
 
@@ -535,6 +538,31 @@ bool M88kLegalizerInfo::legalizeCustom(
       if (DstTy.isPointer())
         MIRBuilder.buildIntToPtr(Dst, Res);
     }
+    MI.eraseFromParent();
+    break;
+  }
+  case G_CTLZ: {
+    // The instruction
+    //   %7:_(s32) = G_CTLZ %0(s32)
+    // is lowered to:
+    //   %1:_(s32) = G_INTRINSIC intrinsic(@llvm.m88k.ff1), %0(s32)
+    //   %4:_(s32) = G_CONSTANT i32 31
+    //   %2:_(s32), %3:_(s1) = G_USUBO %4, %1
+    //   %5:_(s32) = G_ZEXT %3(s1)
+    //   %6:_(s32) = G_AND %2, %4
+    //   %7:_(s32) = G_ADD %6, %5
+    Register Dst = MI.getOperand(0).getReg();
+
+    auto FF1 =
+        MIRBuilder.buildIntrinsic(Intrinsic::m88k_ff1, {S32}, false, false);
+    FF1.addUse(MI.getOperand(1).getReg());
+    Register USub = MRI.createGenericVirtualRegister(S32);
+    Register Carry = MRI.createGenericVirtualRegister(LLT::scalar(1));
+    auto Const31 = MIRBuilder.buildConstant(S32, 31);
+    MIRBuilder.buildUSubo(USub, Carry, Const31, FF1);
+    auto And = MIRBuilder.buildAnd(S32, USub, Const31);
+    auto ZExt = MIRBuilder.buildZExt(S32, Carry);
+    MIRBuilder.buildAdd(Dst, And, ZExt);
     MI.eraseFromParent();
     break;
   }
