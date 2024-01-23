@@ -10,7 +10,10 @@ define i32 @f1(i32 %x) {
 ; CHECK-LABEL: f1:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    ff1 %r2, %r2
-; CHECK-NEXT:    xor %r2, %r2, 31
+; CHECK-NEXT:    or %r3, %r0, 31
+; CHECK-NEXT:    subu.co %r2, %r3, %r2
+; CHECK-NEXT:    mask %r2, %r2, 31
+; CHECK-NEXT:    addu.ci %r2, %r2, %r0
 ; CHECK-NEXT:    jmp %r1
   %res = call i32 @llvm.ctlz.i32(i32 %x, i1 false)
   ret i32 %res
