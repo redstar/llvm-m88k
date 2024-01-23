@@ -176,6 +176,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
     .customFor({{S32}, {S32}});
   getActionDefinitionsBuilder(G_CTLZ_ZERO_UNDEF)
       .legalFor({{S32}, {S32}});
+  getActionDefinitionsBuilder({G_CTTZ, G_CTTZ_ZERO_UNDEF, G_CTPOP}).lower();
   getActionDefinitionsBuilder({G_SMAX, G_UMAX, G_SMIN, G_UMIN}).lower();
 
   getActionDefinitionsBuilder({G_MEMCPY, G_MEMMOVE, G_MEMSET}).libcall();
