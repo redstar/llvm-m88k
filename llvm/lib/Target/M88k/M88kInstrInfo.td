@@ -476,19 +476,22 @@ def : Pat<(and GPROpnd:$rs1, uimm32:$imm),
           (ANDri (ANDriu GPROpnd:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
 def : Pat<(or GPROpnd:$rs1, uimm32:$imm),
           (ORri (ORriu GPROpnd:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
+def : Pat<(xor GPROpnd:$rs1, (i32 4294967295)),
+          (XORrrc GPROpnd:$rs1, (i32 R0))>;
 def : Pat<(xor GPROpnd:$rs1, uimm32:$imm),
           (XORri (XORriu GPROpnd:$rs1, (HI16 i32:$imm)), (LO16 i32:$imm))>;
 
 // Zero constant.
 def : Pat<(i32 0), (ORri (i32 R0), 0)>;
 
-// Constant -65536 aka 4294901760 = 0xffff0000.
-def : Pat<(i32 4294901760), (SETrwo (i32 R0), 16, 16)>;
-
 // Constants < 0 and > -65536
 def : Pat<(i32 simm16Neg:$imm), (SUBUri (i32 R0), (NEG16 i32:$imm))>;
 
+// Shifted mask as constants. E.g. 0x0ff00000.
+def : Pat<(i32 shmask32:$imm), (SETrwo (i32 R0), (CPOP $imm), (CTZ $imm))>;
+
 // 16-bit constants.
+let AddedComplexity = 1 in
 def : Pat<(i32 imm32lo16:$imm), (ORri (i32 R0), (LO16 i32:$imm))>;
 def : Pat<(i32 imm32hi16:$imm), (ORriu (i32 R0), (HI16 i32:$imm))>;
 

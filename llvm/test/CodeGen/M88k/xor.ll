@@ -4,9 +4,19 @@
 ; RUN: llc < %s -mtriple=m88k-openbsd -mcpu=mc88100 -verify-machineinstrs | FileCheck %s
 ; RUN: llc < %s -mtriple=m88k-openbsd -mcpu=mc88110 -verify-machineinstrs | FileCheck %s
 
-; Check two register operands.
-define i32 @f1(i32 %a, i32 %b) {
+; Check xor with -1: two register operands, inverted one is r0.
+define i32 @f1(i32 %a) {
 ; CHECK-LABEL: f1:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    jmp.n %r1
+; CHECK-NEXT:    xor.c %r2, %r2, %r0
+  %res = xor i32 %a, -1
+  ret i32 %res
+}
+
+; Check two register operands.
+define i32 @f2(i32 %a, i32 %b) {
+; CHECK-LABEL: f2:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    jmp.n %r1
 ; CHECK-NEXT:    xor %r2, %r2, %r3
@@ -15,8 +25,8 @@ define i32 @f1(i32 %a, i32 %b) {
 }
 
 ; Check two register operands, second operand inverted.
-define i32 @f2(i32 %a, i32 %b) {
-; CHECK-LABEL: f2:
+define i32 @f3(i32 %a, i32 %b) {
+; CHECK-LABEL: f3:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    jmp.n %r1
 ; CHECK-NEXT:    xor.c %r2, %r2, %r3
@@ -26,8 +36,8 @@ define i32 @f2(i32 %a, i32 %b) {
 }
 
 ; Check immediate in low 16 bits, high 16 bits clear.
-define i32 @f3(i32 %a) {
-; CHECK-LABEL: f3:
+define i32 @f4(i32 %a) {
+; CHECK-LABEL: f4:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    jmp.n %r1
 ; CHECK-NEXT:    xor %r2, %r2, 255
@@ -36,8 +46,8 @@ define i32 @f3(i32 %a) {
 }
 
 ; Check immediate in high 16 bits, low 16 bits set.
-define i32 @f4(i32 %a) {
-; CHECK-LABEL: f4:
+define i32 @f5(i32 %a) {
+; CHECK-LABEL: f5:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    jmp.n %r1
 ; CHECK-NEXT:    xor.u %r2, %r2, 47806
@@ -46,8 +56,8 @@ define i32 @f4(i32 %a) {
 }
 
 ; Check 32-bit immediate.
-define i32 @func_f5(i32 %a) {
-; CHECK-LABEL: func_f5:
+define i32 @f6(i32 %a) {
+; CHECK-LABEL: f6:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    xor.u %r2, %r2, 61680
 ; CHECK-NEXT:    jmp.n %r1
