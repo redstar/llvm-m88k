@@ -39,7 +39,7 @@ define i32 @f4() {
 define i32 @f5() {
 ; CHECK-LABEL: f5:
 ; CHECK:       | %bb.0:
-; CHECK-NEXT:    or.u %r2, %r0, 1
+; CHECK-NEXT:    set %r2, %r0, 1<16>
 ; CHECK-NEXT:    jmp %r1
   ret i32 65536 ; 0x10000
 }
@@ -47,37 +47,45 @@ define i32 @f5() {
 define i32 @f6() {
 ; CHECK-LABEL: f6:
 ; CHECK:       | %bb.0:
+; CHECK-NEXT:    set %r2, %r0, 16<8>
+; CHECK-NEXT:    jmp %r1
+  ret i32 16776960 ; 0x00FFFF00
+}
+
+define i32 @f7() {
+; CHECK-LABEL: f7:
+; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r2, %r0, 1
 ; CHECK-NEXT:    jmp %r1
   ret i32 -1
 }
 
-define i32 @f7() {
-; CHECK-LABEL: f7:
+define i32 @f8() {
+; CHECK-LABEL: f8:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    subu %r2, %r0, 65535
 ; CHECK-NEXT:    jmp %r1
   ret i32 -65535
 }
 
-define i32 @f8() {
-; CHECK-LABEL: f8:
+define i32 @f9() {
+; CHECK-LABEL: f9:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    set %r2, %r0, 16<16>
 ; CHECK-NEXT:    jmp %r1
   ret i32 -65536
 }
 
-define zeroext i16 @f9() {
-; CHECK-LABEL: f9:
+define zeroext i16 @f10() {
+; CHECK-LABEL: f10:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or %r2, %r0, 51966
 ; CHECK-NEXT:    jmp %r1
   ret i16 51966 ; 0xcafe
 }
 
-define i32 @f10() {
-; CHECK-LABEL: f10:
+define i32 @f11() {
+; CHECK-LABEL: f11:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, 51966
 ; CHECK-NEXT:    or %r2, %r2, 47806
@@ -86,8 +94,8 @@ define i32 @f10() {
   ret i32 3405691582 ; 0xcafebabe
 }
 
-define i64 @f11() {
-; CHECK-LABEL: f11:
+define i64 @f12() {
+; CHECK-LABEL: f12:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or %r3, %r0, 0
 ; CHECK-NEXT:    or %r2, %r0, 0
@@ -95,8 +103,8 @@ define i64 @f11() {
   ret i64 0
 }
 
-define i64 @f12() {
-; CHECK-LABEL: f12:
+define i64 @f13() {
+; CHECK-LABEL: f13:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or %r3, %r0, 1
 ; CHECK-NEXT:    or %r2, %r0, 0
@@ -104,8 +112,8 @@ define i64 @f12() {
   ret i64 1
 }
 
-define i64 @f13() {
-; CHECK-LABEL: f13:
+define i64 @f14() {
+; CHECK-LABEL: f14:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, 51966
 ; CHECK-NEXT:    or %r3, %r2, 47806
@@ -115,8 +123,8 @@ define i64 @f13() {
   ret i64 3405691582 ; 0xcafebabe
 }
 
-define i64 @f14() {
-; CHECK-LABEL: f14:
+define i64 @f15() {
+; CHECK-LABEL: f15:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or.u %r2, %r0, 51966
 ; CHECK-NEXT:    or %r3, %r2, 47806
@@ -128,21 +136,19 @@ define i64 @f14() {
   ret i64 -2401053089206453570 ; 0xcafebabe
 }
 
-define float @f15() {
-; CHECK-LABEL: f15:
+define float @f16() {
+; CHECK-LABEL: f16:
 ; CHECK:       | %bb.0:
-; CHECK-NEXT:    or.u %r2, %r0, 16256
+; CHECK-NEXT:    set %r2, %r0, 7<23>
 ; CHECK-NEXT:    jmp %r1
-; Alternativ instruction could also be: set %r2,%r0,7<23>
   ret float 1.0
 }
 
-define double @f16() {
-; CHECK-LABEL: f16:
+define double @f17() {
+; CHECK-LABEL: f17:
 ; CHECK:       | %bb.0:
 ; CHECK-NEXT:    or %r3, %r0, 0
-; CHECK-NEXT:    or.u %r2, %r0, 16368
+; CHECK-NEXT:    set %r2, %r0, 10<20>
 ; CHECK-NEXT:    jmp %r1
-; Alternativ instruction could also be: set %r2,%r0,10<20>
   ret double 1.0
 }
