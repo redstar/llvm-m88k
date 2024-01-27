@@ -16,9 +16,9 @@
 
 #include "M88k.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
-#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/CodeGenTypes/LowLevelType.h"
 #include "llvm/IR/Type.h"
 
 namespace llvm {
