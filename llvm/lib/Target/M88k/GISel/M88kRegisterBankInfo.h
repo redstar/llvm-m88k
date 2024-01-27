@@ -13,9 +13,9 @@
 #ifndef LLVM_LIB_TARGET_M88K_GISEL_M88KREGISTERBANKINFO_H
 #define LLVM_LIB_TARGET_M88K_GISEL_M88KREGISTERBANKINFO_H
 
-#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/RegisterBank.h"
 #include "llvm/CodeGen/RegisterBankInfo.h"
+#include "llvm/CodeGenTypes/LowLevelType.h"
 
 #define GET_REGBANK_DECLARATIONS
 #include "M88kGenRegisterBank.inc"
