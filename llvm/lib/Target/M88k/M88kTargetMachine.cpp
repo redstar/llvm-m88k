@@ -65,6 +65,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeM88kTarget() {
   initializeM88kPostLegalizerCombinerPass(PR);
   initializeM88kPostLegalizerLoweringPass(PR);
   initializeM88kDelaySlotFillerPass(PR);
+  initializeM88kFFSPass(PR);
 }
 
 namespace {
@@ -174,6 +175,7 @@ public:
     return getTM<M88kTargetMachine>();
   }
 
+  void addIRPasses() override;
   void addPreEmitPass() override;
 
   // GlobalISEL
@@ -188,6 +190,12 @@ public:
 
 TargetPassConfig *M88kTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new M88kPassConfig(*this, PM);
+}
+
+void M88kPassConfig::addIRPasses() {
+  if (getOptLevel() != CodeGenOptLevel::None) {
+    addPass(createM88kFFS());
+  }
 }
 
 void M88kPassConfig::addPreEmitPass() {
