@@ -983,6 +983,30 @@ bool M88kInstructionSelector::selectExt(MachineInstr &I, MachineBasicBlock &MBB,
              .addReg(Temp, RegState::Kill)
              .addImm(1)
              .addImm(int64_t(CCCode));
+  } else if (auto Def = getDefSrcRegIgnoringCopies(SrcReg, MRI)) {
+    // Ext of carry.
+    unsigned Opcode = Def->MI->getOpcode();
+    if (!(Opcode == TargetOpcode::G_UADDO || Opcode == TargetOpcode::G_USUBO ||
+          Opcode == TargetOpcode::G_UADDE || Opcode == TargetOpcode::G_USUBE) ||
+        Def->Reg != Def->MI->getOperand(1).getReg())
+      return false;
+
+    // carry set by prev ADD/SUB.
+    BuildMI(*I.getParent(), I, I.getDebugLoc(), TII.get(M88k::COPY),
+            M88k::CARRY)
+        .addReg(Def->Reg);
+
+    //if (!RBI.constrainGenericRegister(Def->Reg, M88k::GPRRegClass, MRI))
+    //  return false;
+
+    if (I.getOpcode() == TargetOpcode::G_SEXT)
+      MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::SUBUrrci), DstReg)
+               .addReg(M88k::R0)
+               .addReg(M88k::R0);
+    else
+      MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ADDUrrci), DstReg)
+               .addReg(M88k::R0)
+               .addReg(M88k::R0);
   } else
     return false;
 
