@@ -180,3 +180,17 @@ define i32 @f15(i32 %a, i32 %b) {
   %dif = sub i32 %a, %conv
   ret i32 %dif
 }
+
+; TODO The generated code for this IR is wrong!
+define i32 @f16(i32 %a, i32 %b, i32 %c, i32 %d) {
+  %res1 = call { i32, i1 } @llvm.usub.with.overflow.i32(i32 0, i32 %a)
+  %res2 = call { i32, i1 } @llvm.usub.with.overflow.i32(i32 0, i32 %b)
+  %carrybit1 = extractvalue { i32, i1 } %res1, 1
+  %carry1 = zext i1 %carrybit1 to i32
+  %sum1 = add i32 %carry1, %c
+  %carrybit2 = extractvalue { i32, i1 } %res2, 1
+  %carry2 = zext i1 %carrybit2 to i32
+  %sum2 = add i32 %carry2, %d
+  %mul = mul i32 %sum1, %sum2
+  ret i32 %mul
+}
