@@ -427,27 +427,35 @@ multiclass ArithTriCarry<bits<6> Func, string OpcStr, bit IsReMat = 0>
     def rrcio : F_IRC<Func, /*carryin=*/0b1, /*carryout=*/0b1, OpcStr>;
 }
 
+// div and mul on the mc88100 are renamed to divs and mulu on the mc88110.
+// The instructions are slightly different (the mc88100 version raises on
+// exception when the FPU is disabled), therefore I defined guarded
+// instructions.
 let isCommutable = 1 in {
   let isAdd = 1 in {
     defm ADDU : ArithTriCarry<0b011000, "addu", 1>;
     defm ADD : ArithTriCarry<0b011100, "add", 1>;
   }
-  defm MULU : ArithTri<0b011011, "mulu">;
+  let Predicates = [NotMC88110] in
+    defm MUL : ArithTri<0b011011, "mul">;
 }
 defm SUBU : ArithTriCarry<0b011001, "subu", 1>;
 defm SUB : ArithTriCarry<0b011101, "sub", 1>;
 defm DIVU : ArithTri<0b011010, "divu">;
-defm DIVS : ArithTri<0b011110, "divs">;
+let Predicates = [NotMC88110] in
+  defm DIV : ArithTri<0b011110, "div">;
 let isCompare = 1 in
   defm CMP : ArithTri<0b011111, "cmp">;
 
-let Predicates = [MC88110] in {
+let Predicates = [MC88110], DecoderNamespace = "MC88110" in {
+  defm DIVS : ArithTri<0b011110, "divs">;
   def DIVUrrd : F_IRCD<0b011010, GPR64Opnd, GPROpnd, "divu.d">;
-  let isCommutable = 1 in
+  let isCommutable = 1 in {
+    defm MULU : ArithTri<0b011011, "mulu">;
     def MULUrrd : F_IRCD<0b011011, GPROpnd, GPROpnd, "mulu.d">;
+  }
 }
 
-// TODO Aliases div -> divs, mul -> mulu. Renames from 88100
 defm : BinaryOpPat<"ADDU", add>;
 defm : BinaryOpPat<"SUBU", sub>;
 defm : BinaryOpPat<"MULU", mul>;
