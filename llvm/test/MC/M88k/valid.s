@@ -278,12 +278,12 @@ isns:
 # CHECK: cmp      %r0, %r2, 4096         | encoding: [0x7c,0x02,0x10,0x00]
 
 # signed integer divide
-  divs     %r0, %r1, %r2
-  divs     %r0, %r1, 0
-  divs     %r0, %r1, 4096
-# CHECK: divs     %r0, %r1, %r2          | encoding: [0xf4,0x01,0x78,0x02]
-# CHECK: divs     %r0, %r1, 0            | encoding: [0x78,0x01,0x00,0x00]
-# CHECK: divs     %r0, %r1, 4096         | encoding: [0x78,0x01,0x10,0x00]
+  div      %r0, %r1, %r2
+  div      %r0, %r1, 0
+  div      %r0, %r1, 4096
+# CHECK: div      %r0, %r1, %r2          | encoding: [0xf4,0x01,0x78,0x02]
+# CHECK: div      %r0, %r1, 0            | encoding: [0x78,0x01,0x00,0x00]
+# CHECK: div      %r0, %r1, 4096         | encoding: [0x78,0x01,0x10,0x00]
 
   # unsigned integer divide
   divu     %r0, %r1, %r2
@@ -581,12 +581,12 @@ isns:
 # CHECK: mask.u   %r0, %r1, 4096         | encoding: [0x4c,0x01,0x10,0x00]
 
 # integer multiply
-  mulu         %r0, %r1, %r2
-  mulu         %r0, %r1, 0
-  mulu         %r0, %r1, 4096
-# CHECK: mulu         %r0, %r1, %r2      | encoding: [0xf4,0x01,0x6c,0x02]
-# CHECK: mulu         %r0, %r1, 0        | encoding: [0x6c,0x01,0x00,0x00]
-# CHECK: mulu         %r0, %r1, 4096     | encoding: [0x6c,0x01,0x10,0x00]
+  mul          %r0, %r1, %r2
+  mul          %r0, %r1, 0
+  mul          %r0, %r1, 4096
+# CHECK: mul          %r0, %r1, %r2      | encoding: [0xf4,0x01,0x6c,0x02]
+# CHECK: mul          %r0, %r1, 0        | encoding: [0x6c,0x01,0x00,0x00]
+# CHECK: mul          %r0, %r1, 4096     | encoding: [0x6c,0x01,0x10,0x00]
 
 # floating point round to nearest integer
   nint.ss      %r0, %r10
