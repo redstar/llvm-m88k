@@ -5,6 +5,18 @@
 # instructions seems to be wrong. It's not possible to use gas/objdump to verify
 # the instructions in this file.
 
+# signed integer divide
+  divs     %r0, %r1, %r2
+  divs     %r0, %r1, 0
+  divs     %r0, %r1, 4096
+# CHECK: divs     %r0, %r1, %r2          | encoding: [0xf4,0x01,0x78,0x02]
+# CHECK: divs     %r0, %r1, 0            | encoding: [0x78,0x01,0x00,0x00]
+# CHECK: divs     %r0, %r1, 4096         | encoding: [0x78,0x01,0x10,0x00]
+
+# unsigned integer divide
+  divu.d   %r0, %r2, %r4
+# CHECK: divu.d   %r0, %r2, %r4          | encoding: [0xf4,0x02,0x69,0x04]
+
 isns:
   # floating point add
   fadd.sss     %x0, %x1, %x2
@@ -389,6 +401,16 @@ isns:
 
 # load address
   lda.x        %r2, %r3[%r4]
+
+# integer multiply
+  mulu         %r0, %r1, %r2
+  mulu         %r0, %r1, 0
+  mulu         %r0, %r1, 4096
+  mulu.d       %r2, %r4, %r5
+# CHECK: mulu         %r0, %r1, %r2      | encoding: [0xf4,0x01,0x6c,0x02]
+# CHECK: mulu         %r0, %r1, 0        | encoding: [0x6c,0x01,0x00,0x00]
+# CHECK: mulu         %r0, %r1, 4096     | encoding: [0x6c,0x01,0x10,0x00]
+# CHECK: mulu.d       %r2, %r4, %r5      | encoding: [0xf4,0x44,0x6d,0x05]
 
 # floating point round to nearest integer
   nint.ss      %r1, %x10
