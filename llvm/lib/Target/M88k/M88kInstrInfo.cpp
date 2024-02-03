@@ -340,7 +340,7 @@ bool M88kInstrInfo::reverseBranchCondition(
   return false;
 }
 
-unsigned M88kInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
+Register M88kInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                             int &FrameIndex) const {
   switch (MI.getOpcode()) {
   // TODO Check which LD instructions are really selected.
@@ -373,7 +373,7 @@ unsigned M88kInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
   return 0;
 }
 
-unsigned M88kInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
+Register M88kInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                            int &FrameIndex) const {
   switch (MI.getOpcode()) {
   // TODO Check which ST instructions are really selected.
