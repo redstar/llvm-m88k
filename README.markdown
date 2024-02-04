@@ -124,7 +124,8 @@ manual page at
 https://sourceware.org/binutils/docs-2.16/
 
 You can download that version from
-http://ftp.gnu.org/gnu/binutils/binutils-2.16.1a.tar.bz2
+http://ftp.gnu.org/gnu/binutils/binutils-2.16.1a.tar.bz2, and browse the source at
+https://sourceware.org/git/?p=binutils-gdb.git;a=tree;h=a7e286b9ab6d33e8261bfadc992d5bf753b36e9f;hb=a783ed1a1ba08d73583da5a56470e4af5acfb6bd.
 
 ### Implementation
 
