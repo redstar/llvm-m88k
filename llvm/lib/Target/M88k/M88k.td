@@ -55,7 +55,9 @@ def : ProcessorModel<"mc88110", M88110SchedModel, [Proc88110]>;
 //===----------------------------------------------------------------------===//
 
 def M88kInstrInfo : InstrInfo;
-def M88kAsmParser : AsmParser;
+def M88kAsmParser : AsmParser {
+  let ShouldEmitMatchRegisterAltName = 1;  
+}
 def M88kAsmParserVariant : AsmParserVariant {
   let RegisterPrefix = "%";
   let TokenizingCharacters = "[]<>*!";
