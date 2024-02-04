@@ -12,7 +12,8 @@ class M88kReg<bits<5> Enc, string n> : Register<n> {
   let Namespace = "M88k";
 }
 
-class M88kCRReg<bits<6> Enc, string n> : Register<n> {
+class M88kCRReg<bits<6> Enc, string n, string altName = "">
+        : Register<n, !if(!eq(altName, ""), [], [altName])> {
   let HWEncoding{15-6} = 0;
   let HWEncoding{5-0} = Enc;
   let Namespace = "M88k";
@@ -79,7 +80,28 @@ def XROpnd : M88kRegisterOperand<XR> {
 }
 
 // Control registers.
-foreach I = 0-63 in {
+def CR0 : M88kCRReg<0, "cr0", "PID">;
+def CR1 : M88kCRReg<1, "cr1", "PSR">;
+def CR2 : M88kCRReg<2, "cr2", "EPSR">;
+def CR3 : M88kCRReg<3, "cr3", "SSBR">;
+def CR4 : M88kCRReg<4, "cr4", "SXIP">;
+def CR5 : M88kCRReg<5, "cr5", "SNIP">;
+def CR6 : M88kCRReg<6, "cr6", "SFIP">;
+def CR7 : M88kCRReg<7, "cr7", "VBR">;
+def CR8 : M88kCRReg<8, "cr8", "DMT0">;
+def CR9 : M88kCRReg<9, "cr9", "DMD0">;
+def CR10 : M88kCRReg<10, "cr10", "DMA0">;
+def CR11 : M88kCRReg<11, "cr11", "DMT1">;
+def CR12 : M88kCRReg<12, "cr12", "DMD1">;
+def CR13 : M88kCRReg<13, "cr13", "DMA1">;
+def CR14 : M88kCRReg<14, "cr14", "DMT2">;
+def CR15 : M88kCRReg<15, "cr15", "DMD2">;
+def CR16 : M88kCRReg<16, "cr16", "DMA2">;
+def CR17 : M88kCRReg<17, "cr17", "SR0">;
+def CR18 : M88kCRReg<18, "cr18", "SR1">;
+def CR19 : M88kCRReg<19, "cr19", "SR2">;
+def CR20 : M88kCRReg<20, "cr20", "SR3">;
+foreach I = 21-63 in {
   def CR#I : M88kCRReg<I, "cr"#I>;
 }
 
@@ -88,9 +110,21 @@ def CARRY: M88kCRReg<1, "carry"> {
   let Aliases = [CR1];
 }
 
-foreach I = 0-63 in {
+// Floating point control registers, with alternative names.
+def FCR0 : M88kCRReg<0, "fcr0", "FPECR">;
+def FCR1 : M88kCRReg<1, "fcr1", "FPHS1">;
+def FCR2 : M88kCRReg<2, "fcr2", "FPLS1">;
+def FCR3 : M88kCRReg<3, "fcr3", "FPHS2">;
+def FCR4 : M88kCRReg<4, "fcr4", "FPLS2">;
+def FCR5 : M88kCRReg<5, "fcr5", "FPPT">;
+def FCR6 : M88kCRReg<6, "fcr6", "FPRH">;
+def FCR7 : M88kCRReg<7, "fcr7", "FPRL">;
+def FCR8 : M88kCRReg<8, "fcr8", "FPIT">;
+foreach I = 9-61 in {
   def FCR#I : M88kCRReg<I, "fcr"#I>;
 }
+def FCR62 : M88kCRReg<62, "fcr62", "FPSR">;
+def FCR63 : M88kCRReg<63, "fcr63", "FPCR">;
 
 let isAllocatable = 0 in {
   def CR : M88kRegisterClass<[i32], 32, 32, (add (sequence "CR%u", 0, 63))>;
