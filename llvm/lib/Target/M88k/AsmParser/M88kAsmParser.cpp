@@ -593,6 +593,14 @@ ParseStatus M88kAsmParser::parsePCRel(OperandVector &Operands, unsigned Bits) {
   return ParseStatus::Success;
 }
 
+// Matches the normal register name, or the alternative register name.
+static unsigned matchRegisterName(StringRef Name) {
+  unsigned RegNo = MatchRegisterName(Name);
+  if (RegNo == 0)
+    RegNo = MatchRegisterAltName(Name);
+  return RegNo;
+}
+
 // Parses register of form %(r|x|cr|fcr)<No>.
 bool M88kAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                   SMLoc &EndLoc, bool RestoreOnFailure) {
@@ -601,13 +609,12 @@ bool M88kAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
   // Eat the '%' prefix.
   if (Parser.getTok().isNot(AsmToken::Percent))
     return true;
-  // return Error(Parser.getTok().getLoc(), "register expected");
   const AsmToken &PercentTok = Parser.getTok();
   Parser.Lex();
 
   // Match the register.
   if (Lexer.getKind() != AsmToken::Identifier ||
-      (RegNo = MatchRegisterName(Lexer.getTok().getIdentifier())) == 0) {
+      (RegNo = matchRegisterName(Lexer.getTok().getIdentifier())) == 0) {
     if (RestoreOnFailure)
       Lexer.UnLex(PercentTok);
     return Error(StartLoc, "invalid register");
