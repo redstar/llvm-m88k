@@ -1022,7 +1022,7 @@ multiclass FArith<bits<4> Func, string OpcStr, SDPatternOperator op> {
       foreach S2 =[FTG32, FTG64] in {
         let regfile = 0 in {
           def g # D.option # S1.option # S2.option :
-                  F_SFU1<Func, D.enc, S1.enc, S2.enc,
+                  F_SFU1T<Func, D.enc, S1.enc, S2.enc,
                       (outs D.cls:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
                       !strconcat(OpcStr, ".", D.option, S1.option, S2.option),
                       [(set (D.vt D.cls:$rd), FloatPat<D, S1, S2, op>.val)]>;
@@ -1035,7 +1035,7 @@ multiclass FArith<bits<4> Func, string OpcStr, SDPatternOperator op> {
       foreach S2 =[FTX32, FTX64, FTX80] in {
         let regfile = 1 in {
           def x # D.option # S1.option # S2.option :
-                  F_SFU1<Func, D.enc, S1.enc, S2.enc,
+                  F_SFU1T<Func, D.enc, S1.enc, S2.enc,
                       (outs D.cls:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
                       !strconcat(OpcStr, ".", D.option, S1.option, S2.option),
                       [(set (D.vt D.cls:$rd), FloatPat<D, S1, S2, op>.val)]>;
@@ -1101,7 +1101,7 @@ multiclass FCmp<bits<4> Func, bits<2> td, string OpcStr> {
     foreach S2 = [FTG32, FTG64] in {
       let regfile = 0 in {
         def gs # S1.option # S2.option :
-            F_SFU1<Func, /*td=*/ td, /*t1=*/ S1.enc, /*t2=*/ S2.enc,
+            F_SFU1T<Func, /*td=*/ td, /*t1=*/ S1.enc, /*t2=*/ S2.enc,
                    (outs GPROpnd:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
                    !strconcat(OpcStr, ".s", S1.option, S2.option)>;
       }
@@ -1111,7 +1111,7 @@ multiclass FCmp<bits<4> Func, bits<2> td, string OpcStr> {
     foreach S2 = [FTX32, FTX64, FTX80] in {
       let regfile = 1 in {
         def xs # S1.option # S2.option :
-            F_SFU1<Func, /*td=*/ td, /*t1=*/ S1.enc, /*t2=*/ S2.enc,
+            F_SFU1T<Func, /*td=*/ td, /*t1=*/ S1.enc, /*t2=*/ S2.enc,
                    (outs GPROpnd:$rd), (ins S1.cls:$rs1, S2.cls:$rs2),
                    !strconcat(OpcStr, ".s", S1.option, S2.option)>;
       }
@@ -1318,22 +1318,22 @@ defm : BranchPat<SETUGE, setuge, 11>;
 // ---------------------------------------------------------------------------//
 
 let rs1 = 0, rs2 = 0 in {
-def LDCR : F_SFU1CR<0b01000, (outs GPROpnd:$rd), (ins CROpnd:$cr),
+def LDCR : F_SFU0CR<0b01000, (outs GPROpnd:$rd), (ins CROpnd:$cr),
                     "ldcr", "$rd, $cr">;
-def FLDCR : F_SFU1CR<0b01001, (outs GPROpnd:$rd), (ins FCROpnd:$cr),
+def FLDCR : F_SFU0CR<0b01001, (outs GPROpnd:$rd), (ins FCROpnd:$cr),
                      "fldcr", "$rd, $cr">;
 }
 
 let rd = 0 in {
-def STCR : F_SFU1CR2<0b10000, (outs CROpnd:$cr), (ins GPROpnd:$rs1),
+def STCR : F_SFU0CR2<0b10000, (outs CROpnd:$cr), (ins GPROpnd:$rs1),
                      "stcr", "$rs1, $cr">;
-def FSTCR : F_SFU1CR2<0b10001, (outs FCROpnd:$cr), (ins GPROpnd:$rs1),
+def FSTCR : F_SFU0CR2<0b10001, (outs FCROpnd:$cr), (ins GPROpnd:$rs1),
                       "fstcr", "$rs1, $cr">;
 }
 
-def XCR : F_SFU1CR2<0b11000, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, CROpnd:$cr),
+def XCR : F_SFU0CR2<0b11000, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, CROpnd:$cr),
                     "xcr", "$rd, $rs1, $cr">;
-def FXCR : F_SFU1CR2<0b11001, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, FCROpnd:$cr),
+def FXCR : F_SFU0CR2<0b11001, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, FCROpnd:$cr),
                      "fxcr", "$rd, $rs1, $cr">;
 
 // ---------------------------------------------------------------------------//
@@ -1341,46 +1341,46 @@ def FXCR : F_SFU1CR2<0b11001, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, FCROpnd:$cr
 // ---------------------------------------------------------------------------//
 
 multiclass PArithPixel<bits<5> func, string opc, SDNode OpNode> {
-  def "": F_SFU2<func, /*sat=*/ 0b00, /*ty=*/ 0b11,
+  def "": F_SFU2T<func, /*sat=*/ 0b00, /*ty=*/ 0b11,
                  (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                  opc,
                  [(set v2i32:$rd, (OpNode v2i32:$rs1, v2i32:$rs2))]>;
-  def b : F_SFU2<func, /*sat=*/ 0b00, /*ty=*/ 0b01,
+  def b : F_SFU2T<func, /*sat=*/ 0b00, /*ty=*/ 0b01,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".b"),
                  [(set v8i8:$rd, (OpNode v8i8:$rs1, v8i8:$rs2))]>;
-  def h : F_SFU2<func, /*sat=*/ 0b00, /*ty=*/ 0b10,
+  def h : F_SFU2T<func, /*sat=*/ 0b00, /*ty=*/ 0b10,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".h"),
                  [(set v4i16:$rd, (OpNode v4i16:$rs1, v4i16:$rs2))]>;
 }
 
 multiclass PArithPixelSat<bits<5> func, string opc> {
-  def u: F_SFU2<func, /*sat=*/ 0b01, /*ty=*/ 0b11,
+  def u: F_SFU2T<func, /*sat=*/ 0b01, /*ty=*/ 0b11,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".u")>;
-  def ub: F_SFU2<func, /*sat=*/ 0b01, /*ty=*/ 0b01,
+  def ub: F_SFU2T<func, /*sat=*/ 0b01, /*ty=*/ 0b01,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".u.b")>;
-  def uh: F_SFU2<func, /*sat=*/ 0b01, /*ty=*/ 0b10,
+  def uh: F_SFU2T<func, /*sat=*/ 0b01, /*ty=*/ 0b10,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".u.h")>;
-  def us: F_SFU2<func, /*sat=*/ 0b10, /*ty=*/ 0b11,
+  def us: F_SFU2T<func, /*sat=*/ 0b10, /*ty=*/ 0b11,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".us")>;
-  def usb: F_SFU2<func, /*sat=*/ 0b10, /*ty=*/ 0b01,
+  def usb: F_SFU2T<func, /*sat=*/ 0b10, /*ty=*/ 0b01,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".us.b")>;
-  def ush: F_SFU2<func, /*sat=*/ 0b10, /*ty=*/ 0b10,
+  def ush: F_SFU2T<func, /*sat=*/ 0b10, /*ty=*/ 0b10,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".us.h")>;
-  def s: F_SFU2<func, /*sat=*/ 0b11, /*ty=*/ 0b11,
+  def s: F_SFU2T<func, /*sat=*/ 0b11, /*ty=*/ 0b11,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".s")>;
-  def sb: F_SFU2<func, /*sat=*/ 0b11, /*ty=*/ 0b01,
+  def sb: F_SFU2T<func, /*sat=*/ 0b11, /*ty=*/ 0b01,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".s.b")>;
-  def sh: F_SFU2<func, /*sat=*/ 0b11, /*ty=*/ 0b10,
+  def sh: F_SFU2T<func, /*sat=*/ 0b11, /*ty=*/ 0b10,
                   (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   !strconcat(opc, ".s.h")>;
 }
@@ -1410,10 +1410,10 @@ multiclass PPack {
 
 let Predicates = [Graphics] in {
 
-def PMUL : F_SFU2<0b00000, 0b00, 0b00,
+def PMUL : F_SFU2T<0b00000, 0b00, 0b00,
                   (outs GPR64Opnd:$rd), (ins GPROpnd:$rs1, GPR64Opnd:$rs2),
                   "pmul">;
-def PCMP : F_SFU2<0b00111, 0b00, 0b11,
+def PCMP : F_SFU2T<0b00111, 0b00, 0b11,
                   (outs GPROpnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2),
                   "pcmp">;
 defm PADD : PArithPixel<0b00100, "padd", add>;
@@ -1423,7 +1423,7 @@ defm PSUBS : PArithPixelSat<0b00110, "psubs">;
 defm PPACK : PPack;
 def PROTri : F_SFU2PROT<0b01110, (outs GPR64Opnd:$rd),
                         (ins GPR64Opnd:$rs1, pixelrot:$o6), "prot">;
-def PROTrr : F_SFU2<0b01111, /*sat=*/ 0b00, /*ty=*/ 0b00,
+def PROTrr : F_SFU2T<0b01111, /*sat=*/ 0b00, /*ty=*/ 0b00,
                     (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1, GPR64Opnd:$rs2), "prot">;
 def PUNPKn : F_SFU2D<0b01101, /*sat=*/ 0b00, /*ty=*/ 0b00,
                      (outs GPR64Opnd:$rd), (ins GPR64Opnd:$rs1), "punpk.n">;
