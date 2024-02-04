@@ -470,11 +470,31 @@ class F_SFU<dag outs, dag ins, string asm, string operands,
   let Inst{4-0} = rs2;
 }
 
-// Format: Triadic register.
+// Format: SFU 0 - Control register.
+class F_SFU0CR<bits<5> func, dag outs, dag ins, string asm, string operands>
+   : F_SFU<outs, ins, asm, operands, []> {
+
+  bits<6>  cr;
+
+  let Inst{28-26} = 0b000;
+  let Inst{15-11} = func;
+  let Inst{10-5} = cr;
+}
+
+class F_SFU0CR2<bits<5> func, dag outs, dag ins, string asm, string operands>
+   : F_SFU0CR<func, outs, ins, asm, operands> {
+  let rs2 = rs1;
+}
+
+// Format: SFU 1 - Floating point instructions.
 class F_SFU1<bits<4> func, bits<2> td, bits<2> t1, bits<2> t2,
-             dag outs, dag ins, string asmstr, list<dag> pattern = []>
-   : F_SFU<outs, ins, asmstr, "$rd, $rs1, $rs2", pattern> {
+             dag outs, dag ins, string asm, string operands,
+             list<dag> pattern = []>
+   : F_SFU<outs, ins, asm, operands, pattern> {
   bits<1>  regfile;
+
+  // All floating point instructions may raise an FP exception.
+  let mayRaiseFPException = 1;
 
   let Inst{28-26} = 0b001;
   let Inst{15} = regfile;
@@ -484,20 +504,17 @@ class F_SFU1<bits<4> func, bits<2> td, bits<2> t1, bits<2> t2,
   let Inst{6-5} = td;
 }
 
+// Format: Triadic register.
+class F_SFU1T<bits<4> func, bits<2> td, bits<2> t1, bits<2> t2,
+              dag outs, dag ins, string asmstr, list<dag> pattern = []>
+   : F_SFU1<func, td, t1, t2, outs, ins, asmstr, "$rd, $rs1, $rs2", pattern> {
+}
+
 // Format: Dyadic register.
 class F_SFU1D<bits<4> func, bits<2> td, bits<2> t1, bits<2> t2,
               dag outs, dag ins, string asmstr, list<dag> pattern = []>
-   : F_SFU<outs, ins, asmstr, "$rd, $rs2", pattern> {
-  bits<1>  regfile;
-
+   : F_SFU1<func, td, t1, t2, outs, ins, asmstr, "$rd, $rs2", pattern> {
   let rs1 = 0b00000;
-
-  let Inst{28-26} = 0b001;
-  let Inst{15} = regfile;
-  let Inst{14-11} = func;
-  let Inst{10-9} = t1;
-  let Inst{8-7} = t2;
-  let Inst{6-5} = td;
 }
 
 // Format: Dyadic register, for flt.
@@ -508,6 +525,9 @@ class F_SFU1FLT<bits<2> td, dag outs, dag ins, string asmstr,
 
   let rs1 = 0b00000;
 
+  // All floating point instructions may raise an FP exception.
+  let mayRaiseFPException = 1;
+
   let Inst{28-26} = 0b001;
   let Inst{15-10} = 0b001000;
   let Inst{9} = regfile;
@@ -515,64 +535,46 @@ class F_SFU1FLT<bits<2> td, dag outs, dag ins, string asmstr,
   let Inst{6-5} = td;
 }
 
-// Format: Control register.
-class F_SFU1CR<bits<5> func, dag outs, dag ins, string asm, string operands>
-   : F_SFU<outs, ins, asm, operands, []> {
-
-  bits<6>  cr;
-
-  let Inst{28-26} = 0b000;
+// Format: SFU 2 - Graphics instructions.
+class F_SFU2<bits<5> func, bits<2> ty,
+             dag outs, dag ins, string asm, string operands,
+             list<dag> pattern = []>
+   : F_SFU<outs, ins, asm, operands, pattern> {
+  let Inst{28-26} = 0b010;
   let Inst{15-11} = func;
-  let Inst{10-5} = cr;
-}
-
-class F_SFU1CR2<bits<5> func, dag outs, dag ins, string asm, string operands>
-   : F_SFU1CR<func, outs, ins, asm, operands> {
-  let rs2 = rs1;
+  let Inst{6-5}   = ty;
 }
 
 // Format: Triadic register.
-class F_SFU2<bits<5> func, bits<2> sat, bits<2> ty,
-             dag outs, dag ins, string asmstr, list<dag> pattern = []>
-   : F_SFU<outs, ins, asmstr, "$rd, $rs1, $rs2", pattern> {
-  let Inst{28-26} = 0b010;
-  let Inst{15-11} = func;
+class F_SFU2T<bits<5> func, bits<2> sat, bits<2> ty,
+              dag outs, dag ins, string asmstr, list<dag> pattern = []>
+   : F_SFU2<func, ty, outs, ins, asmstr, "$rd, $rs1, $rs2", pattern> {
   let Inst{10-9} = 0;
   let Inst{8-7} = sat;
-  let Inst{6-5} = ty;
 }
 
 // Format: Dyadic register.
 class F_SFU2D<bits<5> func, bits<2> sat, bits<2> ty,
               dag outs, dag ins, string asmstr, list<dag> pattern = []>
-   : F_SFU<outs, ins, asmstr, "$rd, $rs1", pattern> {
+   : F_SFU2<func, ty, outs, ins, asmstr, "$rd, $rs1", pattern> {
   let rs2 = 0b00000;
 
-  let Inst{28-26} = 0b010;
-  let Inst{15-11} = func;
   let Inst{10-9} = 0;
   let Inst{8-7} = sat;
-  let Inst{6-5} = ty;
 }
 
 // Format: Triadic register - ppack.
 class F_SFU2PPACK<bits<5> func, bits<4> r, bits<2> ty,
                   dag outs, dag ins, string asmstr, list<dag> pattern = []>
-   : F_SFU<outs, ins, asmstr, "$rd, $rs1, $rs2", pattern> {
-  let Inst{28-26} = 0b010;
-  let Inst{15-11} = func;
+   : F_SFU2<func, ty, outs, ins, asmstr, "$rd, $rs1, $rs2", pattern> {
   let Inst{10-7}  = r;
-  let Inst{6-5}   = ty;
 }
 
 // Format: Dyadic register with 6 bit immediate - prot.
 class F_SFU2PROT<bits<5> func, dag outs, dag ins, string asmstr,
                  list<dag> pattern = []>
-   : F_SFU<outs, ins, asmstr, "$rd, $rs1, $o6", pattern> {
+   : F_SFU2<func, /*ty=*/0b00, outs, ins, asmstr, "$rd, $rs1, $o6", pattern> {
   bits<6> o6;
   let rs2 = 0b00000;
-  let Inst{28-26} = 0b010;
-  let Inst{15-11} = func;
   let Inst{10-7}  = o6{5-2};
-  let Inst{6-5}   = 0b00;
 }
