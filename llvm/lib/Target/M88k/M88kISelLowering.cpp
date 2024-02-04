@@ -77,6 +77,8 @@ M88kTargetLowering::getRegisterByName(const char *RegName, LLT Ty,
                                       const MachineFunction &MF) const {
   if (Register Reg = MatchRegisterName(RegName))
     return Reg;
+  if (Register Reg = MatchRegisterAltName(RegName))
+    return Reg;
   report_fatal_error(
       Twine("Invalid register name \"" + StringRef(RegName) + "\"."));
 }
