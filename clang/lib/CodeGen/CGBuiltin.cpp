@@ -47,6 +47,7 @@
 #include "llvm/IR/IntrinsicsBPF.h"
 #include "llvm/IR/IntrinsicsDirectX.h"
 #include "llvm/IR/IntrinsicsHexagon.h"
+#include "llvm/IR/IntrinsicsM88k.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/IntrinsicsPowerPC.h"
 #include "llvm/IR/IntrinsicsR600.h"
@@ -6293,6 +6294,8 @@ static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
     return CGF->EmitX86BuiltinExpr(BuiltinID, E);
+  case llvm::Triple::m88k:
+    return CGF->EmitM88kBuiltinExpr(BuiltinID, E);
   case llvm::Triple::ppc:
   case llvm::Triple::ppcle:
   case llvm::Triple::ppc64:
@@ -16824,6 +16827,26 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
         CGM.getIntrinsic(Intrinsic::prefetch, Ops[0]->getType()),
         {Ops[0], llvm::ConstantInt::get(Int32Ty, 0), Ops[1],
          llvm::ConstantInt::get(Int32Ty, 0)});
+  }
+}
+
+Value *CodeGenFunction::EmitM88kBuiltinExpr(unsigned BuiltinID,
+                                            const CallExpr *E) {
+  switch (BuiltinID) {
+  default:
+    return nullptr;
+
+  case M88k::BI__builtin_m88k_ff1:
+  case M88k::BI__builtin_m88k_ff0: {
+    unsigned IID = BuiltinID == M88k::BI__builtin_m88k_ff1
+                       ? llvm::Intrinsic::m88k_ff1
+                       : llvm::Intrinsic::m88k_ff0;
+    llvm::Value *Arg = EmitScalarExpr(E->getArg(0));
+    Function *Intr = CGM.getIntrinsic(IID);
+    llvm::CallInst *Call = Builder.CreateCall(Intr, Arg);
+    Call->setDoesNotAccessMemory();
+    return Call;
+  }
   }
 }
 
