@@ -14,4 +14,14 @@ define i32 @f1(i32 %x) {
   ret i32 %res
 }
 
+define i32 @f2(i32 %x) {
+; CHECK-LABEL: f2:
+; CHECK:       | %bb.0:
+; CHECK-NEXT:    ff0 %r2, %r2
+; CHECK-NEXT:    jmp %r1
+  %res = tail call i32 @llvm.m88k.ff0(i32 %x)
+  ret i32 %res
+}
+
 declare i32 @llvm.m88k.ff1(i32)
+declare i32 @llvm.m88k.ff0(i32)

@@ -394,6 +394,7 @@ def FF1r : FindBF<0b111010, "ff1">;
 def FF0r : FindBF<0b111011, "ff0">;
 
 def : Pat<(int_m88k_ff1 GPROpnd:$rs), (FF1r GPROpnd:$rs)>;
+def : Pat<(int_m88k_ff0 GPROpnd:$rs), (FF0r GPROpnd:$rs)>;
 
 // ctlz_zero_undef = ff1 ^ 0x1f.
 // This inverts the lower 5 bits, returning the required range. However, an

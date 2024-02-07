@@ -15,4 +15,7 @@ let TargetPrefix = "m88k" in {
 // Find first set.
 def int_m88k_ff1 : Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
 
+// Find first cleared.
+def int_m88k_ff0 : Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+
 }

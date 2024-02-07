@@ -382,7 +382,8 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       MI.dump();
 #endif
       return getInvalidInstructionMapping();
-    case Intrinsic::m88k_ff1: {
+    case Intrinsic::m88k_ff1:
+    case Intrinsic::m88k_ff0: {
       OperandsMapping = getOperandsMapping(
           {getValueMapping(PMI_GR32), nullptr, getValueMapping(PMI_GR32)});
       break;
