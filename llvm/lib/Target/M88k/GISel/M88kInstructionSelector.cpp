@@ -73,11 +73,15 @@ public:
   static const char *getName() { return DEBUG_TYPE; }
 
 private:
+  // A lowering phase that runs before any selection attempts.
+  // Returns true if the instruction was modified.
   bool preISelLower(MachineInstr &I);
 
   // An early selection function that runs before the selectImpl() call.
   bool earlySelect(MachineInstr &I);
 
+  // tblgen-erated 'select' implementation, used as the initial selector for
+  // the patterns that don't require complex C++.
   bool selectImpl(MachineInstr &I, CodeGenCoverage &CoverageInfo) const;
 
   bool constrainSelectedInstRegOperands(MachineInstr &I,
@@ -124,7 +128,8 @@ private:
   bool selectPtrAdd(MachineInstr &I, MachineBasicBlock &MBB,
                     MachineRegisterInfo &MRI) const;
   bool selectAddSubWithCarry(MachineInstr &I, MachineBasicBlock &MBB,
-                             MachineRegisterInfo &MRI) const;
+                             MachineRegisterInfo &MRI,
+                             bool IsRecursive = false);
   bool selectMul(MachineInstr &I, MachineBasicBlock &MBB,
                  MachineRegisterInfo &MRI) const;
   bool selectUDiv(MachineInstr &I, MachineBasicBlock &MBB,
@@ -268,7 +273,7 @@ bool M88kInstructionSelector::constrainSelectedInstRegOperands(
     MachineInstr &I, const MachineRegisterInfo &MRI, const TargetInstrInfo &TII,
     const TargetRegisterInfo &TRI, const RegisterBankInfo &RBI) const {
   for (MachineOperand &OP : I.explicit_operands()) {
-    if (!OP.isReg())
+    if (!OP.isReg() || OP.isDef())
       continue;
     Register Reg = OP.getReg();
     if (Register::isPhysicalRegister(Reg))
@@ -832,51 +837,99 @@ bool M88kInstructionSelector::selectPtrAdd(MachineInstr &I,
   return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
 }
 
-bool M88kInstructionSelector::selectAddSubWithCarry(
-    MachineInstr &I, MachineBasicBlock &MBB, MachineRegisterInfo &MRI) const {
+bool isCarryChangedByInstr(const MachineInstr *I, MachineRegisterInfo &MRI) {
+  if (auto *CarryI = dyn_cast<GAddSubCarryOut>(I))
+    return !MRI.use_nodbg_empty(CarryI->getCarryOutReg());
+  unsigned Opc = I->getOpcode();
+  return Opc == M88k::ADDUrrco || Opc == M88k::ADDUrrcio ||
+         Opc == M88k::SUBUrrco || Opc == M88k::SUBUrrcio;
+}
+
+bool M88kInstructionSelector::selectAddSubWithCarry(MachineInstr &I,
+                                                    MachineBasicBlock &MBB,
+                                                    MachineRegisterInfo &MRI,
+                                                    bool IsRecursive) {
   assert(I.getOpcode() == TargetOpcode::G_UADDO ||
          I.getOpcode() == TargetOpcode::G_USUBO ||
          I.getOpcode() == TargetOpcode::G_UADDE ||
          I.getOpcode() == TargetOpcode::G_USUBE && "Unexpected G code");
 
+  // If the instruction consumes a carry flag, then we need to make sure that
+  // the flag is not destroyed.
+  //  - If between the instruction and the carry-producing instruction is no
+  //    other instruction which produces a carry, then there is no need to copy
+  //    the carry into a virtual register. However, this could turn the
+  //    carry-producing instruction dead, because the def-use relationship is
+  //    broken. To prevent this situation, the carry-producing instruction is
+  //    selected first.
+  //  - Otherwise, the carry-in virtual register is copied into the carry flag.
+  if (auto *CarryInMI = dyn_cast<GAddSubCarryInOut>(&I)) {
+    bool SetCarry = true;
+    MachineInstr *SrcMI = MRI.getVRegDef(CarryInMI->getCarryInReg());
+    if (SrcMI->getParent() == &MBB) {
+      for (auto MI = std::next(MachineBasicBlock::const_reverse_iterator(&I));;
+           ++MI) {
+        if (MI == SrcMI) {
+          if (!selectAddSubWithCarry(*SrcMI, *SrcMI->getParent(), MRI, true))
+            break;
+          SetCarry = false;
+          break;
+        }
+        if (isCarryChangedByInstr(&*MI, MRI))
+          break;
+      }
+    }
+    if (SetCarry) {
+      Register DeadReg = MRI.createVirtualRegister(&M88k::GPRRegClass);
+      MachineInstr *MI =
+          BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::SUBUrrco), DeadReg)
+              .addReg(M88k::R0)
+              .addReg(CarryInMI->getCarryInReg());
+      if (!constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI))
+        return false;
+    }
+  }
+
   static unsigned TargetOpc[] = {
       M88k::ADDUrrco, M88k::ADDUrrci, M88k::ADDUrrcio, // Add
       M88k::SUBUrrco, M88k::SUBUrrci, M88k::SUBUrrcio, // Sub
   };
-  unsigned Opc = I.getOpcode();
-  bool HasCarryInOut =
-      Opc == TargetOpcode::G_UADDE || Opc == TargetOpcode::G_USUBE;
-  bool IsCarryOutUsed =
-      HasCarryInOut && MRI.use_begin(I.getOperand(1).getReg()) != MRI.use_end();
-  bool IsSub = Opc == TargetOpcode::G_USUBO || Opc == TargetOpcode::G_USUBE;
-  unsigned NewOpc =
-      TargetOpc[3 * IsSub + HasCarryInOut + IsCarryOutUsed];
 
-  Register DstReg = I.getOperand(0).getReg();
-  Register Src1Reg = I.getOperand(2).getReg();
-  Register Src2Reg = I.getOperand(3).getReg();
+  auto &CarryMI = cast<GAddSubCarryOut>(I);
+  Register DstReg = CarryMI.getDstReg();
+  Register Src1Reg = CarryMI.getLHS().getReg();
+  Register Src2Reg = CarryMI.getRHS().getReg();
+  Register CarryOutReg = CarryMI.getCarryOutReg();
 
-  auto &MIB = BuildMI(MBB, I, I.getDebugLoc(), TII.get(NewOpc), DstReg)
-           .addReg(Src1Reg)
-           .addReg(Src2Reg);
-  if (HasCarryInOut) {
-    MIB.addReg(I.getOperand(4).getReg(), RegState::Implicit);
-    if (IsCarryOutUsed) {
-      MIB.addReg(I.getOperand(1).getReg(), RegState::ImplicitDefine);
-    }
-  } else
-    MIB.addReg(I.getOperand(1).getReg(), RegState::ImplicitDefine);
+  bool HasCarryInOut = isa<GAddSubCarryInOut>(&CarryMI);
+  bool IsCarryOutUsed = !MRI.use_nodbg_empty(CarryOutReg);
+  bool IsCarryInOutUsed = HasCarryInOut && IsCarryOutUsed;
+  bool IsSub = CarryMI.isSub();
+  unsigned NewOpc = TargetOpc[3 * IsSub + HasCarryInOut + IsCarryInOutUsed];
 
-  // The carry bit aka cr1 is not an allocatable register class. Simply replace
-  // the use of the virtual register with the physical carry register.
-  for (auto &OP : MIB->implicit_operands()) {
-    if (Register::isVirtualRegister(OP.getReg())) {
-      MRI.replaceRegWith(OP.getReg(), M88k::CARRY);
+  MachineInstr *MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(NewOpc), DstReg)
+                         .addReg(Src1Reg)
+                         .addReg(Src2Reg);
+
+  if (IsCarryOutUsed) {
+    // If the carry out is used, then we do not need to copy the carry to a
+    // register if it is a recursive call and there is only exactly one non-
+    // debug use.
+    if (!IsRecursive || hasNItemsOrMore(MRI.use_nodbg_begin(CarryOutReg),
+                                        MRI.use_nodbg_end(), 2)) {
+      // Do not copy the carry flag into a virtual register if it is not used.
+      // This instruction may be dead if the carry-consuming instruction uses
+      // the carry flag directly.
+      if (!constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI))
+        return false;
+      MI =
+          BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ADDUrrci), CarryOutReg)
+              .addReg(M88k::R0)
+              .addReg(M88k::R0);
     }
   }
-
   I.eraseFromParent();
-  return constrainSelectedInstRegOperands(*MIB, MRI, TII, TRI, RBI);
+  return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
 }
 
 bool M88kInstructionSelector::selectMul(MachineInstr &I, MachineBasicBlock &MBB,
@@ -983,30 +1036,6 @@ bool M88kInstructionSelector::selectExt(MachineInstr &I, MachineBasicBlock &MBB,
              .addReg(Temp, RegState::Kill)
              .addImm(1)
              .addImm(int64_t(CCCode));
-  } else if (auto Def = getDefSrcRegIgnoringCopies(SrcReg, MRI)) {
-    // Ext of carry.
-    unsigned Opcode = Def->MI->getOpcode();
-    if (!(Opcode == TargetOpcode::G_UADDO || Opcode == TargetOpcode::G_USUBO ||
-          Opcode == TargetOpcode::G_UADDE || Opcode == TargetOpcode::G_USUBE) ||
-        Def->Reg != Def->MI->getOperand(1).getReg())
-      return false;
-
-    // carry set by prev ADD/SUB.
-    BuildMI(*I.getParent(), I, I.getDebugLoc(), TII.get(M88k::COPY),
-            M88k::CARRY)
-        .addReg(Def->Reg);
-
-    //if (!RBI.constrainGenericRegister(Def->Reg, M88k::GPRRegClass, MRI))
-    //  return false;
-
-    if (I.getOpcode() == TargetOpcode::G_SEXT)
-      MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::SUBUrrci), DstReg)
-               .addReg(M88k::R0)
-               .addReg(M88k::R0);
-    else
-      MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ADDUrrci), DstReg)
-               .addReg(M88k::R0)
-               .addReg(M88k::R0);
   } else
     return false;
 
