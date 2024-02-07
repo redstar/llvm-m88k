@@ -110,9 +110,9 @@ bool matchAddSubFromAddICmp(MachineInstr &MI, MachineRegisterInfo &MRI,
     return false;
   }
 
-  Register Carry = MRI.createGenericVirtualRegister(LLT::scalar(1));
+  Register Carry = MRI.createGenericVirtualRegister(LLT::scalar(32));
   Register UnusedReg = MRI.createGenericVirtualRegister(LLT::scalar(32));
-  Register UnusedCarry = MRI.createGenericVirtualRegister(LLT::scalar(1));
+  Register UnusedCarry = MRI.createGenericVirtualRegister(LLT::scalar(32));
 
   MatchInfo = [=](MachineIRBuilder &B) {
     if (Pred != CmpInst::ICMP_EQ)
@@ -170,9 +170,9 @@ bool matchSubSubFromSubICmp(MachineInstr &SubMI, MachineInstr &ICmpMI,
     return false;
   }
 
-  Register Carry = MRI.createGenericVirtualRegister(LLT::scalar(1));
+  Register Carry = MRI.createGenericVirtualRegister(LLT::scalar(32));
   Register UnusedReg = MRI.createGenericVirtualRegister(LLT::scalar(32));
-  Register UnusedCarry = MRI.createGenericVirtualRegister(LLT::scalar(1));
+  Register UnusedCarry = MRI.createGenericVirtualRegister(LLT::scalar(32));
 
   MatchInfo = [=](MachineIRBuilder &B) {
     if (Pred != CmpInst::ICMP_NE)
@@ -225,9 +225,9 @@ bool matchSubAddFromSubICmp(MachineInstr &SubMI, MachineInstr &ICmpMI,
     return false;
   }
 
-  Register Carry = MRI.createGenericVirtualRegister(LLT::scalar(1));
+  Register Carry = MRI.createGenericVirtualRegister(LLT::scalar(32));
   Register UnusedReg = MRI.createGenericVirtualRegister(LLT::scalar(32));
-  Register UnusedCarry = MRI.createGenericVirtualRegister(LLT::scalar(1));
+  Register UnusedCarry = MRI.createGenericVirtualRegister(LLT::scalar(32));
 
   MatchInfo = [=](MachineIRBuilder &B) {
     B.buildInstr(TargetOpcode::G_UADDO, {UnusedReg, Carry}, {SrcRegB, SrcRegB});
@@ -263,7 +263,7 @@ bool matchAddSubFromAddSub(MachineInstr &MI, MachineRegisterInfo &MRI,
   if (SubMI->getOperand(1).getReg() != Carry)
     return false;
 
-  Register UnusedCarry = MRI.createGenericVirtualRegister(LLT::scalar(1));
+  Register UnusedCarry = MRI.createGenericVirtualRegister(LLT::scalar(32));
 
   MatchInfo = [=](MachineIRBuilder &B) {
     B.buildConstant(ZeroReg, 0);

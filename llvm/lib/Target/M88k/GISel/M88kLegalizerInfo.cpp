@@ -142,8 +142,9 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
       .legalIf(all(typeInSet(0, {V8S8, V4S16, V2S32}), IsMC88110))
       .clampScalar(0, S32, S32);
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE})
-      .legalFor({{S32, S1}})
+      .legalFor({{S32, S32}})
       .clampScalar(0, S32, S32)
+      .clampScalar(1, S32, S32)
       .lower();
   getActionDefinitionsBuilder({G_SADDO, G_SADDE, G_SSUBO, G_SSUBE}).lower();
   getActionDefinitionsBuilder({G_MUL, G_UDIV})
@@ -482,23 +483,24 @@ bool M88kLegalizerInfo::legalizeCustom(
     //   %7:_(s32) = G_CTLZ %0(s32)
     // is lowered to:
     //   %1:_(s32) = G_INTRINSIC intrinsic(@llvm.m88k.ff1), %0(s32)
-    //   %4:_(s32) = G_CONSTANT i32 31
-    //   %2:_(s32), %3:_(s1) = G_USUBO %4, %1
-    //   %5:_(s32) = G_ZEXT %3(s1)
-    //   %6:_(s32) = G_AND %2, %4
-    //   %7:_(s32) = G_ADD %6, %5
+    //   %2:_(s32) = G_CONSTANT i32 31
+    //   %3:_(s32) = G_CONSTANT i32 0
+    //   %4:_(s32), %3:_(s32) = G_USUBO %2, %1
+    //   %5:_(s32) = G_AND %2, %4
+    //   %6:_(s32), %3:_(s32) = G_UADDE %5, %3, %4
     Register Dst = MI.getOperand(0).getReg();
 
     auto FF1 =
         MIRBuilder.buildIntrinsic(Intrinsic::m88k_ff1, {S32}, false, false);
     FF1.addUse(MI.getOperand(1).getReg());
     Register USub = MRI.createGenericVirtualRegister(S32);
-    Register Carry = MRI.createGenericVirtualRegister(LLT::scalar(1));
+    Register Carry = MRI.createGenericVirtualRegister(S32);
+    Register Dead = MRI.createGenericVirtualRegister(S32);
     auto Const31 = MIRBuilder.buildConstant(S32, 31);
+    auto Const0 = MIRBuilder.buildConstant(S32, 0);
     MIRBuilder.buildUSubo(USub, Carry, Const31, FF1);
     auto And = MIRBuilder.buildAnd(S32, USub, Const31);
-    auto ZExt = MIRBuilder.buildZExt(S32, Carry);
-    MIRBuilder.buildAdd(Dst, And, ZExt);
+    MIRBuilder.buildUAdde(Dst, Dead, And, Const0, Carry);
     MI.eraseFromParent();
     break;
   }
