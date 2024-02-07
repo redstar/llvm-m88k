@@ -96,6 +96,10 @@ clang_tablegen(BuiltinsX86_64.inc -gen-clang-builtins
   SOURCE BuiltinsX86_64.td
   TARGET ClangBuiltinsX86_64)
 
+clang_tablegen(BuiltinsM88k.inc -gen-clang-builtins
+  SOURCE BuiltinsM88k.td
+  TARGET ClangBuiltinsM88k)
+
 # ARM NEON and MVE
 clang_tablegen(arm_neon.inc -gen-arm-neon-sema
   SOURCE arm_neon.td

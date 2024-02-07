@@ -89,6 +89,16 @@ namespace clang {
   };
   }
 
+  /// M88k builtins
+  namespace M88k {
+  enum {
+    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+  #define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+  #include "clang/Basic/BuiltinsM88k.inc"
+    LastTSBuiltin
+  };
+  }
+
   /// PPC builtins
   namespace PPC {
     enum {
