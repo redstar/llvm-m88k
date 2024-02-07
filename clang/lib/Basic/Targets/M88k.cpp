@@ -20,8 +20,14 @@
 #include "llvm/TargetParser/TargetParser.h"
 #include <cstring>
 
-namespace clang {
-namespace targets {
+using namespace clang;
+using namespace clang::targets;
+
+static constexpr Builtin::Info BuiltinInfo[] = {
+#define BUILTIN(ID, TYPE, ATTRS)                                               \
+  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
+#include "clang/Basic/BuiltinsM88k.inc"
+};
 
 M88kTargetInfo::M88kTargetInfo(const llvm::Triple &Triple,
                                const TargetOptions &)
@@ -108,8 +114,8 @@ void M88kTargetInfo::getTargetDefines(const LangOptions &Opts,
 }
 
 ArrayRef<Builtin::Info> M88kTargetInfo::getTargetBuiltins() const {
-  // TODO Implement.
-  return std::nullopt;
+  return llvm::ArrayRef(BuiltinInfo,
+                        clang::M88k::LastTSBuiltin - Builtin::FirstTSBuiltin);
 }
 
 bool M88kTargetInfo::hasFeature(StringRef Feature) const {
@@ -153,6 +159,3 @@ std::string_view M88kTargetInfo::getClobbers() const {
   // TODO Implement.
   return "";
 }
-
-} // namespace targets
-} // namespace clang
