@@ -183,16 +183,16 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case TargetOpcode::G_UADDO:
   case TargetOpcode::G_USUBO:
     OperandsMapping = getOperandsMapping(
-        {getValueMapping(PMI_GR32), getValueMapping(PMI_CR),
+        {getValueMapping(PMI_GR32), getValueMapping(PMI_GR32),
          getValueMapping(PMI_GR32), getValueMapping(PMI_GR32)});
     break;
     // Integer arithmetic producing and consuming a carry.
   case TargetOpcode::G_UADDE:
   case TargetOpcode::G_USUBE:
     OperandsMapping = getOperandsMapping(
-        {getValueMapping(PMI_GR32), getValueMapping(PMI_CR),
+        {getValueMapping(PMI_GR32), getValueMapping(PMI_GR32),
          getValueMapping(PMI_GR32), getValueMapping(PMI_GR32),
-         getValueMapping(PMI_CR)});
+         getValueMapping(PMI_GR32)});
     break;
     // Floating point ops.
   case TargetOpcode::G_FADD:
