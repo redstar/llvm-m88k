@@ -189,6 +189,7 @@ public:
     IBM,
     ImaginationTechnologies,
     MipsTechnologies,
+    Motorola,
     NVIDIA,
     CSR,
     AMD,
@@ -219,6 +220,7 @@ public:
     RTEMS,
     NaCl, // Native Client
     AIX,
+    SYSV4,  // System V Release 4
     CUDA,   // NVIDIA CUDA
     NVCL,   // NVIDIA OpenCL
     AMDHSA, // AMD HSA Runtime
@@ -712,6 +714,11 @@ public:
   /// Tests whether the OS is AIX.
   bool isOSAIX() const {
     return getOS() == Triple::AIX;
+  }
+
+  /// Tests whether the OS is SYSV4.
+  bool isOSSYSV4() const {
+    return getOS() == Triple::SYSV4;
   }
 
   bool isOSSerenity() const {
