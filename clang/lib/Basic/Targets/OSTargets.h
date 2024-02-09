@@ -778,6 +778,40 @@ public:
   }
 };
 
+// System V target
+template <typename Target>
+class LLVM_LIBRARY_VISIBILITY SYSVTargetInfo : public OSTargetInfo<Target> {
+protected:
+  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
+                    MacroBuilder &Builder) const override {
+    DefineStd(Builder, "unix", Opts);
+    Builder.defineMacro("__svr4__");
+    this->PlatformName = llvm::Triple::getOSTypeName(Triple.getOS());
+  }
+
+public:
+  SYSVTargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
+      : OSTargetInfo<Target>(Triple, Opts) {
+    // TODO Check this!
+    this->WCharType = TargetInfo::UnsignedInt;
+    this->MaxAlignedAttribute = 128;
+    this->UseBitFieldTypeAlignment = false;
+    this->UseZeroLengthBitfieldAlignment = true;
+    this->UseLeadingZeroLengthBitfield = false;
+    this->ZeroLengthBitfieldBoundary = 32;
+    this->TheCXXABI.set(TargetCXXABI::XL);
+  }
+
+  TargetInfo::CallingConvCheckResult
+  checkCallingConvention(CallingConv CC) const override {
+    return (CC == CC_C) ? TargetInfo::CCCR_OK : TargetInfo::CCCR_Error;
+  }
+
+  bool areDefaultedSMFStillPOD(const LangOptions &) const override {
+    return false;
+  }
+};
+
 void addWindowsDefines(const llvm::Triple &Triple, const LangOptions &Opts,
                        MacroBuilder &Builder);
 
