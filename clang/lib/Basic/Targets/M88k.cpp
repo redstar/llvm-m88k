@@ -94,22 +94,30 @@ void M88kTargetInfo::getTargetDefines(const LangOptions &Opts,
                                       MacroBuilder &Builder) const {
   using llvm::Twine;
 
-  Builder.defineMacro("__m88k__");
-  Builder.defineMacro("__m88k");
+  if (getTriple().isOSOpenBSD()) {
+    Builder.defineMacro("__m88k__");
+    Builder.defineMacro("__m88k");
 
-  // For sub-architecture
-  switch (CPU) {
-  case CK_88000:
-    Builder.defineMacro("__mc88000__");
-    break;
-  case CK_88100:
-    Builder.defineMacro("__mc88100__");
-    break;
-  case CK_88110:
-    Builder.defineMacro("__mc88110__");
-    break;
-  default:
-    break;
+    // For sub-architecture
+    switch (CPU) {
+    case CK_88000:
+      Builder.defineMacro("__mc88000__");
+      break;
+    case CK_88100:
+      Builder.defineMacro("__mc88100__");
+      break;
+    case CK_88110:
+      Builder.defineMacro("__mc88110__");
+      break;
+    default:
+      break;
+    }
+  }
+  if (getTriple().isOSSYSV4()) {
+    Builder.defineMacro("m88000");
+    Builder.defineMacro("__m88000__");
+    Builder.defineMacro("m88k");
+    Builder.defineMacro("__m88k__");
   }
 }
 
