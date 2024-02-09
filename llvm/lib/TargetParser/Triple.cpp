@@ -225,6 +225,7 @@ StringRef Triple::getVendorTypeName(VendorType Kind) {
   case ImaginationTechnologies: return "img";
   case Mesa: return "mesa";
   case MipsTechnologies: return "mti";
+  case Motorola: return "motorola";
   case NVIDIA: return "nvidia";
   case OpenEmbedded: return "oe";
   case PC: return "pc";
@@ -269,6 +270,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case RTEMS: return "rtems";
   case Solaris: return "solaris";
   case Serenity: return "serenity";
+  case SYSV4: return "sysv4";
   case TvOS: return "tvos";
   case UEFI: return "uefi";
   case WASI: return "wasi";
@@ -603,6 +605,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
     .Case("ibm", Triple::IBM)
     .Case("img", Triple::ImaginationTechnologies)
     .Case("mti", Triple::MipsTechnologies)
+    .Case("motorola", Triple::Motorola)
     .Case("nvidia", Triple::NVIDIA)
     .Case("csr", Triple::CSR)
     .Case("amd", Triple::AMD)
@@ -634,6 +637,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("rtems", Triple::RTEMS)
     .StartsWith("nacl", Triple::NaCl)
     .StartsWith("aix", Triple::AIX)
+    .StartsWith("sysv4", Triple::SYSV4)
     .StartsWith("cuda", Triple::CUDA)
     .StartsWith("nvcl", Triple::NVCL)
     .StartsWith("amdhsa", Triple::AMDHSA)
