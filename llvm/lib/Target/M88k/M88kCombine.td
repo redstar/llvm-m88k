@@ -24,6 +24,9 @@ def bitfield_extract_from_and_ashr : GICombineRule<
   (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
 
 // Like all_combines, but removed vector, fma and funnel shift combines.
+// intdiv_combines and mulh_combines result in worse code generation because
+// G_UMULH is mapped to a library call, and G_CTTZ results in a lengthy
+// instruction sequence.
 def m88k_combines : GICombineGroup<[trivial_combines, combines_for_extload,
     undef_combines, identity_combines, phi_combines,
     simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands, shifts_too_big,
@@ -39,7 +42,7 @@ def m88k_combines : GICombineGroup<[trivial_combines, combines_for_extload,
     div_rem_to_divrem, funnel_shift_combines, commute_shift,
     form_bitfield_extract, constant_fold_binops, constant_fold_fma,
     constant_fold_cast_op, fabs_fneg_fold,
-    intdiv_combines, mulh_combines, redundant_neg_operands,
+    /*intdiv_combines, mulh_combines,*/ redundant_neg_operands,
     and_or_disjoint_mask, fold_binop_into_select,
     sub_add_reg, select_to_minmax, redundant_binop_in_equality,
     fsub_to_fneg, commute_constant_to_rhs,
