@@ -55,6 +55,16 @@ static cl::opt<cl::boolOrDefault>
     EnableDelaySlotFiller("m88k-enable-delay-slot-filler",
                           cl::desc("Fill delay slots."), cl::Hidden);
 
+static cl::opt<bool>
+    PreLegalizer("m88k-enable-prelegalizer", cl::Hidden,
+                 cl::desc("M88k: Enable the pre-legalizer pass."),
+                 cl::init(true));
+
+static cl::opt<bool>
+    PostCombiner("m88k-enable-postcombiner", cl::Hidden,
+                 cl::desc("M88k: Enable the post-legalizer combiner pass."),
+                 cl::init(true));
+
 // NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeM88kTarget() {
   // Register the target and target specific passes.
@@ -220,7 +230,8 @@ bool M88kPassConfig::addIRTranslator() {
 }
 
 void M88kPassConfig::addPreLegalizeMachineIR() {
-  addPass(createM88kPreLegalizerCombiner());
+  if (PreLegalizer)
+    addPass(createM88kPreLegalizerCombiner());
   addPass(new Localizer());
 }
 
@@ -233,7 +244,8 @@ void M88kPassConfig::addPreRegBankSelect() {
   bool IsOptNone = getOptLevel() == CodeGenOptLevel::None;
   // TODO IsOptNone does not work correctly!
   IsOptNone = false;
-  addPass(createM88kPostLegalizerCombiner(IsOptNone));
+  if (PostCombiner)
+    addPass(createM88kPostLegalizerCombiner(IsOptNone));
   addPass(createM88kPostLegalizerLowering(IsOptNone));
 }
 
