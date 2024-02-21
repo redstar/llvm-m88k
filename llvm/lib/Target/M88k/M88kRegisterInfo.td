@@ -19,7 +19,6 @@ class M88kCRReg<bits<6> Enc, string n, string altName = "">
   let Namespace = "M88k";
 }
 
-// Multiclass to define RegisterClass and RegisterOperand together.
 class M88kRegisterClass<list<ValueType> types, int size, int alignment,
                         dag regList, int copycost = 1>
   : RegisterClass<"M88k", types, alignment, regList> {
@@ -36,7 +35,7 @@ let Namespace = "M88k" in {
   def sub_lo : SubRegIndex<32, 32>;
 }
 
-// General-purpose registers
+// General-purpose registers.
 foreach I = 0-31 in {
   let isConstant = !eq(I, 0) in
     def R#I : M88kReg<I, "r"#I>;
@@ -48,6 +47,14 @@ foreach I = 0-31 in {
 // TODO Check if there is a positive impact when moving r30 before r25-r14.
 //      Saving the preserved registers creates a frame using r30 as frame
 //      pointer, but r30 could be saved/restored without using a frame pointer.
+// TODO Check if the register class should be broken up:
+//      - MC88100 manual, chapter 3, 3.2.3 states:
+//        If general-purpose register r0 is specified as the destination
+//        register for any floating-point instruction except fster, flder, and
+//        fxcr, the MC88100 takes a floating-point unimplemented opcode
+//        exception as described in SECTION 6 EXCEPTIONS.
+//      - the stack pointer register r31 is reserved
+//      Thus, register classes without r0 and r31 could be useful. 
 def GPR : M88kRegisterClass<[i32, f32], 32, 32,
                             (add (sequence "R%u", 2, 9),
                                  (sequence "R%u", 25, 14),
@@ -59,9 +66,40 @@ def GPROpnd : M88kRegisterOperand<GPR> {
 }
 
 // Register class representing a pair of even-odd GRs.
+//
+// The MC88100 and MC88110 have different restrictions on the use of register pairs.
+// MC88110 manual, chapter 2, 2.3.2 states:
+//   - Double word operands are loaded to or extracted from two adjacent
+//     registers (rn and rn+1), with rn always even and always containing the
+//     higher word.
+//   - Any double-word and double-precision floating-point operands aligned on
+//     odd-numbered register pairs (i.e r5:r6 instead of r4:r5) will cause the
+//     following exceptions to occur (...)
+//     The exception handler will implement double-word alignment on
+//     odd-numbered register pairs in software. Since the software
+//     implementation will result in slower execution time, it is recommended
+//     that software and compilers align such data to even-numbered registers
+//     to guarantee the best performance.
+//
+// MC88100 manual, chapter 2, 2.2.2 states:
+//   - Word operands load or store the entire 32 bits to/from memory;
+//     double-word operands load and store two adjacent registers (rn and
+//     rn+1) with rn always containing the higher order word
+//   - Double-word operands and double-precision floating-point operands can be
+//     specified as beginning with r31, in which case r0 contains the lower
+//     order word. However, rO may never be modified (writes to rO are
+//     ignored).
+// And in chapter 2, 2.3.2:
+//   - Double-word and double-precision floating-point operands can be read
+//     from and written to any two adjacent registers.
+//
+// Since the ABI only uses even-numbered register pairs, it does not seem worth
+// to try to support use of odd-numbered register pairs for the MC88100 only.
+// The pair r0:r1 is excluded from the register class, since r0 is constant.
+// Likewise, r30:r31 is excluded because r31 is a reserved register.
 def GRPair : RegisterTuples<[sub_hi, sub_lo],
-                            [(add (sequence "R%u", 0, 30, 2)),
-                             (add (sequence "R%u", 1, 31, 2))]>;
+                            [(add (sequence "R%u", 2, 28, 2)),
+                             (add (sequence "R%u", 3, 29, 2))]>;
 
 def GPR64 : M88kRegisterClass<[i64, f64, v8i8, v4i16, v2i32], 64, 64,
                               (add GRPair), 2>;
