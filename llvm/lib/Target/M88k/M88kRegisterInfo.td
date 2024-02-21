@@ -170,3 +170,10 @@ let isAllocatable = 0 in {
 }
 def CROpnd : M88kRegisterOperand<CR>;
 def FCROpnd : M88kRegisterOperand<FCR>;
+
+//===----------------------------------------------------------------------===//
+// Register categories.
+//
+
+def GeneralPurposeRegisters : RegisterCategory<[GPR, GPR64, XR]>;
+def FixedRegisters : RegisterCategory<[CR, FCR]>;
