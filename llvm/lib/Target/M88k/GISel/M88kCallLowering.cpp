@@ -48,7 +48,7 @@ namespace {
 struct OutgoingArgHandler : public CallLowering::OutgoingValueHandler {
   OutgoingArgHandler(MachineIRBuilder &MIRBuilder, MachineRegisterInfo &MRI,
                      MachineInstrBuilder MIB)
-      : OutgoingValueHandler(MIRBuilder, MRI), MIB(MIB) {}
+      : OutgoingValueHandler(MIRBuilder, MRI), MIB(MIB), SPReg() {}
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
                         const CCValAssign &VA) override;
@@ -66,6 +66,7 @@ struct OutgoingArgHandler : public CallLowering::OutgoingValueHandler {
                            ISD::ArgFlagsTy Flags) override;
 
   MachineInstrBuilder MIB;
+  Register SPReg;
 };
 
 struct M88kIncomingValueHandler : public CallLowering::IncomingValueHandler {
@@ -186,7 +187,8 @@ Register OutgoingArgHandler::getStackAddress(uint64_t Size, int64_t Offset,
 
   LLT P0 = LLT::pointer(0, 32);
   LLT S32 = LLT::scalar(32);
-  auto SPReg = MIRBuilder.buildCopy(P0, Register(M88k::R31));
+  if (!SPReg)
+    SPReg = MIRBuilder.buildCopy(P0, Register(M88k::R31)).getReg(0);
 
   auto OffsetReg = MIRBuilder.buildConstant(S32, Offset);
   auto AddrReg = MIRBuilder.buildPtrAdd(P0, SPReg, OffsetReg);
