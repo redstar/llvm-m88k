@@ -31,10 +31,29 @@
 
 using namespace llvm;
 
+#define GET_CC_REGISTER_LISTS
+#include "M88kGenCallingConv.inc"
 #define GET_REGINFO_TARGET_DESC
 #include "M88kGenRegisterInfo.inc"
 
 M88kRegisterInfo::M88kRegisterInfo() : M88kGenRegisterInfo(M88k::R1) {}
+
+bool M88kRegisterInfo::isArgumentRegister(const MachineFunction &MF,
+                                          MCRegister Reg) const {
+  CallingConv::ID CC = MF.getFunction().getCallingConv();
+
+  auto HasReg = [](ArrayRef<MCRegister> RegList, MCRegister Reg) {
+    return llvm::is_contained(RegList, Reg);
+  };
+
+  switch (CC) {
+  default:
+    report_fatal_error("Unsupported calling convention.");
+  case CallingConv::C:
+    return HasReg(CC_M88k_ArgRegs, Reg);
+  }
+  return false;
+}
 
 const MCPhysReg *
 M88kRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
