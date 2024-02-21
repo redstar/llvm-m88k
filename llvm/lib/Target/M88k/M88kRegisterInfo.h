@@ -28,7 +28,9 @@ namespace llvm {
 struct M88kRegisterInfo : public M88kGenRegisterInfo {
   M88kRegisterInfo();
 
-  /// Code Generation virtual methods...
+  bool isArgumentRegister(const MachineFunction &MF,
+                          MCRegister Reg) const override;
+
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;
 
   BitVector getReservedRegs(const MachineFunction &MF) const override;
