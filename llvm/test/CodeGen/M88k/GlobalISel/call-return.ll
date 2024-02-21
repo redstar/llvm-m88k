@@ -268,9 +268,8 @@ define i32 @callf11() {
   ; CHECK-NEXT:   [[C10:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
   ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C10]](s32)
   ; CHECK-NEXT:   G_STORE [[C8]](s32), [[PTR_ADD]](p0) :: (store (s32) into stack, align 16)
-  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(p0) = COPY $r31
   ; CHECK-NEXT:   [[C11:%[0-9]+]]:_(s32) = G_CONSTANT i32 4
-  ; CHECK-NEXT:   [[PTR_ADD1:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY1]], [[C11]](s32)
+  ; CHECK-NEXT:   [[PTR_ADD1:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C11]](s32)
   ; CHECK-NEXT:   G_STORE [[C9]](s32), [[PTR_ADD1]](p0) :: (store (s32) into stack + 4)
   ; CHECK-NEXT:   $r2 = COPY [[C]](s32)
   ; CHECK-NEXT:   $r3 = COPY [[C1]](s32)
@@ -281,9 +280,9 @@ define i32 @callf11() {
   ; CHECK-NEXT:   $r8 = COPY [[C6]](s32)
   ; CHECK-NEXT:   $r9 = COPY [[C7]](s32)
   ; CHECK-NEXT:   BSR @f10, csr_m88k, implicit-def $r1, implicit $r2, implicit $r3, implicit $r4, implicit $r5, implicit $r6, implicit $r7, implicit $r8, implicit $r9, implicit-def $r2
-  ; CHECK-NEXT:   [[COPY2:%[0-9]+]]:_(s32) = COPY $r2
+  ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(s32) = COPY $r2
   ; CHECK-NEXT:   ADJCALLSTACKUP 8, 0
-  ; CHECK-NEXT:   $r2 = COPY [[COPY2]](s32)
+  ; CHECK-NEXT:   $r2 = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   RET implicit $r2
   %res = call i32(i32,i32,i32,i32,i32,i32,i32,i32,i32,i32) @f10(i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10)
   ret i32 %res
