@@ -48,6 +48,7 @@ foreach I = 0-31 in {
 // TODO Check if there is a positive impact when moving r30 before r25-r14.
 //      Saving the preserved registers creates a frame using r30 as frame
 //      pointer, but r30 could be saved/restored without using a frame pointer.
+// TODO MC88100 manual, chapter 2, 2.2.2 states:
 def GPR : M88kRegisterClass<[i32, f32], 32, 32,
                             (add (sequence "R%u", 2, 9),
                                  (sequence "R%u", 25, 14),
@@ -59,9 +60,40 @@ def GPROpnd : M88kRegisterOperand<GPR> {
 }
 
 // Register class representing a pair of even-odd GRs.
+//
+// The MC88100 and MC88110 have different restrictions on the use of register pairs.
+// MC88110 manual, chapter 2, 2.3.2 states:
+//   - Double word operands are loaded to or extracted from two adjacent
+//     registers (rn and rn+1), with rn always even and always containing the
+//     higher word.
+//   - Any double-word and double-precision floating-point operands aligned on
+//     odd-numbered register pairs (i.e r5:r6 instead of r4:r5) will cause the
+//     following exceptions to occur (...)
+//     The exception handler will implement double-word alignment on
+//     odd-numbered register pairs in software. Since the software
+//     implementation will result in slower execution time, it is recommended
+//     that software and compilers align such data to even-numbered registers
+//     to guarantee the best performance.
+//
+// MC88100 manual, chapter 2, 2.2.2 states:
+//   - Word operands load or store the entire 32 bits to/from memory;
+//     double-word operands load and store two adjacent registers (rn and
+//     rn+1) with rn always containing the higher order word
+//   - Double-word operands and double-precision floating-point operands can be
+//     specified as beginning with r31, in which case r0 contains the lower
+//     order word. However, rO may never be modified (writes to rO are
+//     ignored).
+// And in chapter 2, 2.3.2:
+//   - Double-word and double-precision floating-point operands can be read
+//     from and written to any two adjacent registers.
+//
+// Since the ABI only uses even-numbered register pairs, it does not seem worth
+// to try to support use of odd-numbered register pairs for the MC88100 only.
+// The pair r0:r1 is excluded from the register class, since r0 is constant.
+// Likewise, r30:r31 is excluded because r31 is a reserved register.
 def GRPair : RegisterTuples<[sub_hi, sub_lo],
-                            [(add (sequence "R%u", 0, 30, 2)),
-                             (add (sequence "R%u", 1, 31, 2))]>;
+                            [(add (sequence "R%u", 2, 28, 2)),
+                             (add (sequence "R%u", 3, 29, 2))]>;
 
 def GPR64 : M88kRegisterClass<[i64, f64, v8i8, v4i16, v2i32], 64, 64,
                               (add GRPair), 2>;
