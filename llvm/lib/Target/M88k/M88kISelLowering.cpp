@@ -33,6 +33,7 @@ M88kTargetLowering::M88kTargetLowering(const TargetMachine &TM,
                                        const M88kSubtarget &STI)
     : TargetLowering(TM), Subtarget(STI) {
   addRegisterClass(MVT::i32, &M88k::GPRRegClass);
+  addRegisterClass(MVT::i64, &M88k::GPR64RegClass);
   addRegisterClass(MVT::f32, &M88k::GPRRegClass);
   addRegisterClass(MVT::f64, &M88k::GPR64RegClass);
 
