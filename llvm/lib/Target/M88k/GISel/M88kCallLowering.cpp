@@ -135,12 +135,13 @@ unsigned OutgoingArgHandler::assignCustomValue(CallLowering::ArgInfo &Arg,
   assert(HiVA.needsCustom() && "Value doesn't need custom handling");
 
   // Custom lowering for other types, such as f16, is currently not supported.
-  if (HiVA.getValVT() != MVT::f64)
+  if (HiVA.getValVT() != MVT::f64 && HiVA.getValVT() != MVT::i64)
     return 0;
 
   CCValAssign LoVA = VAs[1];
   assert(LoVA.needsCustom() && "Value doesn't need custom handling");
-  assert(LoVA.getValVT() == MVT::f64 && "Unsupported type");
+  assert((LoVA.getValVT() == MVT::f64 || HiVA.getValVT() == MVT::i64) &&
+         "Unsupported type");
 
   assert(HiVA.getValNo() == LoVA.getValNo() &&
          "Values belong to different arguments");
@@ -255,12 +256,13 @@ M88kIncomingValueHandler::assignCustomValue(CallLowering::ArgInfo &Arg,
   assert(HiVA.needsCustom() && "Value doesn't need custom handling");
 
   // Custom lowering for other types is currently not supported.
-  if (HiVA.getValVT() != MVT::f64)
+  if (HiVA.getValVT() != MVT::f64 && HiVA.getValVT() != MVT::i64)
     return 0;
 
   CCValAssign LoVA = VAs[1];
   assert(LoVA.needsCustom() && "Value doesn't need custom handling");
-  assert(LoVA.getValVT() == MVT::f64 && "Unsupported type");
+  assert((LoVA.getValVT() == MVT::f64 || LoVA.getValVT() == MVT::i64) &&
+         "Unsupported type");
 
   assert(HiVA.getValNo() == LoVA.getValNo() &&
          "Values belong to different arguments");
