@@ -15,6 +15,7 @@
 #include "M88kCallLowering.h"
 #include "M88kCallingConv.h"
 #include "M88kInstrInfo.h"
+#include "M88kMachineFunctionInfo.h"
 #include "M88kRegisterInfo.h"
 #include "M88kSubtarget.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
@@ -328,9 +329,80 @@ bool M88kCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 
   IncomingValueAssigner ArgAssigner(CC_M88k);
   FormalArgHandler ArgHandler(MIRBuilder, MRI);
-  return determineAndHandleAssignments(ArgHandler, ArgAssigner, SplitArgs,
-                                       MIRBuilder, F.getCallingConv(),
-                                       F.isVarArg());
+  SmallVector<CCValAssign, 16> ArgLocs;
+  CCState CCInfo(F.getCallingConv(), F.isVarArg(), MF, ArgLocs, F.getContext());
+  if (!determineAssignments(ArgAssigner, SplitArgs, CCInfo) ||
+      !handleAssignments(ArgHandler, SplitArgs, CCInfo, ArgLocs, MIRBuilder))
+    return false;
+
+  if (F.isVarArg()) {
+    // TODO Is there a better place for this array?
+    static const ArrayRef<MCPhysReg> ArgRegs = {M88k::R2, M88k::R3, M88k::R4,
+                                                M88k::R5, M88k::R6, M88k::R7,
+                                                M88k::R8, M88k::R9};
+    static const ArrayRef<MCPhysReg> ArgPairRegs = {M88k::R2_R3, M88k::R4_R5,
+                                                    M88k::R6_R7, M88k::R8_R9};
+
+    M88kMachineFunctionInfo *FuncInfo = MF.getInfo<M88kMachineFunctionInfo>();
+    MachineFrameInfo &MFI = MF.getFrameInfo();
+
+    unsigned FirstVariadicReg = CCInfo.getFirstUnallocated(ArgRegs);
+    unsigned GPRSaveSize = 4 * (ArgRegs.size() - FirstVariadicReg);
+    if (GPRSaveSize != 0) {
+      const LLT P0 = LLT::pointer(0, 32);
+      const LLT S32 = LLT::scalar(32);
+      const LLT S64 = LLT::scalar(64);
+
+      // Align the size of the save area to 8. The first slot will be empty if
+      // an odd number of registers need to be saved.
+      unsigned GPRIdx =
+          MFI.CreateStackObject(alignTo(GPRSaveSize, 8), Align(8), false);
+      auto FIN = MIRBuilder.buildFrameIndex(P0, GPRIdx);
+      auto Offset =
+          MIRBuilder.buildConstant(MRI.createGenericVirtualRegister(S32), 8);
+
+      // Assign the registers. The first register requires special handling if
+      // it has a odd number, because st.d cannot be used in this case.
+      unsigned OddRegNo = FirstVariadicReg & 0x1;
+      unsigned FirstVariadicPairReg = (FirstVariadicReg + OddRegNo) >> 1;
+      if (OddRegNo) {
+        auto Offset =
+            MIRBuilder.buildConstant(MRI.createGenericVirtualRegister(S32), 4);
+        Register Val = MRI.createGenericVirtualRegister(S32);
+        ArgHandler.assignValueToReg(
+            Val, ArgRegs[I],
+            CCValAssign::getReg(I + MF.getFunction().getNumOperands(), MVT::i32,
+                                ArgRegs[I], MVT::i32, CCValAssign::Full));
+        auto MPO = MachinePointerInfo::getFixedStack(MF, GPRIdx, 4);
+        FIN = MIRBuilder.buildPtrAdd(MRI.createGenericVirtualRegister(P0),
+                                     FIN.getReg(0), Offset);
+        MIRBuilder.buildStore(Val, FIN, MPO, inferAlignFromPtrInfo(MF, MPO));
+        FIN = MIRBuilder.buildPtrAdd(MRI.createGenericVirtualRegister(P0),
+                                     FIN.getReg(0), Offset);
+      }
+      for (unsigned I = FirstVariadicPairReg, E = ArgPairRegs.size(); I < E;
+           ++I) {
+        Register Val = MRI.createGenericVirtualRegister(S64);
+        ArgHandler.assignValueToReg(
+            Val, ArgPairRegs[I],
+            CCValAssign::getReg(I + MF.getFunction().getNumOperands(), MVT::i64,
+                                ArgPairRegs[I], MVT::i64, CCValAssign::Full));
+        auto MPO = MachinePointerInfo::getFixedStack(MF, GPRIdx, I * 8);
+        MIRBuilder.buildStore(Val, FIN, MPO, inferAlignFromPtrInfo(MF, MPO));
+
+        FIN = MIRBuilder.buildPtrAdd(MRI.createGenericVirtualRegister(P0),
+                                     FIN.getReg(0), Offset);
+      }
+
+      FuncInfo->setVarArgsFirstReg(FirstVariadicReg);
+      FuncInfo->setVarArgsRegIndex(GPRIdx);
+    }
+
+    // Create frame index of first var arg stack parameter.
+    FuncInfo->setStackIndex(
+        MFI.CreateFixedObject(4, CCInfo.getStackSize(), false));
+  }
+  return true;
 }
 
 bool M88kCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,

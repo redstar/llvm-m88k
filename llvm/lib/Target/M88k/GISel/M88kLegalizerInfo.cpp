@@ -191,6 +191,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
 
   getActionDefinitionsBuilder(G_FRAME_INDEX).legalFor({P0});
   getActionDefinitionsBuilder(G_GLOBAL_VALUE).customFor({P0});
+  getActionDefinitionsBuilder(G_VASTART).legalFor({P0});
 
   getActionDefinitionsBuilder(G_FCONSTANT).customFor({S32, S64});
   getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV})
