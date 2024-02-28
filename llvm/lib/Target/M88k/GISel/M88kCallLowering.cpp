@@ -340,6 +340,8 @@ bool M88kCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
     static const ArrayRef<MCPhysReg> ArgRegs = {M88k::R2, M88k::R3, M88k::R4,
                                                 M88k::R5, M88k::R6, M88k::R7,
                                                 M88k::R8, M88k::R9};
+    static const ArrayRef<MCPhysReg> ArgPairRegs = {M88k::R2_R3, M88k::R4_R5,
+                                                    M88k::R6_R7, M88k::R8_R9};
 
     M88kMachineFunctionInfo *FuncInfo = MF.getInfo<M88kMachineFunctionInfo>();
     MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -347,7 +349,7 @@ bool M88kCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
     unsigned FirstVariadicReg = CCInfo.getFirstUnallocated(ArgRegs);
     unsigned GPRSaveSize = 4 * (ArgRegs.size() - FirstVariadicReg);
     if (GPRSaveSize != 0) {
-      const LLT P0 = LLT::pointer(0, 64);
+      const LLT P0 = LLT::pointer(0, 32);
       const LLT S32 = LLT::scalar(32);
       const LLT S64 = LLT::scalar(64);
 
@@ -358,10 +360,11 @@ bool M88kCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
       auto FIN = MIRBuilder.buildFrameIndex(P0, GPRIdx);
       auto Offset =
           MIRBuilder.buildConstant(MRI.createGenericVirtualRegister(S32), 8);
-  
+
       // Assign the registers. The first register requires special handling if
       // it has a odd number, because st.d cannot be used in this case.
       unsigned OddRegNo = FirstVariadicReg & 0x1;
+      unsigned FirstVariadicPairReg = (FirstVariadicReg + OddRegNo) >> 1;
       if (OddRegNo) {
         auto Offset =
             MIRBuilder.buildConstant(MRI.createGenericVirtualRegister(S32), 4);
@@ -377,13 +380,13 @@ bool M88kCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
         FIN = MIRBuilder.buildPtrAdd(MRI.createGenericVirtualRegister(P0),
                                      FIN.getReg(0), Offset);
       }
-      for (unsigned I = FirstVariadicReg + OddRegNo, E = ArgRegs.size(); I < E;
+      for (unsigned I = FirstVariadicPairReg, E = ArgPairRegs.size(); I < E;
            ++I) {
         Register Val = MRI.createGenericVirtualRegister(S64);
         ArgHandler.assignValueToReg(
-            Val, ArgRegs[I],
+            Val, ArgPairRegs[I],
             CCValAssign::getReg(I + MF.getFunction().getNumOperands(), MVT::i64,
-                                ArgRegs[I], MVT::i64, CCValAssign::Full));
+                                ArgPairRegs[I], MVT::i64, CCValAssign::Full));
         auto MPO = MachinePointerInfo::getFixedStack(MF, GPRIdx, I * 8);
         MIRBuilder.buildStore(Val, FIN, MPO, inferAlignFromPtrInfo(MF, MPO));
 
@@ -395,17 +398,9 @@ bool M88kCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
       FuncInfo->setVarArgsRegIndex(GPRIdx);
     }
 
-    // Get frame index of first stack parameter.
-    int StackIdx = 0;
-    for (int I = MFI.getObjectIndexBegin(); I < 0; ++I) {
-      if (MFI.getObjectOffset(I) == 0) {
-        StackIdx = I;
-        break;
-      }
-    }
-    // Create a dummy entry if no parameter was found.
-    if (StackIdx == 0)
-      StackIdx = MFI.CreateFixedObject(4, 0, false);
+    // Create frame index of first var arg stack parameter.
+    FuncInfo->setStackIndex(
+        MFI.CreateFixedObject(4, CCInfo.getStackSize(), false));
   }
   return true;
 }
