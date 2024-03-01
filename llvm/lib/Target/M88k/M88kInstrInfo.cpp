@@ -643,7 +643,8 @@ bool M88kInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   }
   case M88k::RET: {
     MachineInstrBuilder MIB =
-        BuildMI(MBB, &MI, MI.getDebugLoc(), get(M88k::JMP)).addReg(M88k::R1);
+        BuildMI(MBB, &MI, MI.getDebugLoc(), get(M88k::JMP))
+            .addReg(M88k::R1, RegState::Undef);
     // Retain any imp-use flags.
     for (auto &MO : MI.operands()) {
       if (MO.isImplicit())
