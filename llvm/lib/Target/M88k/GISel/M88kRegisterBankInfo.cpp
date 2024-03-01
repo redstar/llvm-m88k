@@ -379,19 +379,15 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
         /*NumOperands*/ Opc == TargetOpcode::G_BITCAST ? 2 : 1);
   }
   case TargetOpcode::G_INTRINSIC: {
-    switch (cast<GIntrinsic>(MI).getIntrinsicID()) {
-    default:
-#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-      MI.dump();
-#endif
-      return getInvalidInstructionMapping();
-    case Intrinsic::m88k_ff1:
-    case Intrinsic::m88k_ff0: {
-      OperandsMapping = getOperandsMapping(
-          {getValueMapping(PMI_GR32), nullptr, getValueMapping(PMI_GR32)});
-      break;
+    SmallVector<const RegisterBankInfo::ValueMapping *, 4> OpdsMapping(
+        NumOperands);
+    for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
+      auto &MO = MI.getOperand(Idx);
+      if (!MO.isReg() || !MO.getReg())
+        continue;
+      OpdsMapping[Idx] = getValueMapping(PMI_GR32);
     }
-    }
+    OperandsMapping = getOperandsMapping(OpdsMapping);
     break;
   }
   default:
@@ -401,8 +397,8 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     return getInvalidInstructionMapping();
   }
 
-  return getInstructionMapping(MappingID, /*Cost=*/1, OperandsMapping,
-                               NumOperands);
+    return getInstructionMapping(MappingID, /*Cost=*/1, OperandsMapping,
+                                 NumOperands);
 }
 
 RegisterBankInfo::InstructionMappings
