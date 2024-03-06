@@ -45,6 +45,7 @@
 #include "llvm/IR/IntrinsicsAArch64.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsARM.h"
+#include "llvm/IR/IntrinsicsM88k.h"
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/Operator.h"
@@ -1546,6 +1547,9 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case Intrinsic::arm_mve_vctp32:
   case Intrinsic::arm_mve_vctp64:
   case Intrinsic::aarch64_sve_convert_from_svbool:
+  // M88k intrinsics.
+  case Intrinsic::m88k_ff1:
+  case Intrinsic::m88k_ff0:
   // WebAssembly float semantics are always known
   case Intrinsic::wasm_trunc_signed:
   case Intrinsic::wasm_trunc_unsigned:
@@ -2499,6 +2503,16 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
       Val = (Val & 0x1111111111111111ULL) | (Val & 0x2222222222222222ULL) << 1;
       Val = Val | Val << 1;
       return ConstantInt::get(Ty, Val);
+    }
+
+    case Intrinsic::m88k_ff1:
+    case Intrinsic::m88k_ff0: {
+      if (Op->isZero())
+        return ConstantInt::get(Ty, 32);
+      uint32_t Val = static_cast<uint32_t>(Op->getZExtValue());
+      if (IntrinsicID == Intrinsic::m88k_ff1)
+        Val = ~Val;
+      return ConstantInt::get(Ty, countl_zero(Val));
     }
 
     default:
