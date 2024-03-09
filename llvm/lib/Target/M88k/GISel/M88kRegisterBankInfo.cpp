@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "M88kRegisterBankInfo.h"
+#include "M88kSubtarget.h"
 #include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
@@ -54,81 +55,6 @@ M88kRegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
   }
 }
 
-/// Returns whether opcode \p Opc is a pre-isel generic floating-point opcode,
-/// having only floating-point operands.
-static bool isPreISelGenericFloatingPointOpcode(unsigned Opc) {
-  switch (Opc) {
-  case TargetOpcode::G_FADD:
-  case TargetOpcode::G_FSUB:
-  case TargetOpcode::G_FMUL:
-  case TargetOpcode::G_FMA:
-  case TargetOpcode::G_FDIV:
-  case TargetOpcode::G_FCONSTANT:
-  case TargetOpcode::G_FPEXT:
-  case TargetOpcode::G_FPTRUNC:
-  case TargetOpcode::G_FCEIL:
-  case TargetOpcode::G_FFLOOR:
-  case TargetOpcode::G_FNEARBYINT:
-  case TargetOpcode::G_FNEG:
-  case TargetOpcode::G_FCOS:
-  case TargetOpcode::G_FSIN:
-  case TargetOpcode::G_FLOG10:
-  case TargetOpcode::G_FLOG:
-  case TargetOpcode::G_FLOG2:
-  case TargetOpcode::G_FSQRT:
-  case TargetOpcode::G_FABS:
-  case TargetOpcode::G_FEXP:
-  case TargetOpcode::G_FRINT:
-  case TargetOpcode::G_INTRINSIC_TRUNC:
-  case TargetOpcode::G_INTRINSIC_ROUND:
-    return true;
-  }
-  return false;
-}
-
-const RegisterBankInfo::ValueMapping *
-M88kRegisterBankInfo::getFPOperandsMapping(const MachineInstr &MI) const {
-  const unsigned Opc = MI.getOpcode();
-  const MachineFunction &MF = *MI.getParent()->getParent();
-  const MachineRegisterInfo &MRI = MF.getRegInfo();
-
-  const unsigned NumOperands = MI.getNumOperands();
-  assert(NumOperands <= 3 &&
-         "This code is for instructions with 3 or less operands");
-  assert(isPreISelGenericFloatingPointOpcode(Opc) &&
-         "No floating point istruction");
-
-  bool RequiresXPR = false;
-  for (unsigned I = 0; I < NumOperands; ++I)
-    if (MRI.getType(MI.getOperand(0).getReg()).getScalarSizeInBits() == 80)
-      RequiresXPR = true;
-
-  // const RegisterBankInfo::ValueMapping *ValMap[3];
-  SmallVector<const RegisterBankInfo::ValueMapping *, 3> ValMap;
-  for (unsigned I = 0; I < NumOperands; ++I) {
-    PartialMappingIdx RBIdx = PMI_None;
-    LLT Ty = MRI.getType(MI.getOperand(I).getReg());
-    switch (Ty.getSizeInBits()) {
-    case 32:
-      RBIdx = RequiresXPR ? PMI_XR32 : PMI_GR32;
-      break;
-    case 64:
-      RBIdx = RequiresXPR ? PMI_XR64 : PMI_GR64;
-      break;
-    case 80:
-      RBIdx = PMI_XR80;
-      break;
-    default:
-      llvm_unreachable("Unsupport register size");
-    }
-    // ValMap[I] = getValueMapping(RBIdx);
-    ValMap.push_back(getValueMapping(RBIdx));
-  }
-
-  // return getOperandsMapping(&ValMap[0], &ValMap[NumOperands-1]);
-  return getOperandsMapping(ValMap);
-}
-
 const RegisterBankInfo::InstructionMapping &
 M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   const unsigned Opc = MI.getOpcode();
@@ -145,62 +71,34 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
 
   const MachineFunction &MF = *MI.getParent()->getParent();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
-  const TargetSubtargetInfo &STI = MF.getSubtarget();
+  const M88kSubtarget &STI = MF.getSubtarget<M88kSubtarget>();
   const TargetRegisterInfo &TRI = *STI.getRegisterInfo();
 
+  constexpr unsigned MaxNumOperands = 4;
   unsigned NumOperands = MI.getNumOperands();
   const ValueMapping *OperandsMapping = nullptr;
   unsigned MappingID = DefaultMappingID;
 
+  // The register bank selection is not too complicated, because there is only 1
+  // bank on the MC88100, and 2 banks on the MC88110. The 2nd bank for the
+  // extemded registers is only chosen if it is required by the type of a
+  // register. The basic cases to handle are:
+  //  1. FP instructions with all operands having the same type
+  //     Example: G_FADD
+  //  2. FP instructions with operands of different type
+  //     Example: G_FPEXTEND
+  //  3. Instructions which may use different register banks
+  //     Example: G_LOAD, G_INTRINSIC_TRUNC, COPY
+  //  4. Instructions which only use the common register bank
+  //     Example: G_OR
+  // The 1st and 4th case are handled as the default case. The instructions for
+  // the 2nd case are grouped together. Only the instructions of the 3rd case
+  // require case-by-case handling.
+  //
+  // TODO The legalizer still uses s1 to represent a boolean flag. When this is
+  //      gone then the code here can be simplified, too.
+
   switch (Opc) {
-    // Arithmetic ops.
-  case TargetOpcode::G_ADD:
-  case TargetOpcode::G_SUB:
-  case TargetOpcode::G_PTR_ADD:
-  case TargetOpcode::G_SDIV:
-    // Bitwise ops.
-  case TargetOpcode::G_AND:
-  case TargetOpcode::G_OR:
-  case TargetOpcode::G_XOR:
-  case TargetOpcode::G_CTLZ:
-  case TargetOpcode::G_CTLZ_ZERO_UNDEF:
-    // Shift ops.
-  case TargetOpcode::G_SHL:
-  case TargetOpcode::G_ASHR:
-  case TargetOpcode::G_LSHR:
-    OperandsMapping = getValueMapping(PMI_GR32);
-    break;
-  case TargetOpcode::G_MUL:
-  case TargetOpcode::G_UDIV: {
-    LLT Ty = MRI.getType(MI.getOperand(0).getReg());
-    if (Ty.getSizeInBits() != 64 && Ty.getSizeInBits() != 32)
-      return getInvalidInstructionMapping();
-    PartialMappingIdx RBIdx = (Ty.getSizeInBits() == 64) ? PMI_GR64 : PMI_GR32;
-    OperandsMapping = getValueMapping(RBIdx);
-    break;
-  }
-    // Integer arithmetic producing a carry.
-  case TargetOpcode::G_UADDO:
-  case TargetOpcode::G_USUBO:
-    OperandsMapping = getOperandsMapping(
-        {getValueMapping(PMI_GR32), getValueMapping(PMI_GR32),
-         getValueMapping(PMI_GR32), getValueMapping(PMI_GR32)});
-    break;
-    // Integer arithmetic producing and consuming a carry.
-  case TargetOpcode::G_UADDE:
-  case TargetOpcode::G_USUBE:
-    OperandsMapping = getOperandsMapping(
-        {getValueMapping(PMI_GR32), getValueMapping(PMI_GR32),
-         getValueMapping(PMI_GR32), getValueMapping(PMI_GR32),
-         getValueMapping(PMI_GR32)});
-    break;
-    // Floating point ops.
-  case TargetOpcode::G_FADD:
-  case TargetOpcode::G_FSUB:
-  case TargetOpcode::G_FMUL:
-  case TargetOpcode::G_FDIV:
-    OperandsMapping = getFPOperandsMapping(MI);
-    break;
   case TargetOpcode::G_FCONSTANT: {
     LLT Ty = MRI.getType(MI.getOperand(0).getReg());
     if (Ty.getSizeInBits() != 64 && Ty.getSizeInBits() != 32)
@@ -209,14 +107,6 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     OperandsMapping = getOperandsMapping({getValueMapping(RBIdx), nullptr});
     break;
   }
-  case TargetOpcode::G_FPEXT:
-    OperandsMapping = getOperandsMapping(
-        {getValueMapping(PMI_GR64), getValueMapping(PMI_GR32)});
-    break;
-  case TargetOpcode::G_FPTRUNC:
-    OperandsMapping = getOperandsMapping(
-        {getValueMapping(PMI_GR32), getValueMapping(PMI_GR64)});
-    break;
   case TargetOpcode::G_FPTOSI:
   case TargetOpcode::G_FPTOUI: {
     LLT Ty = MRI.getType(MI.getOperand(1).getReg());
@@ -237,17 +127,6 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
         getOperandsMapping({getValueMapping(RBIdx), getValueMapping(PMI_GR32)});
     break;
   }
-  case TargetOpcode::G_UBFX:
-  case TargetOpcode::G_SBFX:
-    OperandsMapping = getOperandsMapping(
-        {getValueMapping(PMI_GR32), getValueMapping(PMI_GR32),
-         getValueMapping(PMI_GR32), getValueMapping(PMI_GR32)});
-    break;
-  case TargetOpcode::G_ROTR:
-    OperandsMapping = getOperandsMapping({getValueMapping(PMI_GR32),
-                                          getValueMapping(PMI_GR32),
-                                          getValueMapping(PMI_GR32)});
-    break;
   case TargetOpcode::G_TRUNC:
     OperandsMapping = getValueMapping(PMI_GR32);
     break;
@@ -270,22 +149,8 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     else
       OperandsMapping = getValueMapping(PMI_GR32);
     break;
-  case TargetOpcode::G_VASTART:
-    OperandsMapping = getValueMapping(PMI_GR32);
-    break;
-  case TargetOpcode::G_FRAME_INDEX:
-  case TargetOpcode::G_JUMP_TABLE:
-  case TargetOpcode::G_CONSTANT:
   case TargetOpcode::G_BRCOND:
-  case M88k::G_HI:
-  case M88k::G_LO:
     OperandsMapping = getOperandsMapping({getValueMapping(PMI_GR32), nullptr});
-    break;
-  case TargetOpcode::G_BR:
-    OperandsMapping = getOperandsMapping({nullptr});
-    break;
-  case TargetOpcode::G_BRINDIRECT:
-    OperandsMapping = getValueMapping(PMI_GR32);
     break;
   case TargetOpcode::G_BRJT:
     OperandsMapping = getOperandsMapping(
@@ -296,46 +161,11 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
                                           getValueMapping(PMI_GR32),
                                           getValueMapping(PMI_GR32)});
     break;
-  case TargetOpcode::G_PTRTOINT:
-  case TargetOpcode::G_INTTOPTR:
-    OperandsMapping = getValueMapping(PMI_GR32);
-    break;
   case TargetOpcode::G_SELECT:
     // TODO FP not handled.
     OperandsMapping = getOperandsMapping(
         {getValueMapping(PMI_GR32), getValueMapping(PMI_GR32),
          getValueMapping(PMI_GR32), getValueMapping(PMI_GR32)});
-    break;
-  case TargetOpcode::G_MERGE_VALUES: {
-    // We only support G_MERGE_VALUES for creating a 64 bit value out of two
-    // GPRs.
-    LLT Ty = MRI.getType(MI.getOperand(0).getReg());
-    LLT Ty1 = MRI.getType(MI.getOperand(1).getReg());
-    LLT Ty2 = MRI.getType(MI.getOperand(2).getReg());
-    if (Ty.getSizeInBits() != 64 || Ty1.getSizeInBits() != 32 ||
-        Ty2.getSizeInBits() != 32)
-      return getInvalidInstructionMapping();
-    OperandsMapping = getOperandsMapping({getValueMapping(PMI_GR64),
-                                          getValueMapping(PMI_GR32),
-                                          getValueMapping(PMI_GR32)});
-    break;
-  }
-  case TargetOpcode::G_UNMERGE_VALUES: {
-    // We only support G_UNMERGE_VALUES for splitting a 64 bit value into two
-    // GPRs.
-    LLT Ty = MRI.getType(MI.getOperand(0).getReg());
-    LLT Ty1 = MRI.getType(MI.getOperand(1).getReg());
-    LLT Ty2 = MRI.getType(MI.getOperand(2).getReg());
-    if (Ty.getSizeInBits() != 32 || Ty1.getSizeInBits() != 32 ||
-        Ty2.getSizeInBits() != 64)
-      return getInvalidInstructionMapping();
-    OperandsMapping = getOperandsMapping({getValueMapping(PMI_GR32),
-                                          getValueMapping(PMI_GR32),
-                                          getValueMapping(PMI_GR64)});
-    break;
-  }
-  case TargetOpcode::G_FREEZE:
-    OperandsMapping = getValueMapping(PMI_GR32);
     break;
   case TargetOpcode::COPY: {
     Register DstReg = MI.getOperand(0).getReg();
@@ -379,31 +209,99 @@ M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
         /*NumOperands*/ Opc == TargetOpcode::G_BITCAST ? 2 : 1);
   }
   case TargetOpcode::G_INTRINSIC: {
-    SmallVector<const RegisterBankInfo::ValueMapping *, 4> OpdsMapping(
+    SmallVector<const RegisterBankInfo::ValueMapping *, 4> ValueMappings(
         NumOperands);
     for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
       auto &MO = MI.getOperand(Idx);
       if (!MO.isReg() || !MO.getReg())
         continue;
-      OpdsMapping[Idx] = getValueMapping(PMI_GR32);
+      ValueMappings[Idx] = getValueMapping(PMI_GR32);
     }
-    OperandsMapping = getOperandsMapping(OpdsMapping);
+    OperandsMapping = getOperandsMapping(ValueMappings);
     break;
   }
-  default:
-#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-    MI.dump();
-#endif
-    return getInvalidInstructionMapping();
+    // Instructions with floating point operands in the same register bank.
+  case TargetOpcode::G_FPEXT:
+  case TargetOpcode::G_FPTRUNC: {
+    SmallVector<PartialMappingIdx, MaxNumOperands> PartialMappings(NumOperands,
+                                                                   PMI_None);
+    bool RequiresXPR = false;
+    for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
+      auto &MO = MI.getOperand(Idx);
+      if (!MO.isReg() || !MO.getReg())
+        continue;
+      LLT Ty = MRI.getType(MO.getReg());
+      if (!Ty.isValid())
+        continue;
+      PartialMappingIdx RBIdx = PMI_None;
+      switch (Ty.getSizeInBits()) {
+      case 32:
+        RBIdx = PMI_GR32;
+        break;
+      case 64:
+        RBIdx = PMI_GR64;
+        break;
+      case 80:
+        RBIdx = PMI_XR80;
+        RequiresXPR = true;
+        break;
+      default:
+        llvm_unreachable("Unsupport register size");
+      }
+      PartialMappings[Idx] = RBIdx;
+    }
+    SmallVector<const RegisterBankInfo::ValueMapping *, MaxNumOperands>
+        ValueMappings(NumOperands);
+    for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
+      PartialMappingIdx RBIdx = PartialMappings[Idx];
+      if (RequiresXPR) {
+        if (RBIdx == PMI_GR32)
+          RBIdx = PMI_XR32;
+        else if (RBIdx == PMI_GR64)
+          RBIdx = PMI_XR64;
+      }
+      ValueMappings[Idx] = getValueMapping(RBIdx);
+    }
+    OperandsMapping = getOperandsMapping(ValueMappings);
+    break;
+  }
+    // Instructions using all the same register bank.
+  default: {
+    SmallVector<const RegisterBankInfo::ValueMapping *, MaxNumOperands>
+        ValueMappings(NumOperands);
+    for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
+      auto &MO = MI.getOperand(Idx);
+      if (!MO.isReg() || !MO.getReg())
+        continue;
+      LLT Ty = MRI.getType(MO.getReg());
+      if (!Ty.isValid())
+        continue;
+      TypeSize TySz = Ty.getSizeInBits();
+      assert((TySz == 32 || TySz == 64 || TySz == 80) &&
+             "Unexpected type size");
+      ValueMappings[Idx] = getValueMapping(
+          TySz == 32 ? PMI_GR32 : (TySz == 64 ? PMI_GR64 : PMI_XR80));
+    }
+    OperandsMapping = getOperandsMapping(ValueMappings);
+    break;
+  }
   }
 
-    return getInstructionMapping(MappingID, /*Cost=*/1, OperandsMapping,
-                                 NumOperands);
+  return getInstructionMapping(MappingID, /*Cost=*/1, OperandsMapping,
+                               NumOperands);
 }
 
 RegisterBankInfo::InstructionMappings
 M88kRegisterBankInfo::getInstrAlternativeMappings(
     const MachineInstr &MI) const {
+  const MachineFunction &MF = *MI.getParent()->getParent();
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
+  const M88kSubtarget &STI = MF.getSubtarget<M88kSubtarget>();
+
+  // The the MC88110 has alternative mappings.
+  if (!STI.isMC88110())
+    return RegisterBankInfo::getInstrAlternativeMappings(MI);
+
   const unsigned Opc = MI.getOpcode();
   switch (Opc) {
   case TargetOpcode::G_FADD:
@@ -413,12 +311,33 @@ M88kRegisterBankInfo::getInstrAlternativeMappings(
     unsigned NumOperands = MI.getNumOperands();
     assert(NumOperands <= 3 &&
            "This code is for instructions with 3 or less operands");
+    unsigned TySz =
+        MRI.getType(MI.getOperand(0).getReg()).getScalarSizeInBits();
+    if (TySz == 80)
+      break;
+    PartialMappingIdx RBIdx1, RBIdx2;
+    assert((TySz == 32 || TySz == 64) && "Unexpected type size");
+    if (TySz == 32)
+      RBIdx1 = PMI_GR32, RBIdx2 = PMI_XR32;
+    else
+      RBIdx1 = PMI_GR64, RBIdx2 = PMI_XR64;
+
     InstructionMappings AltMappings;
     AltMappings.push_back(&getInstructionMapping(
-        /*ID*/ 1, /*Cost*/ 1, getValueMapping(PMI_XR32), NumOperands));
+        /*ID*/ 1, /*Cost*/ 1, getValueMapping(RBIdx1), NumOperands));
     AltMappings.push_back(&getInstructionMapping(
-        /*ID*/ 2, /*Cost*/ 1, getValueMapping(PMI_XR80), NumOperands));
+        /*ID*/ 2, /*Cost*/ 1, getValueMapping(RBIdx2), NumOperands));
     return AltMappings;
+  }
+  case TargetOpcode::G_LOAD:
+  case TargetOpcode::G_STORE: {
+    // TODO Add alternative mapping if the value is of floating point type.
+    break;
+  }
+  case TargetOpcode::G_FPEXT:
+  case TargetOpcode::G_FPTRUNC: {
+    // TODO Add alternative mapping if the values are only 32/64 bit floats.
+    break;
   }
   default:
     break;
