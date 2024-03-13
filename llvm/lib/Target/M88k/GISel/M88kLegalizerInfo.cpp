@@ -81,6 +81,9 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
   getActionDefinitionsBuilder(G_PTRTOINT)
       .legalFor({{S32, P0}})
       .minScalar(0, S32);
+  getActionDefinitionsBuilder(G_PTRMASK)
+      .legalFor({{P0, S32}})
+      .clampScalar(1, S32, S32);
 
   getActionDefinitionsBuilder({G_SEXT, G_ZEXT, G_ANYEXT})
       .legalFor({{S32, S16}, {S32, S8}, {S32, S1}})
