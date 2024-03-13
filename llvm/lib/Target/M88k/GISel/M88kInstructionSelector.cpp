@@ -130,6 +130,8 @@ private:
                         MachineRegisterInfo &MRI) const;
   bool selectPtrAdd(MachineInstr &I, MachineBasicBlock &MBB,
                     MachineRegisterInfo &MRI) const;
+  bool selectPtrMask(MachineInstr &I, MachineBasicBlock &MBB,
+                     MachineRegisterInfo &MRI) const;
   bool selectAddSubWithCarry(MachineInstr &I, MachineBasicBlock &MBB,
                              MachineRegisterInfo &MRI,
                              bool IsRecursive = false);
@@ -902,6 +904,25 @@ bool M88kInstructionSelector::selectPtrAdd(MachineInstr &I,
   return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
 }
 
+bool M88kInstructionSelector::selectPtrMask(MachineInstr &I,
+                                            MachineBasicBlock &MBB,
+                                            MachineRegisterInfo &MRI) const {
+  assert(I.getOpcode() == TargetOpcode::G_PTRMASK && "Unexpected G code");
+
+  Register MaskReg = I.getOperand(2).getReg();
+  std::optional<int64_t> MaskVal = getIConstantVRegSExtVal(MaskReg, MRI);
+  // TODO: Implement arbitrary cases
+  if (!MaskVal || !isInt<32>(*MaskVal) || !isShiftedMask_64(*MaskVal))
+    return false;
+
+  uint32_t Mask = ~static_cast<uint32_t>(*MaskVal);
+  I.setDesc(TII.get(M88k::CLRrwo));
+  I.getOperand(2).ChangeToImmediate(popcount(Mask));
+  I.addOperand(MachineOperand::CreateImm(countr_zero(Mask)));
+
+  return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
+}
+
 bool isCarryChangedByInstr(const MachineInstr *I, MachineRegisterInfo &MRI) {
   if (auto *CarryI = dyn_cast<GAddSubCarryOut>(I))
     return !MRI.use_nodbg_empty(CarryI->getCarryOutReg());
@@ -1348,6 +1369,8 @@ bool M88kInstructionSelector::select(MachineInstr &I) {
     return selectGlobalValue(I, MBB, MRI);
   case TargetOpcode::G_PTR_ADD:
     return selectPtrAdd(I, MBB, MRI);
+  case TargetOpcode::G_PTRMASK:
+    return selectPtrMask(I, MBB, MRI);
   case TargetOpcode::G_FRAME_INDEX:
     return selectFrameIndex(I, MBB, MRI);
   case TargetOpcode::G_VASTART:
