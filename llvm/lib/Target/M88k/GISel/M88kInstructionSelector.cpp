@@ -1219,8 +1219,44 @@ bool M88kInstructionSelector::preISelLower(MachineInstr &I) {
     }
     return Changed;
   }
-  // case TargetOpcode::G_PTR_ADD:
-  //   return convertPtrAddToAdd(I, MRI);
+  case TargetOpcode::G_PTR_ADD: {
+    // This lowering tries to look for G_PTR_ADD instructions and then converts
+    // them to a standard G_ADD with a COPY on the source.
+    //
+    // The motivation behind this is to expose the add semantics to the imported
+    // tablegen patterns. We shouldn't need to check for uses being
+    // loads/stores, because the selector works bottom up, uses before defs. By
+    // the time we end up trying to select a G_PTR_ADD, we should have already
+    // attempted to fold this into addressing modes and were therefore
+    // unsuccessful.
+    Register DstReg = I.getOperand(0).getReg();
+    Register AddOp1Reg = I.getOperand(1).getReg();
+
+    auto PtrToInt = BuildMI(MBB, I.getPrevNode(), I.getDebugLoc(),
+                            TII.get(TargetOpcode::G_PTRTOINT),
+                            MRI.createVirtualRegister(&M88k::GPRRegClass))
+                        .addReg(AddOp1Reg);
+    MRI.setType(PtrToInt.getReg(0), LLT::scalar(32));
+
+    // Now turn the %dst(p0) = G_PTR_ADD %base, off into:
+    // %dst(intty) = G_ADD %intbase, off
+    I.setDesc(TII.get(TargetOpcode::G_ADD));
+    MRI.setType(DstReg, LLT::scalar(32));
+    I.getOperand(1).setReg(PtrToInt.getReg(0));
+    if (!select(*PtrToInt)) {
+      LLVM_DEBUG(dbgs() << "Failed to select G_PTRTOINT in convertPtrAddToAdd");
+      return false;
+    }
+
+    // Also take the opportunity here to try to do some optimization.
+    // Try to convert this into a G_SUB if the offset is a 0-x negate idiom.
+    Register NegatedReg;
+    if (!mi_match(I.getOperand(2).getReg(), MRI, m_Neg(m_Reg(NegatedReg))))
+      return true;
+    I.getOperand(2).setReg(NegatedReg);
+    I.setDesc(TII.get(TargetOpcode::G_SUB));
+    return true;
+  }
   case TargetOpcode::G_CONSTANT:
   case TargetOpcode::G_LOAD: {
     // For scalar loads of pointers, we try to convert the dest type from p0
