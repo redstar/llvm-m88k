@@ -170,8 +170,6 @@ private:
   // clobbered by calls.
   Register MFReturnAddr;
 
-  MachineIRBuilder MIB;
-
 #define GET_GLOBALISEL_PREDICATES_DECL
 #include "M88kGenGlobalISel.inc"
 #undef GET_GLOBALISEL_PREDICATES_DECL
@@ -200,21 +198,6 @@ M88kInstructionSelector::M88kInstructionSelector(
 #include "M88kGenGlobalISel.inc"
 #undef GET_GLOBALISEL_TEMPORARIES_INIT
 {
-}
-
-// Check is the register Reg is zero. If yes then return the hardware zero
-// register, otherwise return Reg.
-static Register getRegOrZero(Register Reg, const MachineRegisterInfo &MRI) {
-  std::optional<ValueAndVReg> Res =
-      getIConstantVRegValWithLookThrough(Reg, MRI, true);
-  if (Res && Res->Value.isZero())
-    return M88k::R0;
-  return Reg;
-}
-
-static Register getRegOrZero(MachineOperand &OP,
-                             const MachineRegisterInfo &MRI) {
-  return getRegOrZero(OP.getReg(), MRI);
 }
 
 // Like llvm::getSrcRegIgnoringCopies() but returns the register from argument
@@ -488,12 +471,9 @@ bool M88kInstructionSelector::selectFrameIndex(MachineInstr &I,
                                                MachineRegisterInfo &MRI) const {
   assert(I.getOpcode() == TargetOpcode::G_FRAME_INDEX && "Unexpected G code");
 
-  MachineInstr *MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ADDri))
-                         .add(I.getOperand(0))
-                         .add(I.getOperand(1))
-                         .addImm(0);
-  I.eraseFromParent();
-  return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
+  I.setDesc(TII.get(M88k::ADDri));
+  I.addOperand(MachineOperand::CreateImm(0));
+  return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
 }
 
 bool M88kInstructionSelector::selectVaStart(MachineInstr &I,
@@ -612,14 +592,10 @@ bool M88kInstructionSelector::selectUbfx(MachineInstr &I,
     Width = WidthCst->Value.getZExtValue();
   }
 
-  MachineInstr *MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(NewOpc))
-                         .add(I.getOperand(0))
-                         .add(I.getOperand(1))
-                         .addImm(Width)
-                         .addImm(Offset);
-
-  I.eraseFromParent();
-  return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
+  I.setDesc(TII.get(NewOpc));
+  I.getOperand(2).ChangeToImmediate(Width);
+  I.getOperand(3).ChangeToImmediate(Offset);
+  return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
 }
 
 enum class ICC : unsigned {
@@ -873,10 +849,8 @@ bool M88kInstructionSelector::selectBrIndirect(MachineInstr &I,
                                                MachineRegisterInfo &MRI) const {
   assert(I.getOpcode() == TargetOpcode::G_BRINDIRECT && "Unexpected G code");
 
-  MachineInstr *MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::JMP))
-                         .addReg(I.getOperand(0).getReg());
-  I.eraseFromParent();
-  return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
+  I.setDesc(TII.get(M88k::JMP));
+  return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
 }
 
 bool M88kInstructionSelector::selectPtrAdd(MachineInstr &I,
@@ -884,24 +858,16 @@ bool M88kInstructionSelector::selectPtrAdd(MachineInstr &I,
                                            MachineRegisterInfo &MRI) const {
   assert(I.getOpcode() == TargetOpcode::G_PTR_ADD && "Unexpected G code");
 
-  MachineInstr *MI = nullptr;
-  Register PtrReg = I.getOperand(1).getReg();
   Register AddendReg = I.getOperand(2).getReg();
 
   int64_t Offset;
   if (mi_match(AddendReg, MRI, m_ICst(Offset)) && isUInt<16>(Offset)) {
-    MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ADDUri),
-                 I.getOperand(0).getReg())
-             .addReg(PtrReg)
-             .addImm(Offset);
+    I.setDesc(TII.get(M88k::ADDUri));
+    I.getOperand(2).ChangeToImmediate(Offset);
   } else {
-    MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ADDrr),
-                 I.getOperand(0).getReg())
-             .addReg(PtrReg)
-             .addReg(AddendReg);
+    I.setDesc(TII.get(M88k::ADDUrr));
   }
-  I.eraseFromParent();
-  return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
+  return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
 }
 
 bool M88kInstructionSelector::selectPtrMask(MachineInstr &I,
@@ -1135,12 +1101,11 @@ bool M88kInstructionSelector::selectMergeUnmerge(
          I.getOpcode() == TargetOpcode::G_UNMERGE_VALUES &&
              "Unexpected G code");
 
-  MachineInstr *MI = nullptr;
   if (I.getOpcode() == TargetOpcode::G_MERGE_VALUES) {
     Register DstReg = I.getOperand(0).getReg();
     Register LoReg = I.getOperand(1).getReg();
     Register HiReg = I.getOperand(2).getReg();
-    MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::REG_SEQUENCE),
+    BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::REG_SEQUENCE),
             DstReg)
         .addUse(LoReg)
         .addImm(M88k::sub_lo)
@@ -1151,15 +1116,15 @@ bool M88kInstructionSelector::selectMergeUnmerge(
     Register SrcReg = I.getOperand(2).getReg();
 
     // Copy to dst.
-    MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::COPY),
-                 I.getOperand(0).getReg())
-             .addReg(SrcReg, 0, M88k::sub_lo);
+    BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::COPY),
+            I.getOperand(0).getReg())
+        .addReg(SrcReg, 0, M88k::sub_lo);
     RBI.constrainGenericRegister(I.getOperand(0).getReg(), M88k::GPRRegClass,
                                  MRI);
 
-    MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::COPY),
-                 I.getOperand(1).getReg())
-             .addReg(SrcReg, 0, M88k::sub_hi);
+    BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::COPY),
+            I.getOperand(1).getReg())
+        .addReg(SrcReg, 0, M88k::sub_hi);
     RBI.constrainGenericRegister(I.getOperand(1).getReg(), M88k::GPRRegClass,
                                  MRI);
   }
@@ -1244,8 +1209,10 @@ bool M88kInstructionSelector::preISelLower(MachineInstr &I) {
       // Allow matching with imported patterns for stores of pointers. Unlike
       // G_LOAD/G_PTR_ADD, we may not have selected all users. So, emit a copy
       // and constrain.
-      auto Copy = MIB.buildCopy(LLT::scalar(32), SrcOp);
-      Register NewSrc = Copy.getReg(0);
+      Register NewSrc = MRI.createVirtualRegister(&M88k::GPRRegClass);
+      BuildMI(MBB, I, I.getDebugLoc(), TII.get(TargetOpcode::COPY), NewSrc)
+          .addReg(SrcOp.getReg());
+      MRI.setType(NewSrc, LLT::scalar(32));
       SrcOp.setReg(NewSrc);
       RBI.constrainGenericRegister(NewSrc, M88k::GPRRegClass, MRI);
       Changed = true;
@@ -1320,7 +1287,6 @@ void M88kInstructionSelector::setupMF(MachineFunction &MF, GISelKnownBits *KB,
                                       ProfileSummaryInfo *PSI,
                                       BlockFrequencyInfo *BFI) {
   InstructionSelector::setupMF(MF, KB, CoverageInfo, PSI, BFI);
-  MIB.setMF(MF);
   MFReturnAddr = Register();
 }
 
@@ -1331,8 +1297,6 @@ bool M88kInstructionSelector::select(MachineInstr &I) {
   auto &MBB = *I.getParent();
   auto &MF = *MBB.getParent();
   auto &MRI = MF.getRegInfo();
-
-  MIB.setInstrAndDebugLoc(I);
 
   // Certain non-generic instructions also need some special handling.
   if (!I.isPreISelOpcode()) {
