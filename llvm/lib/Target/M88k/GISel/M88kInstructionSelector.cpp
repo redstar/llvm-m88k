@@ -342,7 +342,7 @@ void M88kInstructionSelector::renderCTZINV(MachineInstrBuilder &MIB,
 
 static bool isUnalignedAccess(MachineInstr &MI) {
   const auto &MMO = dyn_cast<GMemOperation>(&MI)->getMMO();
-  return MMO.getAlign() < MMO.getSize();
+  return MMO.getAlign() < MMO.getSize().getValue();
 }
 
 InstructionSelector::ComplexRendererFns
@@ -451,10 +451,11 @@ M88kInstructionSelector::selectAddrRegScaled(MachineOperand &Root) const {
   // Check for G_PTR_ADD plus shifted register.
   MachineInstr *RootDef = getDefIgnoringCopies(Root.getReg(), MRI);
   Register Base, Scaled;
-  if (mi_match(RootDef, MRI,
-               m_GPtrAdd(m_Reg(Base),
-                         m_GShl(m_Reg(Scaled),
-                                m_SpecificICst(Log2_32(MI.getMemSize())))))) {
+  if (mi_match(
+          RootDef, MRI,
+          m_GPtrAdd(m_Reg(Base),
+                    m_GShl(m_Reg(Scaled), m_SpecificICst(Log2_32(
+                                              MI.getMemSize().getValue())))))) {
     Register BaseReg = getRegIgnoringCopies(Base, MRI);
     Register ScaledReg = getRegIgnoringCopies(Scaled, MRI);
     return {{
