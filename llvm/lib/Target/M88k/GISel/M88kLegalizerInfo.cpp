@@ -263,7 +263,7 @@ bool M88kLegalizerInfo::legalizeCustom(
     // Calculate the number of parts which must be loaded.
     // E.g. MemSize = 4, Align = 2 => 2 parts of size 2.
     // There can be only 2 cases: 2 or 4 parts.
-    uint64_t MemSize = LdStMI->getMemSize();
+    TypeSize MemSize = LdStMI->getMemSize().getValue();
     uint64_t ChunkSize = 1ULL << Log2(MMO->getAlign());
 
     uint64_t Parts = MemSize / ChunkSize;
@@ -326,7 +326,7 @@ bool M88kLegalizerInfo::legalizeCustom(
     // Calculate the number of parts which must be stored.
     // E.g. MemSize = 4, Align = 2 => 2 parts of size 2.
     // There can be only 2 cases: 2 or 4 parts.
-    uint64_t MemSize = StoreMI->getMemSize();
+    TypeSize MemSize = StoreMI->getMemSize().getValue();
     uint64_t ChunkSize = 1ULL << Log2(MMO->getAlign());
 
     uint64_t Parts = MemSize / ChunkSize;
