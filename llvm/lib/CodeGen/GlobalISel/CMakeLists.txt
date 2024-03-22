@@ -1,4 +1,6 @@
 add_llvm_component_library(LLVMGlobalISel
+  BURSInstructionSelect.cpp
+  BURSInstructionSelector.cpp
   CSEInfo.cpp
   GISelKnownBits.cpp
   CSEMIRBuilder.cpp
