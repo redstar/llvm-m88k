@@ -54,6 +54,7 @@ add_tablegen(llvm-tblgen LLVM
   DXILEmitter.cpp
   ExegesisEmitter.cpp
   FastISelEmitter.cpp
+  GlobalISelBURGEmitter.cpp
   GlobalISelCombinerEmitter.cpp
   GlobalISelEmitter.cpp
   InstrDocsEmitter.cpp
