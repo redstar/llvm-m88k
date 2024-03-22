@@ -134,6 +134,7 @@ void initializeIndirectBrExpandLegacyPassPass(PassRegistry &);
 void initializeInferAddressSpacesPass(PassRegistry&);
 void initializeInstSimplifyLegacyPassPass(PassRegistry &);
 void initializeInstructionCombiningPassPass(PassRegistry&);
+void initializeBURSInstructionSelectPass(PassRegistry&);
 void initializeInstructionSelectPass(PassRegistry&);
 void initializeInterleavedAccessPass(PassRegistry&);
 void initializeInterleavedLoadCombinePass(PassRegistry &);
