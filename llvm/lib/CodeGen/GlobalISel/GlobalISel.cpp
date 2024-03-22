@@ -20,5 +20,6 @@ void llvm::initializeGlobalISel(PassRegistry &Registry) {
   initializeLoadStoreOptPass(Registry);
   initializeLocalizerPass(Registry);
   initializeRegBankSelectPass(Registry);
+  initializeBURSInstructionSelectPass(Registry);
   initializeInstructionSelectPass(Registry);
 }
