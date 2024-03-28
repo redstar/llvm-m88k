@@ -20,7 +20,15 @@ def NotMC88110 : Predicate<"!Subtarget->isMC88110()">,
 // Selection DAG Nodes.
 // ---------------------------------------------------------------------------//
 
+def SDTBitfieldExtract : SDTypeProfile<1, 3, [
+  SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>, SDTCisInt<0>
+]>;
+
 // Selection DAG types.
+
+// Bitfield extraction.
+def sbfx : SDNode<"M88kISD::SBFX", SDTBitfieldExtract>;
+def ubfx : SDNode<"M88kISD::UBFX", SDTBitfieldExtract>;
 
 // Hi16 and Lo16 nodes are used to handle global addresses.
 def m88k_hi : SDNode<"M88kISD::Hi16", SDTIntUnaryOp>;
@@ -47,6 +55,11 @@ def G_LO : M88kGenericInstruction {
   let InOperandList = (ins ptype1:$addr);
   let hasSideEffects = 0;
 }
+
+def : GINodeEquiv<G_SBFX, sbfx>;
+def : GINodeEquiv<G_UBFX, ubfx>;
+
+def : GINodeEquiv<G_BRINDIRECT, brind>;
 
 // This is the idea, but it currently does not work because the generated GISel
 // matcher cannot handle tglobaladdr.
@@ -373,6 +386,12 @@ def : Pat<(srl GPROpnd:$rs1, bfoffset:$o5), (EXTUrwo GPROpnd:$rs1, 0, bfoffset:$
 def : Pat<(shl GPROpnd:$rs1, bfoffset:$o5), (MAKrwo GPROpnd:$rs1, 0, bfoffset:$o5)>;
 def : Pat<(rotr GPROpnd:$rs1, bfoffset:$o5), (ROTrwo GPROpnd:$rs1, bfoffset:$o5)>;
 
+// Patterns for bitfield extraction.
+def : Pat<(ubfx GPROpnd:$rs1, bfoffset:$o5, bfwidth:$w5),
+          (EXTUrwo GPROpnd:$rs1, bfwidth:$w5, bfoffset:$o5)>;
+def : Pat<(sbfx GPROpnd:$rs1, bfoffset:$o5, bfwidth:$w5),
+          (EXTrwo GPROpnd:$rs1, bfwidth:$w5, bfoffset:$o5)>;
+
 class FindBF<bits<6> Func, string OpcStr> :
   F_BF<Func, (outs GPROpnd:$rd), (ins GPROpnd:$rs2), OpcStr>;
 
@@ -449,6 +468,11 @@ defm : BinaryOpPat<"DIVU", udiv>;
 defm : BinaryOpPat<"DIVS", sdiv>;
 //def : Pat<(umullohi GPROpnd:$rs1, GPROpnd:$rs2), (MULUrrd GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(ineg GPROpnd:$rs2), (SUBUrr (i32 R0), GPROpnd:$rs2)>;
+
+def : Pat<(ptradd GPROpnd:$rs1, uimm16:$imm),
+          (ADDUri GPROpnd:$rs1, uimm16:$imm)>;
+def : Pat<(ptradd GPROpnd:$rs1, GPROpnd:$rs2),
+          (ADDUrr GPROpnd:$rs1, GPROpnd:$rs2)>;
 
 // ---------------------------------------------------------------------------//
 // Materialize immediates & constants.
