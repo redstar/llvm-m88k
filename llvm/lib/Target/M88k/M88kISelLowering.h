@@ -30,6 +30,10 @@ namespace M88kISD {
 enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
 
+  // Bitfield extraction with sign and zero extension.
+  SBFX,
+  UBFX,
+
   // Get the High 16 bits from a 32-bit immediate.
   Hi16,
 

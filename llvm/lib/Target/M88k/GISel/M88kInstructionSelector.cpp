@@ -116,8 +116,8 @@ private:
                      MachineRegisterInfo &MRI) const;
   bool selectGlobalValue(MachineInstr &I, MachineBasicBlock &MBB,
                          MachineRegisterInfo &MRI) const;
-  bool selectUbfx(MachineInstr &I, MachineBasicBlock &MBB,
-                  MachineRegisterInfo &MRI) const;
+  bool selectSExtInreg(MachineInstr &I, MachineBasicBlock &MBB,
+                       MachineRegisterInfo &MRI) const;
   bool selectICmp(MachineInstr &I, MachineBasicBlock &MBB,
                   MachineRegisterInfo &MRI) const;
   bool selectBrCond(MachineInstr &I, MachineBasicBlock &MBB,
@@ -126,10 +126,6 @@ private:
                        MachineRegisterInfo &MRI) const;
   bool selectBrJT(MachineInstr &I, MachineBasicBlock &MBB,
                   MachineRegisterInfo &MRI) const;
-  bool selectBrIndirect(MachineInstr &I, MachineBasicBlock &MBB,
-                        MachineRegisterInfo &MRI) const;
-  bool selectPtrAdd(MachineInstr &I, MachineBasicBlock &MBB,
-                    MachineRegisterInfo &MRI) const;
   bool selectPtrMask(MachineInstr &I, MachineBasicBlock &MBB,
                      MachineRegisterInfo &MRI) const;
   bool selectAddSubWithCarry(MachineInstr &I, MachineBasicBlock &MBB,
@@ -562,40 +558,21 @@ bool M88kInstructionSelector::selectGlobalValue(
   return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
 }
 
-bool M88kInstructionSelector::selectUbfx(MachineInstr &I,
-                                         MachineBasicBlock &MBB,
-                                         MachineRegisterInfo &MRI) const {
-  assert(I.getOpcode() == TargetOpcode::G_UBFX ||
-         I.getOpcode() == TargetOpcode::G_SBFX ||
-         I.getOpcode() == TargetOpcode::G_SEXT_INREG && "Unexpected G code");
+bool M88kInstructionSelector::selectSExtInreg(MachineInstr &I,
+                                              MachineBasicBlock &MBB,
+                                              MachineRegisterInfo &MRI) const {
+  assert(I.getOpcode() == TargetOpcode::G_SEXT_INREG && "Unexpected G code");
 
-  const unsigned NewOpc =
-      I.getOpcode() == TargetOpcode::G_UBFX ? M88k::EXTUrwo : M88k::EXTrwo;
-  uint64_t Width, Offset;
-  if (I.getOpcode() == TargetOpcode::G_SEXT_INREG) {
-    // For G_SEXT_INREG, the width is the immediate in operand 2. The offset is
-    // always 0.
-    Width = I.getOperand(2).getImm() + 1;
-    assert(Width < 32 && "Can't sign-extend 32bit value");
-    Offset = 0;
-  } else {
-    auto OffsetCst =
-        getIConstantVRegValWithLookThrough(I.getOperand(2).getReg(), MRI, true);
-    if (!OffsetCst)
-      return false;
-    Offset = OffsetCst->Value.getZExtValue();
+  uint64_t Width;
 
-    auto WidthCst =
-        getIConstantVRegValWithLookThrough(I.getOperand(3).getReg(), MRI, true);
-    if (!WidthCst)
-      return false;
+  // For G_SEXT_INREG, the width is the immediate in operand 2. The offset is
+  // always 0.
+  Width = I.getOperand(2).getImm() + 1;
+  assert(Width < 32 && "Can't sign-extend 32bit value");
 
-    Width = WidthCst->Value.getZExtValue();
-  }
-
-  I.setDesc(TII.get(NewOpc));
+  I.setDesc(TII.get(M88k::EXTrwo));
   I.getOperand(2).ChangeToImmediate(Width);
-  I.getOperand(3).ChangeToImmediate(Offset);
+  I.addOperand(MachineOperand::CreateImm(0));
   return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
 }
 
@@ -843,32 +820,6 @@ bool M88kInstructionSelector::selectBrJT(MachineInstr &I,
   MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::JMP)).addReg(DstReg);
   I.eraseFromParent();
   return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
-}
-
-bool M88kInstructionSelector::selectBrIndirect(MachineInstr &I,
-                                               MachineBasicBlock &MBB,
-                                               MachineRegisterInfo &MRI) const {
-  assert(I.getOpcode() == TargetOpcode::G_BRINDIRECT && "Unexpected G code");
-
-  I.setDesc(TII.get(M88k::JMP));
-  return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
-}
-
-bool M88kInstructionSelector::selectPtrAdd(MachineInstr &I,
-                                           MachineBasicBlock &MBB,
-                                           MachineRegisterInfo &MRI) const {
-  assert(I.getOpcode() == TargetOpcode::G_PTR_ADD && "Unexpected G code");
-
-  Register AddendReg = I.getOperand(2).getReg();
-
-  int64_t Offset;
-  if (mi_match(AddendReg, MRI, m_ICst(Offset)) && isUInt<16>(Offset)) {
-    I.setDesc(TII.get(M88k::ADDUri));
-    I.getOperand(2).ChangeToImmediate(Offset);
-  } else {
-    I.setDesc(TII.get(M88k::ADDUrr));
-  }
-  return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
 }
 
 bool M88kInstructionSelector::selectPtrMask(MachineInstr &I,
@@ -1368,18 +1319,14 @@ bool M88kInstructionSelector::select(MachineInstr &I) {
     return selectIntrinsic(I, MBB, MRI);
   case TargetOpcode::G_GLOBAL_VALUE:
     return selectGlobalValue(I, MBB, MRI);
-  case TargetOpcode::G_PTR_ADD:
-    return selectPtrAdd(I, MBB, MRI);
   case TargetOpcode::G_PTRMASK:
     return selectPtrMask(I, MBB, MRI);
   case TargetOpcode::G_FRAME_INDEX:
     return selectFrameIndex(I, MBB, MRI);
   case TargetOpcode::G_VASTART:
     return selectVaStart(I, MBB, MRI);
-  case TargetOpcode::G_UBFX:
-  case TargetOpcode::G_SBFX:
   case TargetOpcode::G_SEXT_INREG:
-    return selectUbfx(I, MBB, MRI);
+    return selectSExtInreg(I, MBB, MRI);
   case TargetOpcode::G_ICMP:
     return selectICmp(I, MBB, MRI);
   case TargetOpcode::G_BRCOND:
@@ -1388,8 +1335,6 @@ bool M88kInstructionSelector::select(MachineInstr &I) {
     return selectJumpTable(I, MBB, MRI);
   case TargetOpcode::G_BRJT:
     return selectBrJT(I, MBB, MRI);
-  case TargetOpcode::G_BRINDIRECT:
-    return selectBrIndirect(I, MBB, MRI);
   case TargetOpcode::G_UADDO:
   case TargetOpcode::G_USUBO:
   case TargetOpcode::G_UADDE:
