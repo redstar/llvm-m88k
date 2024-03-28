@@ -34,6 +34,9 @@ def Proc88110       : SubtargetFeature<"mc88110", "M88kProc", "MC88110",
 // Register File, Calling Conv, Instruction Descriptions
 //===----------------------------------------------------------------------===//
 
+// Create new value type representing a pointer in GlobalISel.
+def p0 : PtrValueType<i32, 0>;
+
 include "M88kRegisterInfo.td"
 include "GISel/M88kRegisterBanks.td"
 include "M88kCallingConv.td"
