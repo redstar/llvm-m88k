@@ -22,18 +22,6 @@ def NotMC88110 : Predicate<"!Subtarget->isMC88110()">,
 
 // Selection DAG types.
 
-// These are target-independent nodes, but have target-specific formats.
-def SDT_CallSeqStart : SDCallSeqStart<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
-def SDT_CallSeqEnd   : SDCallSeqEnd<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>;
-
-// Selection DAG nodes.
-def retflag          : SDNode<"M88kISD::RET_FLAG", SDTNone,
-                              [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
-def callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_CallSeqStart,
-                                [SDNPHasChain, SDNPOutGlue]>;
-def callseq_end   : SDNode<"ISD::CALLSEQ_END", SDT_CallSeqEnd,
-                                [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
-
 // Hi16 and Lo16 nodes are used to handle global addresses.
 def m88k_hi : SDNode<"M88kISD::Hi16", SDTIntUnaryOp>;
 def m88k_lo : SDNode<"M88kISD::Lo16", SDTIntUnaryOp>;
@@ -309,10 +297,8 @@ def invshmask32 : IntImmLeaf<i32, [{
 // Pseudo instructions.
 // ---------------------------------------------------------------------------//
 let hasSideEffects = 1 in {
-def ADJCALLSTACKDOWN : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
-                              [(callseq_start timm:$amt1, timm:$amt2)]>;
-def ADJCALLSTACKUP : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2),
-                            [(callseq_end timm:$amt1, timm:$amt2)]>;
+def ADJCALLSTACKDOWN : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2), []>;
+def ADJCALLSTACKUP : Pseudo<(outs), (ins i32imm:$amt1, i32imm:$amt2), []>;
 }
 
 // ---------------------------------------------------------------------------//
@@ -904,7 +890,7 @@ let isCall = 1, Defs = [R1] in {
 }
 
 let isReturn = 1, isTerminator = 1, isBarrier = 1, Opcode = "RET" in {
-  def RET : Pseudo<(outs), (ins), [(retflag)]>;
+  def RET : Pseudo<(outs), (ins), []>;
 }
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
