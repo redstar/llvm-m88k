@@ -54,8 +54,8 @@ foreach I = 0-31 in {
 //        fxcr, the MC88100 takes a floating-point unimplemented opcode
 //        exception as described in SECTION 6 EXCEPTIONS.
 //      - the stack pointer register r31 is reserved
-//      Thus, register classes without r0 and r31 could be useful. 
-def GPR : M88kRegisterClass<[i32, f32], 32, 32,
+//      Thus, register classes without r0 and r31 could be useful.
+def GPR : M88kRegisterClass<[i32, f32, p0], 32, 32,
                             (add (sequence "R%u", 2, 9),
                                  (sequence "R%u", 25, 14),
                                  R0, R1,
