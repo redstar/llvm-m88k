@@ -98,7 +98,7 @@ public:
 
   bool isReg() const override { return Kind == OpKind_Reg; }
 
-  unsigned getReg() const override {
+  MCRegister getReg() const override {
     assert(isReg() && "Invalid type access!");
     return Reg.RegNo;
   }
