@@ -11,9 +11,7 @@ define void @f1() {
 define void @callf1() {
   ; CHECK-LABEL: name: callf1
   ; CHECK: bb.1 (%ir-block.0):
-  ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0
   ; CHECK-NEXT:   BSR @f1, csr_m88k, implicit-def $r1
-  ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0
   ; CHECK-NEXT:   RET
   call void() @f1()
   ret void
@@ -33,10 +31,8 @@ define void @callf2() {
   ; CHECK-LABEL: name: callf2
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
-  ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0
   ; CHECK-NEXT:   $r2 = COPY [[C]](s32)
   ; CHECK-NEXT:   BSR @f2, csr_m88k, implicit-def $r1, implicit $r2
-  ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0
   ; CHECK-NEXT:   RET
   call void(i32) @f2(i32 1)
   ret void
@@ -57,11 +53,9 @@ define i32 @callf3() {
   ; CHECK-LABEL: name: callf3
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
-  ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0
   ; CHECK-NEXT:   $r2 = COPY [[C]](s32)
   ; CHECK-NEXT:   BSR @f3, csr_m88k, implicit-def $r1, implicit $r2, implicit-def $r2
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(s32) = COPY $r2
-  ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0
   ; CHECK-NEXT:   $r2 = COPY [[COPY]](s32)
   ; CHECK-NEXT:   RET implicit $r2
   %res = call i32(i32) @f3(i32 1)
@@ -87,12 +81,10 @@ define i32 @callf4() {
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_CONSTANT i32 1
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_CONSTANT i32 2
-  ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0
   ; CHECK-NEXT:   $r2 = COPY [[C]](s32)
   ; CHECK-NEXT:   $r3 = COPY [[C1]](s32)
   ; CHECK-NEXT:   BSR @f4, csr_m88k, implicit-def $r1, implicit $r2, implicit $r3, implicit-def $r2
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(s32) = COPY $r2
-  ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0
   ; CHECK-NEXT:   $r2 = COPY [[COPY]](s32)
   ; CHECK-NEXT:   RET implicit $r2
   %res = call i32(i32, i32) @f4(i32 1, i32 2)
@@ -171,12 +163,10 @@ define float @callf8() {
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s32) = G_FCONSTANT float 1.000000e+00
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s32) = G_FCONSTANT float 2.000000e+00
-  ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0
   ; CHECK-NEXT:   $r2 = COPY [[C]](s32)
   ; CHECK-NEXT:   $r3 = COPY [[C1]](s32)
   ; CHECK-NEXT:   BSR @f8, csr_m88k, implicit-def $r1, implicit $r2, implicit $r3, implicit-def $r2
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(s32) = COPY $r2
-  ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0
   ; CHECK-NEXT:   $r2 = COPY [[COPY]](s32)
   ; CHECK-NEXT:   RET implicit $r2
   %res = call float(float, float) @f8(float 1.0, float 2.0)
@@ -208,7 +198,6 @@ define double @callf9() {
   ; CHECK: bb.1 (%ir-block.0):
   ; CHECK-NEXT:   [[C:%[0-9]+]]:_(s64) = G_FCONSTANT double 1.000000e+00
   ; CHECK-NEXT:   [[C1:%[0-9]+]]:_(s64) = G_FCONSTANT double 2.000000e+00
-  ; CHECK-NEXT:   ADJCALLSTACKDOWN 0, 0
   ; CHECK-NEXT:   [[UV:%[0-9]+]]:_(s32), [[UV1:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[C]](s64)
   ; CHECK-NEXT:   [[UV2:%[0-9]+]]:_(s32), [[UV3:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[C1]](s64)
   ; CHECK-NEXT:   $r3 = COPY [[UV]](s32)
@@ -219,7 +208,6 @@ define double @callf9() {
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(s32) = COPY $r3
   ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(s32) = COPY $r2
   ; CHECK-NEXT:   [[MV:%[0-9]+]]:_(s64) = G_MERGE_VALUES [[COPY]](s32), [[COPY1]](s32)
-  ; CHECK-NEXT:   ADJCALLSTACKUP 0, 0
   ; CHECK-NEXT:   [[UV4:%[0-9]+]]:_(s32), [[UV5:%[0-9]+]]:_(s32) = G_UNMERGE_VALUES [[MV]](s64)
   ; CHECK-NEXT:   $r3 = COPY [[UV4]](s32)
   ; CHECK-NEXT:   $r2 = COPY [[UV5]](s32)
@@ -263,7 +251,6 @@ define i32 @callf11() {
   ; CHECK-NEXT:   [[C7:%[0-9]+]]:_(s32) = G_CONSTANT i32 8
   ; CHECK-NEXT:   [[C8:%[0-9]+]]:_(s32) = G_CONSTANT i32 9
   ; CHECK-NEXT:   [[C9:%[0-9]+]]:_(s32) = G_CONSTANT i32 10
-  ; CHECK-NEXT:   ADJCALLSTACKDOWN 8, 0
   ; CHECK-NEXT:   [[COPY:%[0-9]+]]:_(p0) = COPY $r31
   ; CHECK-NEXT:   [[C10:%[0-9]+]]:_(s32) = G_CONSTANT i32 0
   ; CHECK-NEXT:   [[PTR_ADD:%[0-9]+]]:_(p0) = G_PTR_ADD [[COPY]], [[C10]](s32)
@@ -281,7 +268,6 @@ define i32 @callf11() {
   ; CHECK-NEXT:   $r9 = COPY [[C7]](s32)
   ; CHECK-NEXT:   BSR @f10, csr_m88k, implicit-def $r1, implicit $r2, implicit $r3, implicit $r4, implicit $r5, implicit $r6, implicit $r7, implicit $r8, implicit $r9, implicit-def $r2
   ; CHECK-NEXT:   [[COPY1:%[0-9]+]]:_(s32) = COPY $r2
-  ; CHECK-NEXT:   ADJCALLSTACKUP 8, 0
   ; CHECK-NEXT:   $r2 = COPY [[COPY1]](s32)
   ; CHECK-NEXT:   RET implicit $r2
   %res = call i32(i32,i32,i32,i32,i32,i32,i32,i32,i32,i32) @f10(i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10)
