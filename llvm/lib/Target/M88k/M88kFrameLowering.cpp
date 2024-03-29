@@ -212,18 +212,6 @@ bool M88kFrameLowering::spillCalleeSavedRegisters(
   return true;
 }
 
-void M88kFrameLowering::processFunctionBeforeFrameFinalized(
-    MachineFunction &MF, RegScavenger *RS) const {
-  MachineFrameInfo &MFI = MF.getFrameInfo();
-
-  // Make sure that the call frame size has stack alignment.
-  // The same effect could also be reached by align the size of each call frame.
-  assert(MFI.isMaxCallFrameSizeComputed() && "MaxCallFrame not computed");
-  unsigned MaxCallFrameSize = MFI.getMaxCallFrameSize();
-  MaxCallFrameSize = alignTo(MaxCallFrameSize, getStackAlign());
-  MFI.setMaxCallFrameSize(MaxCallFrameSize);
-}
-
 void M88kFrameLowering::emitPrologue(MachineFunction &MF,
                                      MachineBasicBlock &MBB) const {
   assert(&MF.front() == &MBB && "Shrink-wrapping not yet supported");
@@ -284,13 +272,6 @@ void M88kFrameLowering::emitPrologue(MachineFunction &MF,
           .setMIFlag(MachineInstr::FrameSetup);
     }
   }
-}
-
-MachineBasicBlock::iterator M88kFrameLowering::eliminateCallFramePseudoInstr(
-    MachineFunction &MF, MachineBasicBlock &MBB,
-    MachineBasicBlock::iterator I) const {
-  // Discard ADJCALLSTACKDOWN, ADJCALLSTACKUP instructions.
-  return MBB.erase(I);
 }
 
 void M88kFrameLowering::emitEpilogue(MachineFunction &MF,
