@@ -30,6 +30,7 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/Register.h"
 #include "llvm/CodeGen/TargetCallingConv.h"
+#include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGenTypes/LowLevelType.h"
 #include "llvm/Support/Alignment.h"
 #include <cassert>
@@ -423,9 +424,6 @@ bool M88kCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 
   // TODO Handle tail calls.
 
-  MachineInstrBuilder CallSeqStart;
-  CallSeqStart = MIRBuilder.buildInstr(M88k::ADJCALLSTACKDOWN);
-
   // Create a temporarily-floating call instruction so we can add the implicit
   // uses of arg registers.
   unsigned Opc = Info.Callee.isReg() ? M88k::JSR : M88k::BSR;
@@ -471,10 +469,19 @@ bool M88kCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
       return false;
   }
 
-  CallSeqStart.addImm(ArgAssigner.StackSize).addImm(0);
-  MIRBuilder.buildInstr(M88k::ADJCALLSTACKUP)
-      .addImm(ArgAssigner.StackSize)
-      .addImm(0);
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  const TargetFrameLowering *TFL = MF.getSubtarget().getFrameLowering();
+  assert(TFL->hasReservedCallFrame(MF) &&
+         "ADJSTACKDOWN and ADJSTACKUP should be no-ops");
+  // Set the MaxCallFrameSize value. There is no need to emit the
+  // ADJCALLSTACKDOWN/ADJCALLSTACKUP instructions since it serves no further
+  // purpose as the call frame is statically reserved in the prolog. Set
+  // AdjustsStack as MI is *not* mapped as a frame instruction.
+  unsigned AlignedCallFrameSize =
+      alignTo(ArgAssigner.StackSize, TFL->getStackAlign());
+  if (AlignedCallFrameSize > MFI.getMaxCallFrameSize())
+    MFI.setMaxCallFrameSize(AlignedCallFrameSize);
+  MFI.setAdjustsStack(true);
 
   return true;
 }
