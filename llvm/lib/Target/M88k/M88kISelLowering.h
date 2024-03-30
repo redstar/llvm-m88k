@@ -24,7 +24,6 @@
 namespace llvm {
 
 class M88kSubtarget;
-class M88kSubtarget;
 
 namespace M88kISD {
 enum NodeType : unsigned {
