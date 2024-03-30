@@ -94,6 +94,7 @@ M88kLegalizerInfo::M88kLegalizerInfo(const M88kSubtarget &ST) {
       .legalForTypesWithMemDesc({{S32, P0, S8, 8}, {S32, P0, S16, 16}})
       .customIf(typePairAndMemDescInSet(/*TypeIdx0*/ 0, /*TypeIdx1*/ 1,
                                         /*MMOIdx*/ 0, {{S32, P0, S16, 8}}))
+      .clampScalar(0, S32, S32)
       .lower();
   getActionDefinitionsBuilder({G_LOAD, G_STORE})
       .legalForTypesWithMemDesc({{S32, P0, S8, 8},
