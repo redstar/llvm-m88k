@@ -78,7 +78,7 @@ M88kInstrInfo::getSerializableDirectMachineOperandTargetFlags() const {
 static MachineMemOperand *getMachineMemOperand(MachineBasicBlock &MBB, int FI,
                                                MachineMemOperand::Flags Flags) {
   MachineFunction &MF = *MBB.getParent();
-  MachineFrameInfo &MFI = MF.getFrameInfo();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
 
   return MF.getMachineMemOperand(MachinePointerInfo::getFixedStack(MF, FI),
                                  Flags, MFI.getObjectSize(FI),
