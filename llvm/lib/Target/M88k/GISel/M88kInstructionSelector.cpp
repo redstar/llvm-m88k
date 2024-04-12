@@ -105,8 +105,10 @@ private:
                     int OpIdx = -1) const;
 
   ComplexRendererFns selectAddrRegImm(MachineOperand &Root) const;
+#if 0
   ComplexRendererFns selectAddrRegReg(MachineOperand &Root) const;
   ComplexRendererFns selectAddrRegScaled(MachineOperand &Root) const;
+#endif
 
   bool selectFrameIndex(MachineInstr &I, MachineBasicBlock &MBB,
                         MachineRegisterInfo &MRI) const;
@@ -409,6 +411,7 @@ M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
   return std::nullopt;
 }
 
+#if 0
 InstructionSelector::ComplexRendererFns
 M88kInstructionSelector::selectAddrRegReg(MachineOperand &Root) const {
   MachineInstr &MI = *Root.getParent();
@@ -460,6 +463,7 @@ M88kInstructionSelector::selectAddrRegScaled(MachineOperand &Root) const {
 
   return std::nullopt;
 }
+#endif
 
 bool M88kInstructionSelector::selectFrameIndex(MachineInstr &I,
                                                MachineBasicBlock &MBB,
