@@ -529,10 +529,24 @@ Addressing modes:
 Register indirect with immediate index: ld rD, rS1, si16
 Register indirect with index:           ld rD, rS1, rS2
 Register indirect with scaled index:    ld rD, rS1, [rS2]
+
+Register indirect with immediate also matches a frame index, a global address,
+and accumulates the the immediate value as much as possible. Therefore a
+ComplexPattern i sneeded. The other addressing modes can be expressed with a
+pattern fragment.
 */
 defm ADDRri : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegImm", [], [], 10>;
-defm ADDRrr : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegReg", [], []>;
-defm ADDRrs : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled", [], [], 15>;
+def ADDRrr : PatFrag<(ops node:$base, node:$idx),
+                     (ptradd (p0 node:$base), (i32 node:$idx))>;
+// Generate pattern fragments for the register indirect with scaled index
+// addressing, using the memory value typeto compute the scale factor.
+class ADDRrs<ValueType vt> : PatFrags<(ops node:$base, node:$idx),
+                                [(ptradd (p0 node:$base),
+                                         (shl (i32 node:$idx),
+                                              (i32 !logtwo(!div(vt.Size, 8))))),
+                                 (ptradd (p0 node:$base),
+                                         (mul (i32 node:$idx),
+                                              (i32 !div(vt.Size, 8))))]>;
 
 // Instruction formats with semantics.
 class FLoadIndexImm<bits<4> func, bits<2> ty, string option,
@@ -579,7 +593,7 @@ multiclass StoreIndexImm {
 
 multiclass FLoadUnsigned<bits<1> ty, string option, RegisterOperand cls,
                          ValueType vt, SDPatternOperator operator,
-                         ComplexPattern addr> {
+                         SDPatternOperator addr> {
   def u # option : F_LSINDUSCUNS</*ty=*/ ty, /*user=*/ 0b0, (outs cls:$rd),
                                  (ins GPROpnd:$rs1, GPROpnd:$rs2),
                                  !strconcat("ld.", option, "u"),
@@ -607,8 +621,8 @@ multiclass LoadUnsigned {
   def urib : F_LU<0b1, (outs GPROpnd:$rd), (ins GPROpnd:$rs1, uimm16:$si16),
                   "ld.bu",
                   [(set (i32 GPROpnd:$rd), (zextloadi8 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)))]>;
-  defm urr : FLoadUnsigned</*ty=*/ 0b1, "b", GPROpnd, i32, zextloadi8, ADDRrs>;
-  defm urr : FLoadUnsigned</*ty=*/ 0b0, "h", GPROpnd, i32, zextloadi16, ADDRrs>;
+  defm urr : FLoadUnsigned</*ty=*/ 0b1, "b", GPROpnd, i32, zextloadi8, ADDRrs<i8>>;
+  defm urr : FLoadUnsigned</*ty=*/ 0b0, "h", GPROpnd, i32, zextloadi16, ADDRrs<i16>>;
 }
 
 // Instruction formats with semantics.
@@ -641,7 +655,7 @@ multiclass LoadUnscaled {
 // Instruction formats with semantics.
 multiclass FLoadScaled<bits<4> func, bits<2> ty, string option,
                        RegisterOperand cls, ValueType vt,
-                       SDPatternOperator operator, ComplexPattern addr> {
+                       SDPatternOperator operator, SDPatternOperator addr> {
   def "" : F_LSINDSC<func, ty, /*user=*/ 0b0, (outs cls:$rd), (ins GPROpnd:$rs1, GPROpnd:$rs2),
                !if(!eq(option,""), "ld", !strconcat("ld.", option)),
                [(set (vt cls:$rd), (operator (addr (i32 GPROpnd:$rs1),
@@ -653,15 +667,15 @@ multiclass FLoadScaled<bits<4> func, bits<2> ty, string option,
 multiclass LoadScaled {
   defvar Func = 0b0001;
   let regfile = 1 in {
-    defm rrsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, load, ADDRrs>;
-    defm rrsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, load, ADDRrs>;
-    defm rrsb  : FLoadScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, sextloadi8, ADDRrs>;
-    defm rrsh  : FLoadScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, sextloadi16, ADDRrs>;
+    defm rrsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, load, ADDRrs<i64>>;
+    defm rrsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, load, ADDRrs<i32>>;
+    defm rrsb  : FLoadScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, sextloadi8, ADDRrs<i8>>;
+    defm rrsh  : FLoadScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, sextloadi16, ADDRrs<i16>>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    defm xxsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, load, ADDRrs>;
-    defm xxsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, load, ADDRrs>;
-    defm xxsq  : FLoadScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, load, ADDRrs>;
+    defm xxsw  : FLoadScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, load, ADDRrs<f32>>;
+    defm xxsd  : FLoadScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, load, ADDRrs<f64>>;
+    defm xxsq  : FLoadScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, load, ADDRrs<f128>>;
   }
 }
 
@@ -704,7 +718,7 @@ multiclass StoreUnscaled {
 
 multiclass FStoreScaled<bits<4> func, bits<2> ty, string option,
                           RegisterOperand cls, ValueType vt,
-                          SDPatternOperator operator, ComplexPattern addr> {
+                          SDPatternOperator operator, SDPatternOperator addr> {
   let through = 0 in {
   def "" : F_LSINDSC<func, /*ty=*/ ty, /*user=*/ 0b0,
                (outs), (ins cls:$rd, GPROpnd:$rs1, GPROpnd:$rs2),
@@ -727,15 +741,15 @@ multiclass FStoreScaled<bits<4> func, bits<2> ty, string option,
 multiclass StoreScaled {
   defvar Func = 0b0010;
   let regfile = 1 in {
-    defm rrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, store, ADDRrs>;
-    defm rrsw : FStoreScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, store, ADDRrs>;
-    defm rrsb : FStoreScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, truncstorei8, ADDRrs>;
-    defm rrsh : FStoreScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, truncstorei16, ADDRrs>;
+    defm rrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", GPR64Opnd, i64, store, ADDRrs<i64>>;
+    defm rrsw : FStoreScaled<Func, /*ty=*/ 0b01, "", GPROpnd, i32, store, ADDRrs<i32>>;
+    defm rrsb : FStoreScaled<Func, /*ty=*/ 0b11, "b", GPROpnd, i32, truncstorei8, ADDRrs<i8>>;
+    defm rrsh : FStoreScaled<Func, /*ty=*/ 0b10, "h", GPROpnd, i32, truncstorei16, ADDRrs<i16>>;
   }
   let regfile = 0, Predicates = [MC88110] in {
-    defm xrss : FStoreScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, store, ADDRrs>;
-    defm xrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, store, ADDRrs>;
-    defm xrsx : FStoreScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, store, ADDRrs>;
+    defm xrss : FStoreScaled<Func, /*ty=*/ 0b01, "", XROpnd, f32, store, ADDRrs<f32>>;
+    defm xrsd : FStoreScaled<Func, /*ty=*/ 0b00, "d", XROpnd, f64, store, ADDRrs<f64>>;
+    defm xrsx : FStoreScaled<Func, /*ty=*/ 0b10, "x", XROpnd, f80, store, ADDRrs<f128>>;
   }
 }
 
@@ -835,13 +849,13 @@ let mayStore = 1 in {
 defm XMEM : Xmem;
 
 // Additional patterns for extending loads.
-def : Pat<(i32 (extloadi8 (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+def : Pat<(i32 (extloadi8 (ADDRrs<i8> (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrsb GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(i32 (extloadi8 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
           (LDrib GPROpnd:$rs1, uimm16:$si16)>;
 def : Pat<(i32 (extloadi8 (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrub GPROpnd:$rs1, GPROpnd:$rs2)>;
-def : Pat<(i32 (extloadi16 (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+def : Pat<(i32 (extloadi16 (ADDRrs<i16> (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrsh GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(i32 (extloadi16 (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
           (LDrih GPROpnd:$rs1, uimm16:$si16)>;
@@ -849,9 +863,9 @@ def : Pat<(i32 (extloadi16 (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrruh GPROpnd:$rs1, GPROpnd:$rs2)>;
 
 // Additional patterns for floating point types.
-def : Pat<(f32 (load (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+def : Pat<(f32 (load (ADDRrs<f32> (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrsw GPROpnd:$rs1, GPROpnd:$rs2)>;
-def : Pat<(f64 (load (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
+def : Pat<(f64 (load (ADDRrs<f64> (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrsd GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(f32 (load (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16))),
           (LDriw GPROpnd:$rs1, uimm16:$si16)>;
@@ -862,9 +876,9 @@ def : Pat<(f32 (load (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
 def : Pat<(f64 (load (ADDRrr (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2)))),
           (LDrrud GPROpnd:$rs1, GPROpnd:$rs2)>;
 
-def : Pat<(store (f32 GPROpnd:$rd), (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+def : Pat<(store (f32 GPROpnd:$rd), (ADDRrs<f32> (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
           (STrrsw (f32 GPROpnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
-def : Pat<(store (f64 GPR64Opnd:$rd), (ADDRrs (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
+def : Pat<(store (f64 GPR64Opnd:$rd), (ADDRrs<f64> (i32 GPROpnd:$rs1), (i32 GPROpnd:$rs2))),
           (STrrsd (f64 GPR64Opnd:$rd), GPROpnd:$rs1, GPROpnd:$rs2)>;
 def : Pat<(store (f32 GPROpnd:$rd), (ADDRri (i32 GPROpnd:$rs1), uimm16:$si16)),
           (STriw (f32 GPROpnd:$rd), GPROpnd:$rs1, uimm16:$si16)>;
