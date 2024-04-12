@@ -105,8 +105,6 @@ private:
                     int OpIdx = -1) const;
 
   ComplexRendererFns selectAddrRegImm(MachineOperand &Root) const;
-  ComplexRendererFns selectAddrRegReg(MachineOperand &Root) const;
-  ComplexRendererFns selectAddrRegScaled(MachineOperand &Root) const;
 
   bool selectFrameIndex(MachineInstr &I, MachineBasicBlock &MBB,
                         MachineRegisterInfo &MRI) const;
@@ -407,68 +405,6 @@ M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
   }
 
   return std::nullopt;
-}
-
-InstructionSelector::ComplexRendererFns
-M88kInstructionSelector::selectAddrRegReg(MachineOperand &Root) const {
-  MachineInstr &MI = *Root.getParent();
-  MachineFunction &MF = *MI.getParent()->getParent();
-  MachineRegisterInfo &MRI = MF.getRegInfo();
-
-  if (!Root.isReg() || isUnalignedAccess(MI))
-    return std::nullopt;
-
-  // Check for G_PTR_ADD plus 16 bit offset.
-  MachineInstr *RootDef = getDefIgnoringCopies(Root.getReg(), MRI);
-  Register Base, Offset;
-  if (mi_match(RootDef, MRI, m_GPtrAdd(m_Reg(Base), m_Reg(Offset)))) {
-    Register BaseReg = getRegIgnoringCopies(Base, MRI);
-    Register OffsetReg = getRegIgnoringCopies(Offset, MRI);
-    return {{
-        [=](MachineInstrBuilder &MIB) { MIB.addReg(BaseReg); },
-        [=](MachineInstrBuilder &MIB) { MIB.addReg(OffsetReg); },
-    }};
-  }
-
-  return std::nullopt;
-}
-
-InstructionSelector::ComplexRendererFns
-M88kInstructionSelector::selectAddrRegScaled(MachineOperand &Root) const {
-  GMemOperation &MI = *dyn_cast<GMemOperation>(Root.getParent());
-  MachineFunction &MF = *MI.getParent()->getParent();
-  MachineRegisterInfo &MRI = MF.getRegInfo();
-
-  if (!Root.isReg() || isUnalignedAccess(MI))
-    return std::nullopt;
-
-  // Check for G_PTR_ADD plus shifted register.
-  MachineInstr *RootDef = getDefIgnoringCopies(Root.getReg(), MRI);
-  Register Base, Scaled;
-  if (mi_match(
-          RootDef, MRI,
-          m_GPtrAdd(m_Reg(Base),
-                    m_GShl(m_Reg(Scaled), m_SpecificICst(Log2_32(
-                                              MI.getMemSize().getValue())))))) {
-    Register BaseReg = getRegIgnoringCopies(Base, MRI);
-    Register ScaledReg = getRegIgnoringCopies(Scaled, MRI);
-    return {{
-        [=](MachineInstrBuilder &MIB) { MIB.addReg(BaseReg); },
-        [=](MachineInstrBuilder &MIB) { MIB.addReg(ScaledReg); },
-    }};
-  }
-
-  return std::nullopt;
-}
-
-bool M88kInstructionSelector::selectFrameIndex(MachineInstr &I,
-                                               MachineBasicBlock &MBB,
-                                               MachineRegisterInfo &MRI) const {
-  assert(I.getOpcode() == TargetOpcode::G_FRAME_INDEX && "Unexpected G code");
-
-  I.setDesc(TII.get(M88k::ADDri));
-  I.addOperand(MachineOperand::CreateImm(0));
-  return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
 }
 
 bool M88kInstructionSelector::selectVaStart(MachineInstr &I,
