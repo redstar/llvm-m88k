@@ -531,7 +531,9 @@ Register indirect with index:           ld rD, rS1, rS2
 Register indirect with scaled index:    ld rD, rS1, [rS2]
 */
 defm ADDRri : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegImm", [], [], 10>;
-defm ADDRrr : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegReg", [], []>;
+//defm ADDRrrx : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegReg", [], []>;
+def ADDRrr : PatFrag<(ops node:$base, node:$idx),
+                     (ptradd (p0 node:$base), (i32 node:$idx))>;
 defm ADDRrs : ComplexPatternWithGIEquiv<i32, s32, 2, "selectAddrRegScaled", [], [], 15>;
 
 // Instruction formats with semantics.
