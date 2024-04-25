@@ -25,8 +25,7 @@ define i32 @sum(i32 noundef %num_args, ...) {
 ; CHECK-NEXT:    st %r3, %r2, 0
 ; CHECK-NEXT:    add %r3, %r31, 56
 ; CHECK-NEXT:    st %r3, %r2, 4
-; CHECK-NEXT:    add %r3, %r31, 24
-; CHECK-NEXT:    st %r3, %r2, 8
+; CHECK-NEXT:    st %r10, %r2, 8
 ; CHECK-NEXT:    ld %r2, %r31, 16
 ; CHECK-NEXT:    addu %r31, %r31, 56
 ; CHECK-NEXT:    jmp %r1
