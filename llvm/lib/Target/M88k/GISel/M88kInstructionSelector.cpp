@@ -110,8 +110,6 @@ private:
   ComplexRendererFns selectAddrRegScaled(MachineOperand &Root) const;
 #endif
 
-  bool selectFrameIndex(MachineInstr &I, MachineBasicBlock &MBB,
-                        MachineRegisterInfo &MRI) const;
   bool selectVaStart(MachineInstr &I, MachineBasicBlock &MBB,
                      MachineRegisterInfo &MRI) const;
   bool selectGlobalValue(MachineInstr &I, MachineBasicBlock &MBB,
@@ -464,16 +462,6 @@ M88kInstructionSelector::selectAddrRegScaled(MachineOperand &Root) const {
   return std::nullopt;
 }
 #endif
-
-bool M88kInstructionSelector::selectFrameIndex(MachineInstr &I,
-                                               MachineBasicBlock &MBB,
-                                               MachineRegisterInfo &MRI) const {
-  assert(I.getOpcode() == TargetOpcode::G_FRAME_INDEX && "Unexpected G code");
-
-  I.setDesc(TII.get(M88k::ADDri));
-  I.addOperand(MachineOperand::CreateImm(0));
-  return constrainSelectedInstRegOperands(I, MRI, TII, TRI, RBI);
-}
 
 bool M88kInstructionSelector::selectVaStart(MachineInstr &I,
                                                MachineBasicBlock &MBB,
@@ -1323,8 +1311,6 @@ bool M88kInstructionSelector::select(MachineInstr &I) {
     return selectGlobalValue(I, MBB, MRI);
   case TargetOpcode::G_PTRMASK:
     return selectPtrMask(I, MBB, MRI);
-  case TargetOpcode::G_FRAME_INDEX:
-    return selectFrameIndex(I, MBB, MRI);
   case TargetOpcode::G_VASTART:
     return selectVaStart(I, MBB, MRI);
   case TargetOpcode::G_SEXT_INREG:
