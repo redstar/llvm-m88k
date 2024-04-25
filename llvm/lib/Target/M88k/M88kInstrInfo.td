@@ -466,6 +466,8 @@ def : Pat<(ptradd GPROpnd:$rs1, uimm16:$imm),
 def : Pat<(ptradd GPROpnd:$rs1, GPROpnd:$rs2),
           (ADDUrr GPROpnd:$rs1, GPROpnd:$rs2)>;
 
+def : Pat<(p0 frameindex:$fi), (ADDri tframeindex:$fi, 0)>;
+
 // ---------------------------------------------------------------------------//
 // Materialize immediates & constants.
 // ---------------------------------------------------------------------------//
