@@ -106,8 +106,6 @@ private:
 
   ComplexRendererFns selectAddrRegImm(MachineOperand &Root) const;
 
-  bool selectFrameIndex(MachineInstr &I, MachineBasicBlock &MBB,
-                        MachineRegisterInfo &MRI) const;
   bool selectVaStart(MachineInstr &I, MachineBasicBlock &MBB,
                      MachineRegisterInfo &MRI) const;
   bool selectGlobalValue(MachineInstr &I, MachineBasicBlock &MBB,
@@ -1255,8 +1253,6 @@ bool M88kInstructionSelector::select(MachineInstr &I) {
     return selectGlobalValue(I, MBB, MRI);
   case TargetOpcode::G_PTRMASK:
     return selectPtrMask(I, MBB, MRI);
-  case TargetOpcode::G_FRAME_INDEX:
-    return selectFrameIndex(I, MBB, MRI);
   case TargetOpcode::G_VASTART:
     return selectVaStart(I, MBB, MRI);
   case TargetOpcode::G_SEXT_INREG:
