@@ -1196,28 +1196,18 @@ def FLTxxs : F_SFU1FLT</*td=*/ 0b10,
 
 let regfile = 1, isMoveReg = 1, Predicates = [MC88110] in {
 def MOVrxs : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b00, /*t2*/0b00,
-                     (outs GPROpnd:$rd), (ins XROpnd:$rs2),
-                     "mov.s",
-                     [(set GPROpnd:$rd, (f32 XROpnd:$rs2))]>;
+                     (outs GPROpnd:$rd), (ins XROpnd:$rs2), "mov.s">;
 def MOVrxd : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b00, /*t2*/0b01,
-                     (outs GPR64Opnd:$rd), (ins XROpnd:$rs2),
-                     "mov.d",
-                     [(set GPR64Opnd:$rd, (f64 XROpnd:$rs2))]>;
+                     (outs GPR64Opnd:$rd), (ins XROpnd:$rs2), "mov.d">;
 def MOVxx : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b01, /*t2*/0b11,
-                    (outs XROpnd:$rd), (ins XROpnd:$rs2),
-                    "mov">;
-//                    [(set XROpnd:$rd, XROpnd:$rs2)]>;
+                    (outs XROpnd:$rd), (ins XROpnd:$rs2), "mov">;
 }
 
 let regfile = 0, isMoveReg = 1, Predicates = [MC88110] in {
 def MOVxrs : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b01, /*t2*/0b00,
-                     (outs XROpnd:$rd), (ins GPROpnd:$rs2),
-                     "mov.s",
-                     [(set (f32 XROpnd:$rd), GPROpnd:$rs2)]>;
+                     (outs XROpnd:$rd), (ins GPROpnd:$rs2), "mov.s">;
 def MOVxrd : F_SFU1D<0b1000, /*td*/ 0b00, /*t1*/0b01, /*t2*/0b01,
-                     (outs XROpnd:$rd), (ins GPR64Opnd:$rs2),
-                     "mov.d",
-                     [(set (f64 XROpnd:$rd), GPR64Opnd:$rs2)]>;
+                     (outs XROpnd:$rd), (ins GPR64Opnd:$rs2), "mov.d">;
 }
 
 // ---------------------------------------------------------------------------//
