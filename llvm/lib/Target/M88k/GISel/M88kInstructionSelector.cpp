@@ -16,6 +16,7 @@
 #include "M88kSubtarget.h"
 #include "M88kTargetMachine.h"
 #include "MCTargetDesc/M88kBaseInfo.h"
+#include "MCTargetDesc/M88kMCTargetDesc.h"
 #include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
@@ -38,25 +39,6 @@ using namespace MIPatternMatch;
 #define GET_GLOBALISEL_PREDICATE_BITSET
 #include "M88kGenGlobalISel.inc"
 #undef GET_GLOBALISEL_PREDICATE_BITSET
-
-// Special matcher support for G_LO/G_HI.
-template <unsigned Opcode> struct GHiLoMatch {
-  MachineInstr *&I;
-  GHiLoMatch(MachineInstr *&I) : I(I) {}
-  bool match(const MachineRegisterInfo &MRI, Register Reg) {
-    MachineInstr *TmpMI;
-    if (mi_match(Reg, MRI, m_MInstr(TmpMI)) && TmpMI->getOpcode() == Opcode &&
-        TmpMI->getNumOperands() == 2 && TmpMI->getOperand(1).isGlobal()) {
-      I = TmpMI;
-      return true;
-    }
-    return false;
-  }
-};
-
-inline GHiLoMatch<M88k::G_LO> m_GLo(MachineInstr *&I) {
-  return GHiLoMatch<M88k::G_LO>(I);
-}
 
 namespace {
 
@@ -346,14 +328,19 @@ M88kInstructionSelector::selectAddrRegImm(MachineOperand &Root) const {
 
   MachineInstr *RootDef = getDefIgnoringCopies(Root.getReg(), MRI);
 
-  // Match load from LO/HI address.
-  MachineInstr *Lo;
-  Register Hi;
-  if (mi_match(RootDef, MRI, m_GIntToPtr(m_GOr(m_Reg(Hi), m_GLo(Lo))))) {
+  // Match load from global address.
+  if (RootDef->getOperand(1).isGlobal()) {
+    Register AddrReg = MRI.createVirtualRegister(&M88k::GPRRegClass);
     return {{
-        [=](MachineInstrBuilder &MIB) { MIB.addReg(Hi); },
         [=](MachineInstrBuilder &MIB) {
-          MIB.addGlobalAddress(Lo->getOperand(1).getGlobal(), 0,
+          MachineIRBuilder(*MIB.getInstr())
+              .buildInstr(M88k::ORriu, {AddrReg}, {Register(M88k::R0)})
+              .addGlobalAddress(RootDef->getOperand(1).getGlobal(), 0,
+                                M88kII::MO_ABS_HI);
+          MIB.addReg(AddrReg, RegState::Kill);
+        },
+        [=](MachineInstrBuilder &MIB) {
+          MIB.addGlobalAddress(RootDef->getOperand(1).getGlobal(), 0,
                                M88kII::MO_ABS_LO);
         },
     }};
@@ -1165,38 +1152,9 @@ bool M88kInstructionSelector::earlySelect(MachineInstr &I) {
 
   auto &MBB = *I.getParent();
   auto &MF = *MBB.getParent();
-  auto &MRI = MF.getRegInfo();
+  [[maybe_unused]] auto &MRI = MF.getRegInfo();
 
   switch (I.getOpcode()) {
-  case TargetOpcode::G_OR: {
-    MachineInstr *Lo;
-    Register Hi;
-    if (mi_match(I, MRI, m_GOr(m_Reg(Hi), m_GLo(Lo)))) {
-      const GlobalValue *GV = Lo->getOperand(1).getGlobal();
-      auto MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(M88k::ORri))
-                    .addReg(I.getOperand(0).getReg(), RegState::Define)
-                    .addReg(Hi)
-                    .addGlobalAddress(GV, 0, M88kII::MO_ABS_LO);
-      I.eraseFromParent();
-      return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
-    }
-    return false;
-  }
-  case M88k::G_LO:
-  case M88k::G_HI: {
-    // G_LO and G_HI cannot be imported because a tglobaladdr operand is not
-    // supported.
-    const GlobalValue *GV = I.getOperand(1).getGlobal();
-    bool IsLo = I.getOpcode() == M88k::G_LO;
-    M88kII::TOF Flag = IsLo ? M88kII::MO_ABS_LO : M88kII::MO_ABS_HI;
-    unsigned Opcode = IsLo ? M88k::ORri : M88k::ORriu;
-    auto MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(Opcode))
-                  .addReg(I.getOperand(0).getReg(), RegState::Define)
-                  .addReg(M88k::R0)
-                  .addGlobalAddress(GV, 0, Flag);
-    I.eraseFromParent();
-    return constrainSelectedInstRegOperands(*MI, MRI, TII, TRI, RBI);
-  }
   default:
     return false;
   }
