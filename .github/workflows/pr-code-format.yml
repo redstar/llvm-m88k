@@ -14,7 +14,7 @@ jobs:
     if: github.repository == 'llvm/llvm-project'
     steps:
       - name: Fetch LLVM sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -27,7 +27,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v39
+        uses: tj-actions/changed-files@v44
         with:
           separator: ","
           skip_initial_fetch: true
@@ -35,7 +35,7 @@ jobs:
       # We need to pull the script from the main branch, so that we ensure
       # we get the latest version of this script.
       - name: Fetch code formatting utils
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.5
         with:
           repository: ${{ github.repository }}
           ref: ${{ github.base_ref }}
@@ -58,7 +58,7 @@ jobs:
           clangformat: 18.1.1
 
       - name: Setup Python env
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
