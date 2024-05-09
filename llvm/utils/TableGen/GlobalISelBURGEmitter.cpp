@@ -56,6 +56,7 @@
 #include "Common/GlobalISel/Patterns.h"
 #include "Common/SubtargetFeatureInfo.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/STLExtras.h"
@@ -82,10 +83,6 @@
 //===----------------------------------------------------------------------===//
 //
 // Design notes
-//
-// Cost vs Complexity
-// Cost and Complexity are a dual concept. The LLVM complexity can be turned
-// into a cost by inverting all bits.
 //
 // Predicates
 // A predicate in the DAG pattern can be evaluated in the labeler or the
@@ -378,50 +375,8 @@ using OperatorNum = unsigned;
 using RuleNum = unsigned;
 using StateNum = unsigned;
 
-// Simple abstraction of the cost of a rule.
-class CostValue {
-  unsigned Cost;
-
-public:
-  CostValue() : Cost(0) {}
-
-  static CostValue fromComplexity(int Score) {
-    assert(Score < 1000 && "Unexpected high score");
-    CostValue C;
-    C.Cost = unsigned(1000 - Score);
-    return C;
-  }
-
-  static CostValue infinity() {
-    CostValue C;
-    C.Cost = unsigned(~0U);
-    return C;
-  }
-
-  bool operator<(const CostValue Other) const { return Cost < Other.Cost; }
-  bool operator==(const CostValue Other) const { return Cost == Other.Cost; }
-  bool operator!=(const CostValue Other) const { return Cost != Other.Cost; }
-
-  friend CostValue operator+(CostValue LHS, const CostValue RHS) {
-    CostValue C;
-    C.Cost = LHS.Cost + RHS.Cost;
-    // Check for overflow.
-    if (C.Cost < std::min(LHS.Cost, RHS.Cost))
-      return infinity();
-    return C;
-  }
-
-  CostValue min(CostValue Other) const {
-    return Cost < Other.Cost ? *this : Other;
-  }
-
-  void normalize(CostValue Delta) {
-    assert(Delta.Cost <= Cost && "Normalize cost would be negative");
-    Cost -= Delta.Cost;
-  }
-
-  unsigned getValue() const { return Cost; }
-};
+// The set of all matching rules is modelled as a bit vector.
+using RuleSet = BitVector;
 
 class alignas(8) Nonterminal {
   NonterminalNum Num;
@@ -434,7 +389,6 @@ public:
 using OperandList = SmallVector<Nonterminal *, 2>;
 
 class State;
-class ProjectedState;
 
 // A multi-dimensional table.
 // The class mimicks a multi-dimensional array in C, which means access is
@@ -575,10 +529,10 @@ private:
   unsigned Arity;
 
   // The mapping from state to representer state for each dimension.
-  SmallVector<DenseMap<State *, ProjectedState *>, 0> Map;
+  SmallVector<DenseMap<State *, State *>, 0> Map;
 
   // The mapping from a representer state to a unique number.
-  SmallVector<DenseMap<ProjectedState *, unsigned>, 0> Reps;
+  SmallVector<DenseMap<State *, unsigned>, 0> Reps;
 
   // State of operator if leaf.
   State *LeafState = nullptr;
@@ -646,12 +600,8 @@ public:
 
   unsigned arity() const { return Arity; }
 
-  SmallVectorImpl<DenseMap<State *, ProjectedState *>> &getMap() {
-    return Map;
-  };
-  SmallVectorImpl<DenseMap<ProjectedState *, unsigned>> &getReps() {
-    return Reps;
-  };
+  SmallVectorImpl<DenseMap<State *, State *>> &getMap() { return Map; };
+  SmallVectorImpl<DenseMap<State *, unsigned>> &getReps() { return Reps; };
   Table<unsigned> &getTransitions() {
     assert(Transitions && "Transition table requires arity > 0");
     return *Transitions;
@@ -680,20 +630,16 @@ class Rule {
   // The operands in case the right hand side is an operator.
   OperandList Operands;
 
-  // The cost of the rule.
-  CostValue Cost;
-
   // The rule number.
   RuleNum Num;
 
 public:
   Rule(RuleNum Num, Nonterminal *LHS, Operator *RHS, OperandList &&Operands,
-       CostValue Cost, const PatternToMatch *Pat)
-      : Pat(Pat), LHS(LHS), RHS(RHS), Operands(std::move(Operands)), Cost(Cost),
-        Num(Num) {}
-  Rule(RuleNum Num, Nonterminal *LHS, Nonterminal *RHS, CostValue Cost,
        const PatternToMatch *Pat)
-      : Pat(Pat), LHS(LHS), RHS(RHS), Cost(Cost), Num(Num) {}
+      : Pat(Pat), LHS(LHS), RHS(RHS), Operands(std::move(Operands)), Num(Num) {}
+  Rule(RuleNum Num, Nonterminal *LHS, Nonterminal *RHS,
+       const PatternToMatch *Pat)
+      : Pat(Pat), LHS(LHS), RHS(RHS), Num(Num) {}
 
   const PatternToMatch *getPattern() const { return Pat; }
   void setPattern(const PatternToMatch *Pattern) { Pat = Pattern; }
@@ -720,35 +666,35 @@ public:
   }
   const OperandList &getOperands() const { return Operands; }
 
-  CostValue getCost() const { return Cost; }
   RuleNum getNum() const { return Num; }
 };
 
 class State : public FoldingSetNode {
 
-  // An Item is an element of an ItemSet.
-  struct Item {
-    RuleNum Num;
-    CostValue Cost;
-  };
-
-  // An ItemSet is a mapping from a nonterminal to an Item.
+  // An ItemSet is a mapping from a nonterminal to the set of matching rules.
   // The only reason for an ordered map is the ordered enumeration required for
   // the lookup in the FoldingSet.
-  using ItemSet = std::map<NonterminalNum, Item>;
+  using ItemSet = std::map<NonterminalNum, RuleSet>;
 
+  // The items of this state.
   ItemSet Items;
+
+  // The state number.
   StateNum Num;
 
+  // The size of a rule set.
+  size_t RuleSetSize;
+
 public:
-  explicit State(StateNum Num) : Num(Num) {}
+  explicit State(StateNum Num, size_t RuleSetSize)
+      : Num(Num), RuleSetSize(RuleSetSize) {}
   State(State &&Other) = default;
 
   void Profile(FoldingSetNodeID &ID) const {
-    for (auto &[No, Item] : Items) {
-      ID.AddInteger(No);
-      ID.AddInteger(Item.Num);
-      ID.AddInteger(Item.Cost.getValue());
+    for (auto &[NT, Rules] : Items) {
+      ID.AddInteger(NT);
+      for (auto BitPart : Rules.getData())
+        ID.AddInteger(BitPart);
     }
   }
 
@@ -759,38 +705,22 @@ public:
     return It != Items.end();
   }
 
-  // Function NormalizeCosts(), Fig. 7
-  void normalizeCost() {
-    CostValue Delta = CostValue::infinity();
-    for (const auto &[No, Item] : Items)
-      Delta = Delta.min(Item.Cost);
-    for (auto &[No, Item] : Items)
-      Item.Cost.normalize(Delta);
-  }
-
-  CostValue getCost(const Nonterminal *NT) const {
+  RuleSet getRules(const Nonterminal *NT) const {
     auto It = Items.find(NT->getNum());
     if (It != Items.end())
-      return It->second.Cost;
-    return CostValue::infinity();
+      return It->second;
+    return RuleSet(RuleSetSize);
   }
 
-  RuleNum getRule(const Nonterminal *NT) const {
-    auto It = Items.find(NT->getNum());
-    if (It != Items.end())
-      return It->second.Num;
-    return ~0U;
-  }
-
-  void update(const Nonterminal *NT, const Rule *R, CostValue Cost) {
-    // If the new cost is infinity, then remove the item. Otherwise the hash
-    // value would be different from an element which does not have this
-    // nonterminal.
-    NonterminalNum NTNum = NT->getNum();
-    if (Cost == CostValue::infinity())
-      Items.erase(NTNum);
-    else
-      Items.insert_or_assign(NTNum, Item{R->getNum(), Cost});
+  // Add rule R to the items of nonterminal NT.
+  // Returns true if the set was updated.
+  bool update(const Nonterminal *NT, const Rule *R) {
+    RuleSet &RS = Items[NT->getNum()];
+    RS.resize(RuleSetSize);
+    if (RS.test(R->getNum()))
+      return false;
+    RS.set(R->getNum());
+    return true;
   }
 
   void dump(raw_ostream &OS, bool IsYAML = false) {
@@ -798,70 +728,26 @@ public:
       OS << "State:\n";
       OS << "  Num: " << Num << "\n";
       OS << "  ItemSets:\n";
-      for (const auto &[NT, Data] : Items) {
-        OS << "    " << NT << ": { rule: " << Data.Num
-           << ", cost: " << Data.Cost.getValue() << "}\n";
+      for (const auto &[NT, Rules] : Items) {
+        OS << "    " << NT << ": [ ";
+        bool IsFirst = true;
+        for (unsigned B : Rules.set_bits()) {
+          OS << (IsFirst ? "" : ", ") << B;
+          IsFirst = false;
+        }
+        OS << " ]\n";
       }
     } else {
       OS << "State " << Num << ":";
-      for (const auto &[NT, Data] : Items) {
-        OS << " [nt " << NT << ": { rule " << Data.Num << ", cost "
-           << Data.Cost.getValue() << "} ]";
+      for (const auto &[NT, Rules] : Items) {
+        OS << " [nt " << NT << ": [ ";
+        bool IsFirst = true;
+        for (unsigned B : Rules.set_bits()) {
+          OS << (IsFirst ? "" : ", ") << B;
+          IsFirst = false;
+        }
+        OS << " ]\n";
       }
-    }
-  }
-};
-
-class ProjectedState : public FoldingSetNode {
-  using ItemSet = std::map<NonterminalNum, CostValue>;
-
-  ItemSet Items;
-  StateNum Num;
-
-public:
-  explicit ProjectedState(StateNum Num) : Num(Num) {}
-  ProjectedState(ProjectedState &&Other) = default;
-
-  void Profile(FoldingSetNodeID &ID) const {
-    for (auto &[No, Cost] : Items) {
-      ID.AddInteger(No);
-      ID.AddInteger(Cost.getValue());
-    }
-  }
-
-  StateNum getNum() const { return Num; }
-
-  // Function NormalizeCosts(), Fig. 7
-  void normalizeCost() {
-    CostValue Delta = CostValue::infinity();
-    for (const auto &[No, Cost] : Items)
-      Delta = Delta.min(Cost);
-    for (auto &[No, Cost] : Items)
-      Cost.normalize(Delta);
-  }
-
-  CostValue getCost(Nonterminal *NT) {
-    auto It = Items.find(NT->getNum());
-    if (It != Items.end())
-      return It->second;
-    return CostValue::infinity();
-  }
-
-  void update(Nonterminal *NT, CostValue Cost) {
-    // If the new cost is infinity, then remove the item. Otherwise the hash
-    // value would be different from an element which does not have this
-    // nonterminal.
-    NonterminalNum NTNum = NT->getNum();
-    if (Cost == CostValue::infinity())
-      Items.erase(NTNum);
-    else
-      Items.insert_or_assign(NTNum, Cost);
-  }
-
-  void dump(raw_ostream &OS) {
-    OS << "PState " << Num << ":";
-    for (const auto &[NT, Cost] : Items) {
-      OS << " [nt " << NT << ": { cost " << Cost.getValue() << "} ]";
     }
   }
 };
@@ -880,7 +766,7 @@ class BURSTableGenerator {
   FoldingSetVector<State> States;
 
   // Set of all projected states.
-  FoldingSetVector<ProjectedState> ProjectedStates;
+  FoldingSetVector<State> ProjectedStates;
 
   // List of all rules.
   SmallVector<Rule *, 0> Rules;
@@ -911,24 +797,20 @@ class BURSTableGenerator {
     return std ::pair<T *, bool>(NewElem, true);
   }
 
-  Rule *createRule(Operator *Op, OperandList &&Operands, CostValue Cost);
+  Rule *createRule(Operator *Op, OperandList &&Operands);
 
 public:
   BURSTableGenerator();
-  Rule *createValueRule(int Value, CGLowLevelType *Type,
-                        CostValue Cost = CostValue());
-  Rule *createInstRule(const CodeGenInstruction *Inst, OperandList &&Opnds,
-                       CostValue Cost = CostValue());
-  Rule *createRegClassRule(Record *RC, CGLowLevelType *Type,
-                           CostValue Cost = CostValue());
+  Rule *createValueRule(int Value, CGLowLevelType *Type);
+  Rule *createInstRule(const CodeGenInstruction *Inst, OperandList &&Opnds);
+  Rule *createRegClassRule(Record *RC, CGLowLevelType *Type);
   Rule *createChainRule(Nonterminal *A, Nonterminal *B,
-                        CostValue Cost = CostValue(),
                         const PatternToMatch *Pat = nullptr);
 
   Nonterminal *getGoal();
   void closure(State &S);
   void computeLeafStates();
-  ProjectedState *project(Operator *Op, unsigned Idx, State *S);
+  State *project(Operator *Op, unsigned Idx, State *S);
   void computeTransitions(Operator *Op, State *S);
   void run();
 
@@ -943,22 +825,21 @@ BURSTableGenerator::BURSTableGenerator() {
   Nonterminals.push_back(Goal);
 }
 
-Rule *BURSTableGenerator::createRule(Operator *Op, OperandList &&Operands,
-                                     CostValue Cost) {
+Rule *BURSTableGenerator::createRule(Operator *Op, OperandList &&Operands) {
   // Cache and reuse leaf rules. A rule like r: gpr -> GPR is used very often as
   // the leaf rule of a pattern, and we try to reuse those rules. The assumption
   // is that no other rule uses the nonterminal gpr. This drastically reduces
   // the number of nonterminals and rules, which speeds up the generation. As a
   // side effect, the number of different representer sets also drops, which
   // potentially leads to smaller tables.
-  bool CacheRule = Op->arity() == 0 && Cost.getValue() == 0;
+  bool CacheRule = Op->arity() == 0;
   if (CacheRule)
     if (Rule *R = OperatorToRule[Op])
       return R;
 
   Nonterminal *NT = new Nonterminal(Nonterminals.size());
   Nonterminals.push_back(NT);
-  Rule *R = new Rule(Rules.size(), NT, Op, std::move(Operands), Cost, nullptr);
+  Rule *R = new Rule(Rules.size(), NT, Op, std::move(Operands), nullptr);
   Rules.push_back(R);
   if (Rule::isOperatorRule(R))
     OperatorRules.push_back(R);
@@ -969,12 +850,11 @@ Rule *BURSTableGenerator::createRule(Operator *Op, OperandList &&Operands,
   return R;
 }
 
-Rule *BURSTableGenerator::createValueRule(int Value, CGLowLevelType *Type,
-                                          CostValue Cost) {
+Rule *BURSTableGenerator::createValueRule(int Value, CGLowLevelType *Type) {
   FoldingSetNodeID ID;
   ID.AddInteger(unsigned(Operator::Op_Value));
   ID.AddInteger(Value);
-  Type->Profile(ID);
+  ID.Add(Type);
   void *InsertPoint;
   Operator *Op = Operators.FindNodeOrInsertPos(ID, InsertPoint);
   if (!Op) {
@@ -983,11 +863,11 @@ Rule *BURSTableGenerator::createValueRule(int Value, CGLowLevelType *Type,
     Operators.InsertNode(Op, InsertPoint);
   }
 
-  return createRule(Op, {}, Cost);
+  return createRule(Op, {});
 }
 
 Rule *BURSTableGenerator::createInstRule(const CodeGenInstruction *Inst,
-                                         OperandList &&Opnds, CostValue Cost) {
+                                         OperandList &&Opnds) {
   const unsigned Arity = Opnds.size();
   FoldingSetNodeID ID;
   ID.AddInteger(unsigned(Operator::Op_Inst));
@@ -1001,15 +881,14 @@ Rule *BURSTableGenerator::createInstRule(const CodeGenInstruction *Inst,
     Operators.InsertNode(Op, InsertPoint);
   }
 
-  return createRule(Op, std::move(Opnds), Cost);
+  return createRule(Op, std::move(Opnds));
 }
 
-Rule *BURSTableGenerator::createRegClassRule(Record *RC, CGLowLevelType *Type,
-                                             CostValue Cost) {
+Rule *BURSTableGenerator::createRegClassRule(Record *RC, CGLowLevelType *Type) {
   FoldingSetNodeID ID;
   ID.AddInteger(unsigned(Operator::Op_RegClass));
   ID.AddPointer(RC);
-  Type->Profile(ID);
+  ID.Add(Type);
   void *InsertPoint;
   Operator *Op = Operators.FindNodeOrInsertPos(ID, InsertPoint);
   if (!Op) {
@@ -1018,13 +897,12 @@ Rule *BURSTableGenerator::createRegClassRule(Record *RC, CGLowLevelType *Type,
     Operators.InsertNode(Op, InsertPoint);
   }
 
-  return createRule(Op, {}, Cost);
+  return createRule(Op, {});
 }
 
 Rule *BURSTableGenerator::createChainRule(Nonterminal *A, Nonterminal *B,
-                                          CostValue Cost,
                                           const PatternToMatch *Pat) {
-  Rule *R = new Rule(Rules.size(), A, B, Cost, Pat);
+  Rule *R = new Rule(Rules.size(), A, B, Pat);
   Rules.push_back(R);
   ChainRules.push_back(R);
   llvm::dbgs() << "Added new chain rule " << A->getNum() << " -> "
@@ -1043,11 +921,11 @@ void BURSTableGenerator::closure(State &S) {
       Nonterminal *N = R->getLHS();
       Nonterminal *M = R->getDerivedNonterminal();
 
-      CostValue Cost = R->getCost() + S.getCost(M);
-      if (Cost < S.getCost(N)) {
-        S.update(N, R, Cost);
-        Changed = true;
-      }
+      // If nonterminal M is in state S, then add
+      // rule R as a match for nonterminal N.
+      if (S.contains(M))
+        if (S.update(N, R))
+          Changed = true;
     }
   } while (Changed);
 }
@@ -1057,17 +935,14 @@ void BURSTableGenerator::computeLeafStates() {
   // Loop over all leaf operators.
   auto LeafOp = [](const Operator &Op) { return Op.arity() == 0; };
   for (Operator &Op : make_filter_range(Operators, LeafOp)) {
-    State S(States.size());
+    State S(States.size(), Rules.size());
 
     // Loop over all rules which derives the current leaf operator.
     auto SameOp = [&Op](const Rule *R) { return R->getOperator() == &Op; };
     for (const Rule *R : make_filter_range(OperatorRules, SameOp)) {
       Nonterminal *N = R->getLHS();
-      CostValue RuleCost = R->getCost();
-      if (RuleCost < S.getCost(N))
-        S.update(N, R, RuleCost);
+      S.update(N, R);
     }
-    S.normalizeCost();
     closure(S);
 
     // Record the state if not yet known.
@@ -1079,17 +954,15 @@ void BURSTableGenerator::computeLeafStates() {
 }
 
 // Function Project(), Fig. 11
-ProjectedState *BURSTableGenerator::project(Operator *Op, unsigned Idx,
-                                            State *S) {
-  ProjectedState P(ProjectedStates.size());
+State *BURSTableGenerator::project(Operator *Op, unsigned Idx, State *S) {
+  State P(ProjectedStates.size(), Rules.size());
   auto SameOp = [&Op](const Rule *R) { return R->getOperator() == Op; };
   for (const auto *R : make_filter_range(OperatorRules, SameOp)) {
     // Nonterminal NT is used in dimension Idx.
     Nonterminal *NT = R->getOperands()[Idx];
     if (S->contains(NT))
-      P.update(NT, S->getCost(NT));
+      P.update(NT, R);
   }
-  P.normalizeCost();
 
   // Record the state if not yet known.
   return insert(ProjectedStates, std::move(P)).first;
@@ -1099,27 +972,27 @@ namespace {
 // Enumerate all dimensions except Idx.
 // TODO Turn into range.
 class Enumerator {
-  SmallVector<DenseMap<ProjectedState *, unsigned>::iterator, 0> Iterators;
-  SmallVectorImpl<DenseMap<ProjectedState *, unsigned>> &Reps;
+  SmallVector<DenseMap<State *, unsigned>::iterator, 0> Iterators;
+  SmallVectorImpl<DenseMap<State *, unsigned>> &Reps;
   unsigned Idx;
-  ProjectedState *State;
+  State *S;
 
-  void fill(SmallVectorImpl<ProjectedState *> &Sets) {
+  void fill(SmallVectorImpl<State *> &Sets) {
     for (size_t I = 0, E = Reps.size(); I < E; ++I)
       if (I == Idx)
-        Sets[I] = State;
+        Sets[I] = S;
       else
         Sets[I] = Iterators[I]->first;
   }
 
 public:
-  Enumerator(SmallVectorImpl<DenseMap<ProjectedState *, unsigned>> &Reps,
-             unsigned Idx, ProjectedState *State)
-      : Reps(Reps), Idx(Idx), State(State) {
+  Enumerator(SmallVectorImpl<DenseMap<State *, unsigned>> &Reps, unsigned Idx,
+             State *State)
+      : Reps(Reps), Idx(Idx), S(State) {
     Iterators.resize(Reps.size());
   }
 
-  bool first(SmallVectorImpl<ProjectedState *> &Sets) {
+  bool first(SmallVectorImpl<State *> &Sets) {
     for (size_t I = 0, E = Reps.size(); I < E; ++I)
       if (I != Idx) {
         Iterators[I] = Reps[I].begin();
@@ -1130,7 +1003,7 @@ public:
     return true;
   }
 
-  bool next(SmallVectorImpl<ProjectedState *> &Sets) {
+  bool next(SmallVectorImpl<State *> &Sets) {
     for (size_t I = 0, E = Reps.size(); I < E; ++I) {
       if (I != Idx) {
         ++Iterators[I];
@@ -1154,7 +1027,7 @@ void BURSTableGenerator::computeTransitions(Operator *Op, State *S) {
                << OpArity << ") and state " << S->getNum() << "\n";
   for (unsigned I = 0, E = OpArity; I < E; ++I) {
     llvm::dbgs() << "Operand " << I << "\n";
-    ProjectedState *P = project(Op, I, S);
+    State *P = project(Op, I, S);
     Op->getMap()[I][S] = P;
     auto It = Op->getReps()[I].find(P);
     if (It == Op->getReps()[I].end()) {
@@ -1173,7 +1046,7 @@ void BURSTableGenerator::computeTransitions(Operator *Op, State *S) {
       Op->getTransitions().extend(NewShape);
 
       // Enumerate all representer set combinations.
-      SmallVector<ProjectedState *, 0> EnumStates;
+      SmallVector<State *, 0> EnumStates;
       EnumStates.resize(OpArity);
       SmallVector<unsigned> TransitionVec;
       TransitionVec.resize(OpArity);
@@ -1187,24 +1060,20 @@ void BURSTableGenerator::computeTransitions(Operator *Op, State *S) {
             EnumStates[X]->dump(llvm::dbgs());
             llvm::dbgs() << "\n";
           }
-          State Result(States.size());
+          State Result(States.size(), Rules.size());
           //  Enumerate all rules with Op.
           auto SameOp = [&Op](const Rule *R) { return R->getOperator() == Op; };
           for (const auto *R : make_filter_range(OperatorRules, SameOp)) {
             // Calculate cost. There is no check if m_i is in op.reps[i],
             // because in this case the cost is infinity, and as conseqeunce the
             // final comparison cost < result[n].cost is false.
-            CostValue Cost = R->getCost();
+            bool Match = true;
             for (unsigned Mi = 0, Me = OpArity; Mi < Me; ++Mi)
-              Cost = Cost + EnumStates[Mi]->getCost(R->getOperands()[Mi]);
+              Match &= EnumStates[Mi]->contains(R->getOperands()[Mi]);
             Nonterminal *RuleLHS = R->getLHS();
-            if (Cost < Result.getCost(RuleLHS))
-              Result.update(RuleLHS, R, Cost);
+            if (Match)
+              Result.update(RuleLHS, R);
           }
-
-          // Do not trim for now. This is just a speed/memory optimisation.
-          // Then normalize the cost.
-          Result.normalizeCost();
 
           // TODO Mark core items, and only run closure() on new states after
           // insertion.
@@ -1242,7 +1111,7 @@ void BURSTableGenerator::run() {
   // State 0 is the error state. This state would be added anyway during the
   // computation of the transitions. Adding it now makes sure it has the number
   // 0, which makes it easy to test for.
-  WorkList.push(insert(States, State(0)).first);
+  WorkList.push(insert(States, State(0, Rules.size())).first);
   computeLeafStates();
   while (!WorkList.empty()) {
     State *S = WorkList.front();
@@ -1328,7 +1197,7 @@ void BURSTableGenerator::emit(raw_ostream &OS, StringRef ClassName,
             OS << format("/* %4d */ ", Cnt);
           }
           ++Cnt;
-          ProjectedState *P = Op.getMap()[I][&S];
+          State *P = Op.getMap()[I][&S];
           OS << Op.getReps()[I][P] << ", ";
         }
         OS << "},\n";
@@ -1381,7 +1250,8 @@ void BURSTableGenerator::emit(raw_ostream &OS, StringRef ClassName,
     OS << "    // ";
     S.dump(OS);
     OS << "\n";
-    RuleNum RId = S.getRule(getGoal());
+#if 0
+    RuleSet RSet = S.getRules(getGoal());
     if (RId < Rules.size()) {
       Rule *R = Rules[RId];
       if (R->getPattern()) {
@@ -1390,6 +1260,7 @@ void BURSTableGenerator::emit(raw_ostream &OS, StringRef ClassName,
            << llvm::to_string(R->getPattern()->getSrcPattern()) << "\n";
       }
     }
+#endif
   }
   OS << "  \n";
   OS << "  }\n";
@@ -1506,8 +1377,7 @@ public:
                                     bool OperandIsAPointer);
 
   Expected<Rule *> patternToRule(BURSTableGenerator &BURS,
-                                 const TreePatternNode &Src,
-                                 CostValue Cost = CostValue());
+                                 const TreePatternNode &Src);
   Expected<Rule *> importPatternToMatch(BURSTableGenerator &BURS,
                                         const PatternToMatch &Pat);
 
@@ -1637,8 +1507,9 @@ GlobalISelBURGEmitter::getLLT(const TypeSetByHwMode &VTy,
   return CGLowLevelType::get(Ty);
 }
 
-Expected<Rule *> GlobalISelBURGEmitter::patternToRule(
-    BURSTableGenerator &BURS, const TreePatternNode &Src, CostValue Cost) {
+Expected<Rule *>
+GlobalISelBURGEmitter::patternToRule(BURSTableGenerator &BURS,
+                                     const TreePatternNode &Src) {
   if (!Src.isLeaf()) {
     // Look up the operator.
     Record *SrcGIEquivOrNull = nullptr;
@@ -1673,7 +1544,7 @@ Expected<Rule *> GlobalISelBURGEmitter::patternToRule(
     SmallVector<Rule *, 0> Children(NumChildren);
     for (unsigned I = 0; I != NumChildren; ++I) {
       const TreePatternNode &SrcChild = Src.getChild(I);
-      auto RuleOrError = patternToRule(BURS, SrcChild, CostValue());
+      auto RuleOrError = patternToRule(BURS, SrcChild);
       if (auto Error = RuleOrError.takeError())
         return Error;
       Children[I] = *RuleOrError;
@@ -1691,7 +1562,7 @@ Expected<Rule *> GlobalISelBURGEmitter::patternToRule(
     for (auto *R : Children) {
       Opnds.push_back(R->getLHS());
     }
-    return BURS.createInstRule(SrcGIOrNull, std::move(Opnds), Cost);
+    return BURS.createInstRule(SrcGIOrNull, std::move(Opnds));
   }
 
   ArrayRef<TypeSetByHwMode> ChildTypes = Src.getExtTypes();
@@ -1707,7 +1578,7 @@ Expected<Rule *> GlobalISelBURGEmitter::patternToRule(
   if (auto *ChildInt = dyn_cast<IntInit>(SrcLeaf)) {
     // TODO Do we need to distinguish between immediate and materialized
     // constants?
-    return BURS.createValueRule(ChildInt->getValue(), *ChildType, Cost);
+    return BURS.createValueRule(ChildInt->getValue(), *ChildType);
   }
 
   if (auto *ChildDefInit = dyn_cast<DefInit>(SrcLeaf)) {
@@ -1717,7 +1588,7 @@ Expected<Rule *> GlobalISelBURGEmitter::patternToRule(
     if (ChildRec->isSubClassOf("RegisterClass") ||
         ChildRec->isSubClassOf("RegisterOperand"))
       return BURS.createRegClassRule(getInitValueAsRegClass(ChildDefInit),
-                                     *ChildType, Cost);
+                                     *ChildType);
 
     if (ChildRec->isSubClassOf("Register")) {
       return failedImport("Not yet implemented: register operands " +
@@ -1764,8 +1635,7 @@ GlobalISelBURGEmitter::importPatternToMatch(BURSTableGenerator &BURS,
     R = *ChildRule;
   }
   R->setPattern(&Pat);
-  return BURS.createChainRule(BURS.getGoal(), R->getLHS(),
-                              CostValue::fromComplexity(Score), &Pat);
+  return BURS.createChainRule(BURS.getGoal(), R->getLHS(), &Pat);
 }
 
 void GlobalISelBURGEmitter::run(raw_ostream &OS) {
