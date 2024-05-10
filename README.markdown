@@ -17,12 +17,12 @@ It differs in the following ways:
 - All machine instructions are implemented.
 - Assembler supports `.requires81100` directive.
 - Updates/refactoring of AsmParser, register definition, calling convention, etc.
-- Removed all Itineries in favor of the new scheduling model.
+- Removed all Itineraries in favor of the new scheduling model.
 
 ## Building LLVM with the m88k backend
 
 The m88k backend is added as experimental backend to LLVM, named `M88k`.
-It's prefined in the CMake files, but if you want to compile other experimental
+It's defined in the CMake files, but if you want to compile other experimental
 targets, too, then you have to pass option
 
 ```-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD="M88k"```
@@ -58,7 +58,7 @@ result as the native gcc-compiled version. Here is the recipe:
    `gcc -o sha sha*.o`
 6. Run the test case, e.g. `./sha /etc/rc`
 7. To verify the result you can copy the test case source to your OpenBSD system,
-   compile the files with gcc, run the programm on the same file and compare the
+   compile the files with gcc, run the program on the same file and compare the
    result.
 
 Other test cases and optimization levels may work but there is still a lot to
