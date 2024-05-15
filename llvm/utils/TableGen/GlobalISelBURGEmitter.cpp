@@ -565,11 +565,11 @@ public:
       break;
     case Op_RegClass:
       ID.AddPointer(RegClass);
-      Type->Profile(ID);
+      ID.Add(Type);
       break;
     case Op_Value:
       ID.AddInteger(IntValue);
-      Type->Profile(ID);
+      ID.Add(Type);
       break;
     }
   }
@@ -740,13 +740,13 @@ public:
     } else {
       OS << "State " << Num << ":";
       for (const auto &[NT, Rules] : Items) {
-        OS << " [nt " << NT << ": [ ";
+        OS << " [ nt " << NT << ": [ ";
         bool IsFirst = true;
         for (unsigned B : Rules.set_bits()) {
           OS << (IsFirst ? "" : ", ") << B;
           IsFirst = false;
         }
-        OS << " ]\n";
+        OS << " ]]";
       }
     }
   }
@@ -788,7 +788,7 @@ class BURSTableGenerator {
   template <typename T>
   std::pair<T *, bool> insert(FoldingSetVector<T> &Set, T &&Elem) {
     FoldingSetNodeID ID;
-    Elem.Profile(ID);
+    ID.Add(Elem);
     void *InsertPoint;
     if (T *Tmp = Set.FindNodeOrInsertPos(ID, InsertPoint))
       return std ::pair<T *, bool>(Tmp, false);
@@ -826,16 +826,11 @@ BURSTableGenerator::BURSTableGenerator() {
 }
 
 Rule *BURSTableGenerator::createRule(Operator *Op, OperandList &&Operands) {
-  // Cache and reuse leaf rules. A rule like r: gpr -> GPR is used very often as
-  // the leaf rule of a pattern, and we try to reuse those rules. The assumption
-  // is that no other rule uses the nonterminal gpr. This drastically reduces
-  // the number of nonterminals and rules, which speeds up the generation. As a
-  // side effect, the number of different representer sets also drops, which
-  // potentially leads to smaller tables.
-  bool CacheRule = Op->arity() == 0;
-  if (CacheRule)
-    if (Rule *R = OperatorToRule[Op])
+  // TODO Use a better data structure.
+  for (Rule *R : OperatorRules) {
+    if (R->getOperator() == Op && R->getOperands() == Operands)
       return R;
+  }
 
   Nonterminal *NT = new Nonterminal(Nonterminals.size());
   Nonterminals.push_back(NT);
@@ -845,8 +840,6 @@ Rule *BURSTableGenerator::createRule(Operator *Op, OperandList &&Operands) {
     OperatorRules.push_back(R);
   else
     ChainRules.push_back(R);
-  if (CacheRule)
-    OperatorToRule[Op] = R;
   return R;
 }
 
@@ -1250,17 +1243,17 @@ void BURSTableGenerator::emit(raw_ostream &OS, StringRef ClassName,
     OS << "    // ";
     S.dump(OS);
     OS << "\n";
-#if 0
     RuleSet RSet = S.getRules(getGoal());
-    if (RId < Rules.size()) {
-      Rule *R = Rules[RId];
-      if (R->getPattern()) {
-        OS << "    case " << S.getNum() << ":\n";
-        OS << "    // Match: "
-           << llvm::to_string(R->getPattern()->getSrcPattern()) << "\n";
+    if (RSet.any()) {
+      for (int RNo = RSet.find_first(); RNo != -1; RNo = RSet.find_next(RNo)) {
+        Rule *R = Rules[RNo];
+        if (R->getPattern()) {
+          OS << "    case " << S.getNum() << ":\n";
+          OS << "    // Match: "
+             << llvm::to_string(R->getPattern()->getSrcPattern()) << "\n";
+        }
       }
     }
-#endif
   }
   OS << "  \n";
   OS << "  }\n";
