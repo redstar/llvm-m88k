@@ -51,7 +51,6 @@
 #include "Common/GlobalISel/CombinerUtils.h"
 #include "Common/GlobalISel/GlobalISelMatchTable.h"
 #include "Common/GlobalISel/GlobalISelMatchTableExecutorEmitter.h"
-#include "Common/GlobalISel/MatchDataInfo.h"
 #include "Common/GlobalISel/PatternParser.h"
 #include "Common/GlobalISel/Patterns.h"
 #include "Common/SubtargetFeatureInfo.h"
