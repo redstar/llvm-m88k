@@ -115,6 +115,8 @@ private:
                                const std::vector<RegisterBank> &Banks);
   void emitBaseClassImplementation(raw_ostream &OS, const StringRef TargetName,
                                    std::vector<RegisterBank> &Banks);
+  void emitRegBankFromRegClass(raw_ostream &OS, const StringRef TargetName,
+                               const std::vector<RegisterBank> &Banks);
 
 public:
   RegisterBankEmitter(RecordKeeper &R) : Target(R), Records(R) {}
@@ -291,6 +293,28 @@ void RegisterBankEmitter::emitBaseClassImplementation(
      << "} // end namespace llvm\n";
 }
 
+void RegisterBankEmitter::emitRegBankFromRegClass(
+    raw_ostream &OS, const StringRef TargetName,
+    const std::vector<RegisterBank> &Banks) {
+  OS << "const RegisterBank &\n"
+     << TargetName << "RegisterBankInfo::getRegBankFromRegClass"
+     << "(const TargetRegisterClass &RC, LLT) const {\n";
+  OS << "  switch (RC.getID()) {\n";
+  for (const auto &Bank : Banks) {
+    for (const auto *RC : Bank.register_classes()) {
+      OS << "  ";
+      if (!RC->getNamespaceQualification().empty())
+        OS << RC->getNamespaceQualification();
+      OS << RC->getIdName() << ":\n";
+    }
+    OS << "    return " << TargetName << "::" << Bank.getName() << ";\n";
+  }
+  OS << "  default:\n"
+     << "    llvm_unreachable(\"Unknown register class\");\n"
+     << "  }\n";
+  OS << "}\n";
+}
+
 void RegisterBankEmitter::run(raw_ostream &OS) {
   StringRef TargetName = Target.getName();
   const CodeGenRegBank &RegisterClassHierarchy = Target.getRegBank();
@@ -344,7 +368,11 @@ void RegisterBankEmitter::run(raw_ostream &OS) {
      << "#ifdef GET_TARGET_REGBANK_IMPL\n"
      << "#undef GET_TARGET_REGBANK_IMPL\n";
   emitBaseClassImplementation(OS, TargetName, Banks);
-  OS << "#endif // GET_TARGET_REGBANK_IMPL\n";
+  OS << "#endif // GET_TARGET_REGBANK_IMPL\n\n"
+     << "#ifdef GET_TARGET_REGBANK_FROM_REGCLASS\n"
+     << "#undef GET_TARGET_REGBANK_FROM_REGCLASS\n";
+  emitRegBankFromRegClass(OS, TargetName, Banks);
+  OS << "#endif // GET_TARGET_REGBANK_FROM_REGCLASS\n";
 }
 
 static TableGen::Emitter::OptClass<RegisterBankEmitter>
