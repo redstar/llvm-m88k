@@ -16,6 +16,7 @@
 #include "Common/InfoByHwMode.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
@@ -151,6 +152,9 @@ void RegisterBankEmitter::emitBaseClassDefinition(
   OS << "private:\n"
      << "  static const RegisterBank *RegBanks[];\n"
      << "  static const unsigned Sizes[];\n\n"
+     << "public:\n"
+     << "  const RegisterBank &getRegBankFromRegClass(const "
+        "TargetRegisterClass &RC, LLT Ty) const override;\n"
      << "protected:\n"
      << "  " << TargetName << "GenRegisterBankInfo(unsigned HwMode = 0);\n"
      << "\n";
@@ -287,8 +291,82 @@ void RegisterBankEmitter::emitBaseClassImplementation(
      << "  for (auto RB : enumerate(RegBanks))\n"
      << "    assert(RB.index() == RB.value()->getID() && \"Index != ID\");\n"
      << "#endif // NDEBUG\n"
-     << "}\n"
-     << "} // end namespace llvm\n";
+     << "}\n";
+
+  uint32_t NoRegBanks = Banks.size();
+  uint32_t BitSize = NextPowerOf2(Log2_32(NoRegBanks));
+  uint32_t BitMask = (1 << BitSize) - 1;
+  bool HasAmbigousOrMissingEntry = false;
+  struct Entry {
+    std::string RCIdName;
+    std::string RBIdName;
+  };
+  std::vector<Record *> AllRegisterClasses =
+      Records.getAllDerivedDefinitions("RegisterClass");
+  std::vector<Entry> Entries;
+  for (const auto &Bank : Banks)
+    for (const auto *RC : Bank.register_classes()) {
+      if (RC->EnumValue >= Entries.size())
+        Entries.resize(RC->EnumValue+1);
+      Entry &E = Entries[RC->EnumValue];
+      if (!E.RBIdName.empty()) {
+        HasAmbigousOrMissingEntry = true;
+        E.RBIdName = "InvalidRegBankID";
+      } else {
+        E.RBIdName = (TargetName + "::" + Bank.getEnumeratorName()).str();
+      }
+    }
+  for (auto *Rec : AllRegisterClasses) {
+    const CodeGenRegisterClass &RC = Target.getRegisterClass(Rec);
+    Entry &E = Entries[RC.EnumValue];
+    E.RCIdName = RC.getIdName();
+    if (E.RBIdName.empty()) {
+      HasAmbigousOrMissingEntry = true;
+      E.RBIdName = "InvalidRegBankID";
+    }
+  }
+  OS << "const RegisterBank &\n"
+     << TargetName << "GenRegisterBankInfo::getRegBankFromRegClass"
+     << "(const TargetRegisterClass &RC, LLT) const {\n";
+  if (HasAmbigousOrMissingEntry)
+    OS << "  constexpr uint32_t InvalidRegBankID = uint32_t("
+       << TargetName + "::InvalidRegBankID) & " << BitMask << ";\n";
+  unsigned TableSize = Entries.size() / (32 / BitSize) + ((Entries.size() % (32 / BitSize)) > 0);
+  OS << "  static const uint32_t RegClass2RegBank["
+     << TableSize << "] = {\n";
+  uint32_t Shift = 32 - BitSize;
+  bool First = true;
+  for (auto &E : Entries) {
+    Shift += BitSize;
+    if (Shift == 32) {
+      Shift = 0;
+      if (First)
+        First = false;
+      else
+        OS << ",\n";
+    } else {
+      OS << " |\n";
+    }
+    OS << format("  /* %-20s */", E.RCIdName.c_str());
+    OS << " (" << (E.RBIdName.empty() ? "InvalidRegBankID" : E.RBIdName)
+       << " << " << Shift << ")";
+  }
+  OS << "\n  };\n";
+  OS << "  const unsigned RegClassID = RC.getID();\n";
+  OS << "  if (RegClassID < " << Entries.size() << ") {\n";
+  OS << "    unsigned RegBankID = (RegClass2RegBank[RegClassID >> " << BitSize
+     << "] >> (RegClassID & " << BitMask << ") * " << BitSize << ") & "
+     << BitMask << ";\n";
+  if (HasAmbigousOrMissingEntry)
+    OS << "    if (RegBankID != InvalidRegBankID)\n"
+       << "      return getRegBank(RegBankID);\n";
+  else
+    OS << "    return getRegBank(RegBankID);\n";
+  OS << "  }"
+     << "  llvm_unreachable(\"Target needs to handle register class \");\n"
+     << "}\n";
+
+  OS << "} // end namespace llvm\n";
 }
 
 void RegisterBankEmitter::run(raw_ostream &OS) {
