@@ -112,11 +112,11 @@ private:
   void emitHeader(raw_ostream &OS, const StringRef TargetName,
                   const std::vector<RegisterBank> &Banks);
   void emitBaseClassDefinition(raw_ostream &OS, const StringRef TargetName,
-                               const std::vector<RegisterBank> &Banks);
+                               const std::vector<RegisterBank> &Banks,
+                               bool EmitRegBankFromRegClass);
   void emitBaseClassImplementation(raw_ostream &OS, const StringRef TargetName,
-                                   std::vector<RegisterBank> &Banks);
-  void emitRegBankFromRegClass(raw_ostream &OS, const StringRef TargetName,
-                               const std::vector<RegisterBank> &Banks);
+                                   std::vector<RegisterBank> &Banks,
+                                   bool EmitRegBankFromRegClass);
 
 public:
   RegisterBankEmitter(RecordKeeper &R) : Target(R), Records(R) {}
@@ -149,11 +149,15 @@ void RegisterBankEmitter::emitHeader(raw_ostream &OS,
 /// Emit declarations of the <Target>GenRegisterBankInfo class.
 void RegisterBankEmitter::emitBaseClassDefinition(
     raw_ostream &OS, const StringRef TargetName,
-    const std::vector<RegisterBank> &Banks) {
+    const std::vector<RegisterBank> &Banks, bool EmitRegBankFromRegClass) {
   OS << "private:\n"
      << "  static const RegisterBank *RegBanks[];\n"
-     << "  static const unsigned Sizes[];\n\n"
-     << "protected:\n"
+     << "  static const unsigned Sizes[];\n\n";
+  if (EmitRegBankFromRegClass)
+    OS << "public:\n"
+       << "  const RegisterBank &getRegBankFromRegClass("
+       << "const TargetRegisterClass &, LLT) const override;\n\n";
+  OS  << "protected:\n"
      << "  " << TargetName << "GenRegisterBankInfo(unsigned HwMode = 0);\n"
      << "\n";
 }
@@ -216,7 +220,8 @@ static void visitRegisterBankClasses(
 }
 
 void RegisterBankEmitter::emitBaseClassImplementation(
-    raw_ostream &OS, StringRef TargetName, std::vector<RegisterBank> &Banks) {
+    raw_ostream &OS, StringRef TargetName, std::vector<RegisterBank> &Banks,
+    bool EmitRegBankFromRegClass) {
   const CodeGenRegBank &RegisterClassHierarchy = Target.getRegBank();
   const CodeGenHwModes &CGH = Target.getHwModes();
 
@@ -289,30 +294,29 @@ void RegisterBankEmitter::emitBaseClassImplementation(
      << "  for (auto RB : enumerate(RegBanks))\n"
      << "    assert(RB.index() == RB.value()->getID() && \"Index != ID\");\n"
      << "#endif // NDEBUG\n"
-     << "}\n"
-     << "} // end namespace llvm\n";
-}
-
-void RegisterBankEmitter::emitRegBankFromRegClass(
-    raw_ostream &OS, const StringRef TargetName,
-    const std::vector<RegisterBank> &Banks) {
-  OS << "const RegisterBank &\n"
-     << TargetName << "RegisterBankInfo::getRegBankFromRegClass"
-     << "(const TargetRegisterClass &RC, LLT) const {\n";
-  OS << "  switch (RC.getID()) {\n";
-  for (const auto &Bank : Banks) {
-    for (const auto *RC : Bank.register_classes()) {
-      OS << "  ";
-      if (!RC->getNamespaceQualification().empty())
-        OS << RC->getNamespaceQualification();
-      OS << RC->getIdName() << ":\n";
+     << "}\n";
+  if (EmitRegBankFromRegClass) {
+    OS << "\nconst RegisterBank &\n"
+       << TargetName << "RegisterBankInfo::getRegBankFromRegClass"
+       << "(const TargetRegisterClass &RC, LLT) const {\n";
+    OS << "  switch (RC.getID()) {\n";
+    for (const auto &Bank : Banks) {
+      for (const auto *RC : Bank.register_classes()) {
+        if (!RC->getDef()->getValueAsBit("mapToRegisterBank"))
+          continue;
+        OS << "  ";
+        if (!RC->getNamespaceQualification().empty())
+          OS << RC->getNamespaceQualification();
+        OS << RC->getIdName() << ":\n";
+      }
+      OS << "    return " << TargetName << "::" << Bank.getName() << ";\n";
     }
-    OS << "    return " << TargetName << "::" << Bank.getName() << ";\n";
+    OS << "  default:\n"
+       << "    llvm_unreachable(\"Unknown register class\");\n"
+       << "  }\n";
+    OS << "}\n";
   }
-  OS << "  default:\n"
-     << "    llvm_unreachable(\"Unknown register class\");\n"
-     << "  }\n";
-  OS << "}\n";
+  OS << "} // end namespace llvm\n";
 }
 
 void RegisterBankEmitter::run(raw_ostream &OS) {
@@ -355,6 +359,24 @@ void RegisterBankEmitter::run(raw_ostream &OS) {
     }
   }
 
+  // Warn about ambiguos register class to register bank mapping.
+  Records.startTimer("Warn ambiguous mapping");
+  DenseMap<const CodeGenRegisterClass *, const RegisterBank *> Seen;
+  for (const auto &Bank : Banks) {
+    for (const auto *RC : Bank.register_classes()) {
+      if (!RC->getDef()->getValueAsBit("mapToRegisterBank"))
+        continue;
+      if (Seen[RC]) {
+        PrintWarning(RC->getDef()->getLoc(), "A register class should belong to only one register bank to avoid impartial mapping");
+        PrintNote(Seen[RC]->getDef().getLoc(), "First RegisterBank was declared here");
+        PrintNote(Bank.getDef().getLoc(), "Second RegisterBank was declared here");
+      } else {
+        Seen[RC] = &Bank;
+      }
+    }
+  }
+  bool EmitRegBankFromRegClass = !Seen.empty();
+
   Records.startTimer("Emit output");
   emitSourceFileHeader("Register Bank Source Fragments", OS);
   OS << "#ifdef GET_REGBANK_DECLARATIONS\n"
@@ -363,16 +385,12 @@ void RegisterBankEmitter::run(raw_ostream &OS) {
   OS << "#endif // GET_REGBANK_DECLARATIONS\n\n"
      << "#ifdef GET_TARGET_REGBANK_CLASS\n"
      << "#undef GET_TARGET_REGBANK_CLASS\n";
-  emitBaseClassDefinition(OS, TargetName, Banks);
+  emitBaseClassDefinition(OS, TargetName, Banks, EmitRegBankFromRegClass);
   OS << "#endif // GET_TARGET_REGBANK_CLASS\n\n"
      << "#ifdef GET_TARGET_REGBANK_IMPL\n"
      << "#undef GET_TARGET_REGBANK_IMPL\n";
-  emitBaseClassImplementation(OS, TargetName, Banks);
-  OS << "#endif // GET_TARGET_REGBANK_IMPL\n\n"
-     << "#ifdef GET_TARGET_REGBANK_FROM_REGCLASS\n"
-     << "#undef GET_TARGET_REGBANK_FROM_REGCLASS\n";
-  emitRegBankFromRegClass(OS, TargetName, Banks);
-  OS << "#endif // GET_TARGET_REGBANK_FROM_REGCLASS\n";
+  emitBaseClassImplementation(OS, TargetName, Banks, EmitRegBankFromRegClass);
+  OS << "#endif // GET_TARGET_REGBANK_IMPL\n\n";
 }
 
 static TableGen::Emitter::OptClass<RegisterBankEmitter>

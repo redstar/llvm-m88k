@@ -360,6 +360,10 @@ class RegisterClass<string namespace, list<ValueType> regTypes, int alignment,
   // classes will be resolved in the order defined by this value, with lower values
   // taking precedence over higher ones.  Ties are resolved by enumeration order.
   int BaseClassOrder = ?;
+
+  // If set then generate a mapping from this register class to the register
+  // bank in method RegisterBankInfo::getRegBankFromRegClass().
+  bit mapToRegisterBank = false;
 }
 
 // The memberList in a RegisterClass is a dag of set operations. TableGen

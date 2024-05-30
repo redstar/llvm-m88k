@@ -39,22 +39,6 @@ using namespace llvm;
 M88kRegisterBankInfo::M88kRegisterBankInfo(const TargetRegisterInfo &TRI)
     : M88kGenRegisterBankInfo() {}
 
-const RegisterBank &
-M88kRegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
-                                             LLT Ty) const {
-  switch (RC.getID()) {
-  case M88k::GPRRegClassID:
-  case M88k::GPR64RegClassID:
-    return getRegBank(M88k::GRRegBankID);
-  case M88k::XRRegClassID:
-    return getRegBank(M88k::XRRegBankID);
-  case M88k::CRRegClassID:
-    return getRegBank(M88k::CRRegBankID);
-  default:
-    llvm_unreachable("Unexpected register class");
-  }
-}
-
 const RegisterBankInfo::InstructionMapping &
 M88kRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   const unsigned Opc = MI.getOpcode();

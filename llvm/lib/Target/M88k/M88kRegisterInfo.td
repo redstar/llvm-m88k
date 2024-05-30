@@ -24,6 +24,7 @@ class M88kRegisterClass<list<ValueType> types, int size, int alignment,
   : RegisterClass<"M88k", types, alignment, regList> {
       let Size = size;
       let CopyCost = copycost;
+      let mapToRegisterBank = true;
 }
 
 class M88kRegisterOperand<RegisterClass RC> : RegisterOperand<RC> {
