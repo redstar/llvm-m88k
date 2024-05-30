@@ -813,9 +813,13 @@ public:
   void computeTransitions(Operator *Op, State *S);
   void run();
 
-  void emit(raw_ostream &OS, StringRef ClassName, const CodeGenTarget &Target);
-
   void dump(raw_ostream &OS);
+
+  // TODO Move the emit functionality to new class.
+  void emit(raw_ostream &OS, StringRef ClassName, const CodeGenTarget &Target);
+private:
+  void emitLabel(raw_ostream &OS, StringRef ClassName, const CodeGenTarget &Target);
+  void emitReduce(raw_ostream &OS, StringRef ClassName, const CodeGenTarget &Target);
 };
 
 BURSTableGenerator::BURSTableGenerator() {
@@ -1113,54 +1117,9 @@ void BURSTableGenerator::run() {
   }
 }
 
-void BURSTableGenerator::emit(raw_ostream &OS, StringRef ClassName,
-                              const CodeGenTarget &Target) {
-  OS << "#ifdef GET_GLOBALISEL_DECL\n";
-  OS << "void label(MachineInstr &I) override;\n";
-  OS << "void reduce(MachineInstr &I) override;\n";
-  OS << "#endif\n";
-  OS << "#ifdef GET_GLOBALISEL_IMPL\n";
-
-  OS << "namespace {\n";
-  // Emit label(MachineRegisterInfo &, TargetRegisterInfo &, RegisterBankInfo &,
-  // Register).
-  OS << "uint32_t label(MachineRegisterInfo &MRI, const TargetRegisterInfo "
-        "&TRI,\n";
-  OS << "               const RegisterBankInfo &RBI, Register Reg) {\n";
-  OS << "  LLT Ty = MRI.getType(Reg);\n";
-  OS << "  const RegisterBank *RegBank = RBI.getRegBank(Reg, MRI, TRI);\n";
-  OS << "  // TODO Calculate RegisterBank at TableGen-time.\n";
-  for (auto Op : Operators) {
-    State *Leaf = Op.getLeafState();
-    if (Leaf == nullptr || !Op.isRegClass())
-      continue;
-    OS << "  if (Ty == ";
-    Op.getType()->emit(OS);
-    OS << " && RegBank == &RBI.getRegBankFromRegClass("
-       << Target.getRegisterClass(Op.getRegClass()).getQualifiedName()
-       << ", Ty))\n";
-    OS << "    return " << Leaf->getNum() << ";\n";
-  }
-  OS << "  return 0;\n";
-  OS << "}\n";
-
-  // Emit label(MachineRegisterInfo &, TargetRegisterInfo &, RegisterBankInfo &,
-  // MachineOperand &).
-  OS << "uint32_t label(MachineRegisterInfo &MRI, const TargetRegisterInfo "
-        "&TRI,\n";
-  OS << "               const RegisterBankInfo &RBI, MachineOperand &MO) {\n";
-  OS << "  if (MO.isReg()) {\n";
-  OS << "    MachineInstr *DefMI = getDefIgnoringCopies(MO.getReg(), MRI);\n";
-  OS << "    if (auto It = StateMap.find(DefMI); It != StateMap.end())\n";
-  OS << "      return It->second;\n";
-  OS << "    return label(MRI, TRI, RBI, MO.getReg());\n";
-  OS << "  }\n";
-  OS << "  // TODO Handle other cases.\n";
-  OS << "  return 0;\n";
-  OS << "}\n";
-  OS << "} // End of anonymous namespace.\n";
-
-  // Emit label(MachineInstr &).
+// Emit label(MachineInstr &).
+void BURSTableGenerator::emitLabel(raw_ostream &OS, StringRef ClassName,
+                                   const CodeGenTarget &Target) {
   OS << "void " << ClassName << "::label(MachineInstr &MI) {\n";
   OS << "  MachineBasicBlock &MBB = *MI.getParent();\n";
   OS << "  MachineFunction &MF = *MBB.getParent();\n";
@@ -1231,8 +1190,11 @@ void BURSTableGenerator::emit(raw_ostream &OS, StringRef ClassName,
   OS << "    StateMap[&MI] = State;\n";
   OS << "  }\n";
   OS << "}\n";
+}
 
-  // Emit reduce(MachineInstr &).
+// Emit reduce(MachineInstr &).
+void BURSTableGenerator::emitReduce(raw_ostream &OS, StringRef ClassName,
+                                    const CodeGenTarget &Target) {
   OS << "bool " << ClassName << "::reduce(MachineInstr &I) {\n";
   OS << "  if (earlySelect(MI))\n";
   OS << "    return true;\n";
@@ -1258,6 +1220,72 @@ void BURSTableGenerator::emit(raw_ostream &OS, StringRef ClassName,
   OS << "  }\n";
   OS << "  return select(MI);\n";
   OS << "}\n";
+}
+
+void BURSTableGenerator::emit(raw_ostream &OS, StringRef ClassName,
+                              const CodeGenTarget &Target) {
+  OS << "#ifdef GET_GLOBALISEL_DECL\n";
+  OS << "void label(MachineInstr &I) override;\n";
+  OS << "void reduce(MachineInstr &I) override;\n";
+  OS << "#endif\n";
+  OS << "#ifdef GET_GLOBALISEL_IMPL\n";
+
+  OS << "namespace {\n";
+  // Emit label(MachineRegisterInfo &, TargetRegisterInfo &, RegisterBankInfo &,
+  // Register).
+  OS << "uint32_t label(MachineRegisterInfo &MRI, const TargetRegisterInfo "
+        "&TRI,\n";
+  OS << "               const RegisterBankInfo &RBI, Register Reg) {\n";
+  OS << "  LLT Ty = MRI.getType(Reg);\n";
+  OS << "  const RegisterBank *RegBank = RBI.getRegBank(Reg, MRI, TRI);\n";
+  OS << "  // TODO Calculate RegisterBank at TableGen-time.\n";
+  for (auto Op : Operators) {
+    State *Leaf = Op.getLeafState();
+    if (Leaf == nullptr || !Op.isRegClass())
+      continue;
+    OS << "  if (Ty == ";
+    Op.getType()->emit(OS);
+    OS << " && RegBank == &RBI.getRegBankFromRegClass("
+       << Target.getRegisterClass(Op.getRegClass()).getQualifiedName()
+       << ", Ty))\n";
+    OS << "    return " << Leaf->getNum() << ";\n";
+  }
+  OS << "  return 0;\n";
+  OS << "}\n";
+
+  // Emit label(MachineRegisterInfo &, TargetRegisterInfo &, RegisterBankInfo &,
+  // MachineOperand &).
+  OS << "uint32_t label(MachineRegisterInfo &MRI, const TargetRegisterInfo "
+        "&TRI,\n";
+  OS << "               const RegisterBankInfo &RBI, MachineOperand &MO) {\n";
+  OS << "  if (MO.isReg()) {\n";
+  OS << "    MachineInstr *DefMI = getDefIgnoringCopies(MO.getReg(), MRI);\n";
+  OS << "    if (auto It = StateMap.find(DefMI); It != StateMap.end())\n";
+  OS << "      return It->second;\n";
+  OS << "    return label(MRI, TRI, RBI, MO.getReg());\n";
+  OS << "  }\n";
+  OS << "  if (MO.isImm()) {\n";
+  OS << "    uint64_t Val = MO.getCImm()->getZExtValue();\n";
+  OS << "    (void)Val;\n";
+  for (auto Op : Operators) {
+    State *Leaf = Op.getLeafState();
+    if (Leaf == nullptr || !Op.isValue())
+      continue;
+    OS << "    if (Ty == ";
+    Op.getType()->emit(OS);
+    OS << " && Val == "
+       << Op.getIntValue()
+       << ")\n";
+    OS << "      return " << Leaf->getNum() << ";\n";
+  }
+  OS << "  }\n";
+  OS << "  // TODO Handle other cases.\n";
+  OS << "  return 0;\n";
+  OS << "}\n";
+  OS << "} // End of anonymous namespace.\n";
+
+  emitLabel(OS, ClassName, Target);
+  emitReduce(OS, ClassName, Target);
 
   OS << "#endif\n";
 }
@@ -1512,10 +1540,10 @@ GlobalISelBURGEmitter::patternToRule(BURSTableGenerator &BURS,
                           explainOperator(Src.getOperator()));
     SrcGIOrNull = getEquivNode(*SrcGIEquivOrNull, Src);
 
-    unsigned OpIdx = 0;
+//    unsigned OpIdx = 0;
     for (const TypeSetByHwMode &VTy : Src.getExtTypes()) {
-      const bool OperandIsAPointer =
-          SrcGIOrNull && SrcGIOrNull->isOutOperandAPointer(OpIdx);
+//      const bool OperandIsAPointer =
+//          SrcGIOrNull && SrcGIOrNull->isOutOperandAPointer(OpIdx);
       llvm::dbgs() << "TypeSetByHwMode: ";
       if (VTy.getMachineValueType().SimpleTy == MVT::i8)
         llvm::dbgs() << "i8";
@@ -1568,9 +1596,10 @@ GlobalISelBURGEmitter::patternToRule(BURSTableGenerator &BURS,
   // Handle leafs, like int and register classes, etc.
   Init *SrcLeaf = Src.getLeafValue();
   if (auto *ChildInt = dyn_cast<IntInit>(SrcLeaf)) {
-    // TODO Do we need to distinguish between immediate and materialized
-    // constants?
-    return BURS.createValueRule(ChildInt->getValue(), *ChildType);
+    // TODO What about the RegisterBank?
+    return BURS.createInstRule(
+        &Target.getInstruction(RK.getDef("G_CONSTANT")),
+        {BURS.createValueRule(ChildInt->getValue(), *ChildType)->getLHS()});
   }
 
   if (auto *ChildDefInit = dyn_cast<DefInit>(SrcLeaf)) {
@@ -1606,7 +1635,8 @@ GlobalISelBURGEmitter::importPatternToMatch(BURSTableGenerator &BURS,
     return failedImport("Src pattern root isn't a trivial operator (" +
                         toString(std::move(Err)) + ")");
 
-  int Score = Pat.getPatternComplexity(CGP);
+  // TODO Add score to rule.
+  // int Score = Pat.getPatternComplexity(CGP);
 
   Rule *R;
   // Handle the leaf case first.
@@ -1615,8 +1645,12 @@ GlobalISelBURGEmitter::importPatternToMatch(BURSTableGenerator &BURS,
     if (isa<IntInit>(SrcInit)) {
       dbgs() << "  ---> Leaf is INT value\n";
       dbgs() << "       " << llvm::to_string(Src) << "\n";
-      R = BURS.createValueRule(cast<IntInit>(SrcInit)->getValue(),
-                               CGLowLevelType::get(LLT::scalar(32)));
+      // TODO What about the RegisterBank? Where to find the correct type?
+      R = BURS.createInstRule(
+          &Target.getInstruction(RK.getDef("G_CONSTANT")),
+          {BURS.createValueRule(cast<IntInit>(SrcInit)->getValue(),
+                                CGLowLevelType::get(LLT::scalar(32)))
+               ->getLHS()});
     } else
       return failedImport(
           "Unable to deduce gMIR opcode to handle Src (which is a leaf)");
