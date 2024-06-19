@@ -149,9 +149,6 @@ public:
   unsigned copyCost(const RegisterBank &A, const RegisterBank &B,
                     TypeSize Size) const override;
 
-  const RegisterBank &getRegBankFromRegClass(const TargetRegisterClass &RC,
-                                             LLT) const override;
-
   InstructionMappings
   getInstrAlternativeMappings(const MachineInstr &MI) const override;
 
