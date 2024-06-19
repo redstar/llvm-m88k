@@ -332,6 +332,7 @@ void RegisterBankEmitter::emitBaseClassImplementation(
      << TableSize << "] = {\n";
   uint32_t Shift = 32 - BitSize;
   bool First = true;
+  std::string TrailingComment;
   for (auto &E : Entries) {
     Shift += BitSize;
     if (Shift == 32) {
@@ -339,17 +340,20 @@ void RegisterBankEmitter::emitBaseClassImplementation(
       if (First)
         First = false;
       else
-        OS << ",\n";
+        OS << "," << TrailingComment << "\n";
     } else {
-      OS << " |\n";
+      OS << " |" << TrailingComment << "\n";
     }
-    OS << format("  /* %-20s */", E.RCIdName.c_str());
-    OS << " (" << (E.RBIdName.empty() ? "InvalidRegBankID" : E.RBIdName)
+    OS << "    (" << (E.RBIdName.empty() ? "InvalidRegBankID" : E.RBIdName)
        << " << " << Shift << ")";
+    if (!E.RCIdName.empty())
+      TrailingComment = " // " + E.RCIdName;
+    else
+      TrailingComment = "";
   }
   OS << "\n  };\n";
   OS << "  const unsigned RegClassID = RC.getID();\n";
-  OS << "  if (RegClassID < " << Entries.size() << ") {\n";
+  OS << "  if (LLVM_LIKELY(RegClassID < " << Entries.size() << ")) {\n";
   OS << "    unsigned RegBankID = (RegClass2RegBank[RegClassID >> " << BitSize
      << "] >> (RegClassID & " << BitMask << ") * " << BitSize << ") & "
      << BitMask << ";\n";
