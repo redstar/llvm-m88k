@@ -295,6 +295,7 @@ void RegisterBankEmitter::emitBaseClassImplementation(
 
   uint32_t NoRegBanks = Banks.size();
   uint32_t BitSize = NextPowerOf2(Log2_32(NoRegBanks));
+  uint32_t ElemsPerWord = 32 / BitSize;
   uint32_t BitMask = (1 << BitSize) - 1;
   bool HasAmbigousOrMissingEntry = false;
   struct Entry {
@@ -327,7 +328,7 @@ void RegisterBankEmitter::emitBaseClassImplementation(
   if (HasAmbigousOrMissingEntry)
     OS << "  constexpr uint32_t InvalidRegBankID = uint32_t("
        << TargetName + "::InvalidRegBankID) & " << BitMask << ";\n";
-  unsigned TableSize = Entries.size() / (32 / BitSize) + ((Entries.size() % (32 / BitSize)) > 0);
+  unsigned TableSize = Entries.size() / ElemsPerWord + ((Entries.size() % ElemsPerWord) > 0);
   OS << "  static const uint32_t RegClass2RegBank["
      << TableSize << "] = {\n";
   uint32_t Shift = 32 - BitSize;
@@ -344,26 +345,31 @@ void RegisterBankEmitter::emitBaseClassImplementation(
     } else {
       OS << " |" << TrailingComment << "\n";
     }
-    OS << "    (" << (E.RBIdName.empty() ? "InvalidRegBankID" : E.RBIdName)
+    OS << "    ("
+       << (E.RBIdName.empty()
+               ? "InvalidRegBankID"
+               : Twine("uint32_t(").concat(E.RBIdName).concat(")").str())
        << " << " << Shift << ")";
     if (!E.RCIdName.empty())
       TrailingComment = " // " + E.RCIdName;
     else
       TrailingComment = "";
   }
-  OS << "\n  };\n";
+  OS << TrailingComment << "\n  };\n";
   OS << "  const unsigned RegClassID = RC.getID();\n";
   OS << "  if (LLVM_LIKELY(RegClassID < " << Entries.size() << ")) {\n";
-  OS << "    unsigned RegBankID = (RegClass2RegBank[RegClassID >> " << BitSize
-     << "] >> (RegClassID & " << BitMask << ") * " << BitSize << ") & "
-     << BitMask << ";\n";
+  OS << "    unsigned RegBankID = (RegClass2RegBank[RegClassID / "
+     << ElemsPerWord << "] >> ((RegClassID % " << ElemsPerWord << ") * "
+     << BitSize << ")) & " << BitMask << ";\n";
   if (HasAmbigousOrMissingEntry)
     OS << "    if (RegBankID != InvalidRegBankID)\n"
        << "      return getRegBank(RegBankID);\n";
   else
     OS << "    return getRegBank(RegBankID);\n";
   OS << "  }"
-     << "  llvm_unreachable(\"Target needs to handle register class \");\n"
+     << "  llvm_unreachable(llvm::Twine(\"Target needs to handle register "
+        "class ID "
+        "0x\").concat(llvm::Twine::utohexstr(RegClassID)).str().c_str());\n"
      << "}\n";
 
   OS << "} // end namespace llvm\n";

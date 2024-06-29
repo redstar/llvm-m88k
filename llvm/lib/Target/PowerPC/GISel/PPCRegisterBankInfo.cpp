@@ -30,6 +30,24 @@ using namespace llvm;
 
 PPCRegisterBankInfo::PPCRegisterBankInfo(const TargetRegisterInfo &TRI) {}
 
+const RegisterBank &
+PPCRegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
+                                            LLT Ty) const {
+  switch (RC.getID()) {
+  case PPC::VSFRCRegClassID:
+  case PPC::SPILLTOVSRRC_and_VSFRCRegClassID:
+  case PPC::SPILLTOVSRRC_and_VFRCRegClassID:
+  case PPC::SPILLTOVSRRC_and_F4RCRegClassID:
+  case PPC::F8RCRegClassID:
+  case PPC::VFRCRegClassID:
+  case PPC::VSSRCRegClassID:
+  case PPC::F4RCRegClassID:
+    return getRegBank(PPC::FPRRegBankID);
+  default:
+    return PPCGenRegisterBankInfo::getRegBankFromRegClass(RC, Ty);
+  }
+}
+
 const RegisterBankInfo::InstructionMapping &
 PPCRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   const unsigned Opc = MI.getOpcode();
