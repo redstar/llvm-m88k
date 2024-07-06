@@ -95,9 +95,8 @@ public:
                   const MCSubtargetInfo *STI) const override;
   bool mayNeedRelaxation(const MCInst &Inst,
                          const MCSubtargetInfo &STI) const override;
-  bool fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
-                            const MCRelaxableFragment *Fragment,
-                            const MCAsmLayout &Layout) const override;
+  bool fixupNeedsRelaxation(const MCFixup &Fixup,
+                            uint64_t Value) const override;
   bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup,
                              const MCValue &Target,
                              const MCSubtargetInfo *STI) override;
@@ -178,9 +177,7 @@ bool M88kMCAsmBackend::mayNeedRelaxation(const MCInst &Inst,
 }
 
 bool M88kMCAsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
-                                            uint64_t Value,
-                                            const MCRelaxableFragment *Fragment,
-                                            const MCAsmLayout &Layout) const {
+                                            uint64_t Value) const {
   return false;
 }
 

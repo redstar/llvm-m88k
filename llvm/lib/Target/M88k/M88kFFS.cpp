@@ -41,12 +41,11 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicsM88k.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Pass.h"
 #include "llvm/PassRegistry.h"
 #include <cassert>
-#include <iterator>
 
 #define DEBUG_TYPE "m88k-ffs"
 
