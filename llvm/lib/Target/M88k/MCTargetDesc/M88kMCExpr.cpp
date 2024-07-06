@@ -48,10 +48,9 @@ void M88kMCExpr::visitUsedExpr(MCStreamer &Streamer) const {
   Streamer.visitUsedExpr(*getSubExpr());
 }
 
-bool M88kMCExpr::evaluateAsRelocatableImpl(MCValue &Res,
-                                           const MCAsmLayout *Layout,
+bool M88kMCExpr::evaluateAsRelocatableImpl(MCValue &Res, const MCAssembler *Asm,
                                            const MCFixup *Fixup) const {
-  if (!getSubExpr()->evaluateAsRelocatable(Res, Layout, Fixup))
+  if (!getSubExpr()->evaluateAsRelocatable(Res, Asm, Fixup))
     return false;
 
   Res =
