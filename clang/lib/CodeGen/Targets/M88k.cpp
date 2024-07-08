@@ -29,9 +29,8 @@ public:
 
   void computeInfo(CGFunctionInfo &FI) const override;
 
-  CodeGen::Address EmitVAArg(CodeGen::CodeGenFunction &CGF,
-                             CodeGen::Address VAListAddr,
-                             QualType Ty) const override;
+  RValue EmitVAArg(CodeGen::CodeGenFunction &CGF, CodeGen::Address VAListAddr,
+                   QualType Ty, AggValueSlot Slot) const override;
 };
 
 class M88kTargetCodeGenInfo final : public TargetCodeGenInfo {
@@ -98,9 +97,9 @@ void M88kABIInfo::computeInfo(CGFunctionInfo &FI) const {
     I.info = classifyArgumentType(I.type);
 }
 
-CodeGen::Address M88kABIInfo::EmitVAArg(CodeGen::CodeGenFunction &CGF,
-                                        CodeGen::Address VAListAddr,
-                                        QualType Ty) const {
+RValue M88kABIInfo::EmitVAArg(CodeGen::CodeGenFunction &CGF,
+                              CodeGen::Address VAListAddr, QualType Ty,
+                              AggValueSlot Slot) const {
   // Assume that va_list type is correct; should be pointer to LLVM type:
   // struct {
   //    int __va_arg;
@@ -117,9 +116,8 @@ CodeGen::Address M88kABIInfo::EmitVAArg(CodeGen::CodeGenFunction &CGF,
 
   Ty = getContext().getCanonicalType(Ty);
   auto TyInfo = getContext().getTypeInfoInChars(Ty);
-  llvm::Type *ArgTy = CGF.ConvertTypeForMem(Ty);
-  llvm::Type *DirectTy = ArgTy;
   CharUnits DirectSize = TyInfo.Width;
+  TypeInfoChars TypeInfo(DirectSize, DirectAlign, AlignRequirementKind::None);
 
   // Decide which pointer to use: __va_arg < 8 ? __va_reg : __va_stk.
   Address VaArgPtr =
@@ -155,10 +153,10 @@ CodeGen::Address M88kABIInfo::EmitVAArg(CodeGen::CodeGenFunction &CGF,
       emitMergePHI(CGF, VaReg, InRegBlock, VaStk, InStkBlock, "va_arg.addr");
 
   // Load value and increment pointer.
-  Address ResAddr =
-      emitVoidPtrDirectVAArg(CGF, VaAddr, DirectTy, DirectSize, DirectAlign,
-                             SlotSize, /*AllowHigherAlign=*/true,
-                             /*ForceRightAdjust=*/true);
+  RValue ResAddr =
+      emitVoidPtrVAArg(CGF, VaAddr, Ty, /*Indirect*/ false, TypeInfo, SlotSize,
+                       /*AllowHigher*/ true, Slot,
+                       /*ForceRightAdjust*/ true);
 
   // Increment and store __va_arg.
   llvm::Value *One = llvm::ConstantInt::get(CGF.Int32Ty, 1);
