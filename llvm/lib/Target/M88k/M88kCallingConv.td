@@ -11,9 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-class CCIfSplitEnd<CCAction A> : CCIf<"ArgFlags.isSplitEnd()", A> {}
-
 // M88k 32-bit ELF C Calling convention.
+let Entry = 1 in
 def CC_M88k : CallingConv<[
   // Aggregates are passed on the stack.
   CCIfByVal<CCPassByVal<4, 4>>,
@@ -39,6 +38,7 @@ def CC_M88k : CallingConv<[
 ]>;
 
 // M88k 32-bit ELF C return-value convention.
+let Entry = 1 in
 def RetCC_M88k : CallingConv<[
   // 64-bit values are returned in register pair R2:R3.
   CCIfType<[i64, f64], CCCustom<"RetCC_M88k_Custom_64">>,
