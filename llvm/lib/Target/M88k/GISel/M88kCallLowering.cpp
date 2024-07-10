@@ -39,9 +39,6 @@
 
 using namespace llvm;
 
-// The generated calling convention is included twice.
-#include "M88kGenCallingConv.inc"
-
 M88kCallLowering::M88kCallLowering(const M88kTargetLowering &TLI)
     : CallLowering(&TLI) {}
 
@@ -414,7 +411,7 @@ bool M88kCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
   auto &DL = F.getParent()->getDataLayout();
 
   SmallVector<ArgInfo, 8> OutArgs;
-  for (auto &OrigArg : Info.OrigArgs) {
+  for (const auto &OrigArg : Info.OrigArgs) {
     splitToValueTypes(OrigArg, OutArgs, DL, Info.CallConv);
   }
 
