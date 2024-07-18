@@ -65,8 +65,7 @@ static MCInstPrinter *createM88kMCInstPrinter(const Triple &T,
 
 static MCTargetStreamer *createM88kAsmTargetStreamer(MCStreamer &S,
                                                      formatted_raw_ostream &OS,
-                                                     MCInstPrinter *InstPrint,
-                                                     bool IsVerboseAsm) {
+                                                     MCInstPrinter *InstPrint) {
   return new M88kTargetAsmStreamer(S, OS);
 }
 
