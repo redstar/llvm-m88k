@@ -48,13 +48,13 @@ void M88kTargetELFStreamer::emitDirectiveRequires881100() {
 }
 
 void M88kTargetELFStreamer::finish() {
-  MCAssembler &MCA = getStreamer().getAssembler();
+  ELFObjectWriter &W = getStreamer().getWriter();
 
   // Update e_header flags.
   // TODO Handle ELF::EF_88K_NABI
-  unsigned EFlags = MCA.getELFHeaderEFlags();
+  unsigned EFlags = W.getELFHeaderEFlags();
   if (Requires88110)
     EFlags |= ELF::EF_88K_M88110;
 
-  MCA.setELFHeaderEFlags(EFlags);
+  W.setELFHeaderEFlags(EFlags);
 }
