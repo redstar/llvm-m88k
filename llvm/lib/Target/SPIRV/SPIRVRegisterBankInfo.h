@@ -31,8 +31,6 @@ protected:
 // This class provides the information for the target register banks.
 class SPIRVRegisterBankInfo final : public SPIRVGenRegisterBankInfo {
 public:
-  const RegisterBank &getRegBankFromRegClass(const TargetRegisterClass &RC,
-                                             LLT Ty) const override;
 };
 } // namespace llvm
 #endif // LLVM_LIB_TARGET_SPIRV_SPIRVREGISTERBANKINFO_H

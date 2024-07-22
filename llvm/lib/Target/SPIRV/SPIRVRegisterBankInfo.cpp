@@ -19,15 +19,3 @@
 
 #define GET_TARGET_REGBANK_IMPL
 #include "SPIRVGenRegisterBank.inc"
-
-using namespace llvm;
-
-// This required for .td selection patterns to work or we'd end up with RegClass
-// checks being redundant as all the classes would be mapped to the same bank.
-const RegisterBank &
-SPIRVRegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
-                                              LLT Ty) const {
-  if (RC.getID() == SPIRV::TYPERegClassID)
-    return SPIRV::TYPERegBank;
-  return SPIRV::IDRegBank;
-}
