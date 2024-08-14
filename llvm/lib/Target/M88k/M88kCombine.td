@@ -27,16 +27,17 @@ def bitfield_extract_from_and_ashr : GICombineRule<
 // intdiv_combines and mulh_combines result in worse code generation because
 // G_UMULH is mapped to a library call, and G_CTTZ results in a lengthy
 // instruction sequence.
-def m88k_combines : GICombineGroup<[trivial_combines, combines_for_extload,
+def m88k_combines : GICombineGroup<[integer_reassoc_combines, trivial_combines,
+    freeze_combines, cast_combines, combines_for_extload,
     undef_combines, identity_combines, phi_combines,
     simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands, shifts_too_big,
     reassocs, ptr_add_immed_chain,
     shl_ashr_to_sext_inreg, sext_inreg_of_load,
     width_reduction_combines, select_combines,
-    known_bits_simplifications, ext_ext_fold,
+    known_bits_simplifications,
     not_cmp_fold, opt_brcond_by_inverting_cond,
     unmerge_merge, unmerge_cst, unmerge_dead_to_trunc,
-    unmerge_zext_to_zext, merge_unmerge, trunc_ext_fold, trunc_shift,
+    unmerge_zext_to_zext, merge_unmerge, trunc_shift,
     const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
     shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,
     div_rem_to_divrem, funnel_shift_combines, commute_shift,
