@@ -538,7 +538,8 @@ unsigned M88kInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
 void M88kInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator MBBI,
                                 const DebugLoc &DL, MCRegister DestReg,
-                                MCRegister SrcReg, bool KillSrc) const {
+                                MCRegister SrcReg, bool KillSrc,
+                                bool RenamableDest, bool RenamableSrc) const {
   // Split 64-bit GPR moves into two 64-bit moves. Add implicit uses of the
   // super register in case one of the subregs is undefined.
   if (M88k::GPR64RegClass.contains(DestReg, SrcReg)) {
