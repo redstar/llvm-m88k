@@ -213,7 +213,7 @@ class M88kAsmParser : public MCTargetAsmParser {
   }
 
   bool ParseDirective(AsmToken DirectiveID) override;
-  bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
+  bool parseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
   bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                      SMLoc &EndLoc) override;
@@ -242,7 +242,7 @@ class M88kAsmParser : public MCTargetAsmParser {
     return parsePCRel(Operands, 28);
   }
 
-  bool MatchAndEmitInstruction(SMLoc IdLoc, unsigned &Opcode,
+  bool matchAndEmitInstruction(SMLoc IdLoc, unsigned &Opcode,
                                OperandVector &Operands, MCStreamer &Out,
                                uint64_t &ErrorInfo,
                                bool MatchingInlineAsm) override;
@@ -338,7 +338,7 @@ bool M88kAsmParser::ParseDirective(AsmToken DirectiveID) {
   return true;
 }
 
-bool M88kAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
+bool M88kAsmParser::parseInstruction(ParseInstructionInfo &Info, StringRef Name,
                                      SMLoc NameLoc, OperandVector &Operands) {
   // First operand in MCInst is instruction mnemonic.
   Operands.push_back(M88kOperand::createToken(Name, NameLoc));
@@ -671,7 +671,7 @@ ParseStatus M88kAsmParser::tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
   return ParseStatus::Success;
 }
 
-bool M88kAsmParser::MatchAndEmitInstruction(SMLoc IdLoc, unsigned &Opcode,
+bool M88kAsmParser::matchAndEmitInstruction(SMLoc IdLoc, unsigned &Opcode,
                                             OperandVector &Operands,
                                             MCStreamer &Out,
                                             uint64_t &ErrorInfo,
