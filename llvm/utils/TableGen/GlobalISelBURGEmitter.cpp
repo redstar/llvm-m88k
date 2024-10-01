@@ -163,18 +163,18 @@ static std::string explainPredicates(const TreePatternNode &N) {
     if (P.isTruncStore())
       Explanation += " truncstore";
 
-    if (Record *VT = P.getMemoryVT())
+    if (const Record *VT = P.getMemoryVT())
       Explanation += (" MemVT=" + VT->getName()).str();
-    if (Record *VT = P.getScalarMemoryVT())
+    if (const Record *VT = P.getScalarMemoryVT())
       Explanation += (" ScalarVT(MemVT)=" + VT->getName()).str();
 
-    if (ListInit *AddrSpaces = P.getAddressSpaces()) {
+    if (const ListInit *AddrSpaces = P.getAddressSpaces()) {
       raw_string_ostream OS(Explanation);
       OS << " AddressSpaces=[";
 
       StringRef AddrSpaceSeparator;
-      for (Init *Val : AddrSpaces->getValues()) {
-        IntInit *IntVal = dyn_cast<IntInit>(Val);
+      for (const Init *Val : AddrSpaces->getValues()) {
+        const IntInit *IntVal = dyn_cast<IntInit>(Val);
         if (!IntVal)
           continue;
 
@@ -211,7 +211,7 @@ static std::string explainPredicates(const TreePatternNode &N) {
   return Explanation;
 }
 
-std::string explainOperator(Record *Operator) {
+std::string explainOperator(const Record *Operator) {
   if (Operator->isSubClassOf("SDNode"))
     return (" (" + Operator->getValueAsString("Opcode") + ")").str();
 
@@ -310,8 +310,8 @@ static Error isTrivialOperatorNode(const TreePatternNode &N) {
   return failedImport(Explanation);
 }
 
-static Record *getInitValueAsRegClass(Init *V) {
-  if (DefInit *VDefInit = dyn_cast<DefInit>(V)) {
+static const Record *getInitValueAsRegClass(const Init *V) {
+  if (const DefInit *VDefInit = dyn_cast<DefInit>(V)) {
     if (VDefInit->getDef()->isSubClassOf("RegisterOperand"))
       return VDefInit->getDef()->getValueAsDef("RegClass");
     if (VDefInit->getDef()->isSubClassOf("RegisterClass"))
@@ -516,7 +516,7 @@ private:
   const CodeGenInstruction *Inst;
 
   // If Kind == Op_RegClass: pointer to register class.
-  Record *RegClass;
+  const Record *RegClass;
 
   // If Kind == Op_RegClass or Kind == Op_Value: the associated type.
   CGLowLevelType *Type;
@@ -548,7 +548,7 @@ public:
     if (Arity > 0)
       Transitions = new Table<unsigned>(Arity);
   }
-  Operator(OperatorNum Num, Record *RegClass, CGLowLevelType *Type)
+  Operator(OperatorNum Num, const Record *RegClass, CGLowLevelType *Type)
       : Kind(Op_RegClass), Num(Num), Inst(nullptr), RegClass(RegClass),
         Type(Type), IntValue(0), Arity(0) {}
   Operator(OperatorNum Num, int IntValue, CGLowLevelType *Type)
@@ -579,7 +579,7 @@ public:
     assert(isInst() && "Expecting a valid instruction for an Operator!");
     return Inst;
   };
-  Record *getRegClass() const {
+  const Record *getRegClass() const {
     assert(isRegClass() && "Expecting a valid register class for an Operator!");
     return RegClass;
   }
@@ -802,7 +802,7 @@ public:
   BURSTableGenerator();
   Rule *createValueRule(int Value, CGLowLevelType *Type);
   Rule *createInstRule(const CodeGenInstruction *Inst, OperandList &&Opnds);
-  Rule *createRegClassRule(Record *RC, CGLowLevelType *Type);
+  Rule *createRegClassRule(const Record *RC, CGLowLevelType *Type);
   Rule *createChainRule(Nonterminal *A, Nonterminal *B,
                         const PatternToMatch *Pat = nullptr);
 
@@ -880,7 +880,8 @@ Rule *BURSTableGenerator::createInstRule(const CodeGenInstruction *Inst,
   return createRule(Op, std::move(Opnds));
 }
 
-Rule *BURSTableGenerator::createRegClassRule(Record *RC, CGLowLevelType *Type) {
+Rule *BURSTableGenerator::createRegClassRule(const Record *RC,
+                                             CGLowLevelType *Type) {
   FoldingSetNodeID ID;
   ID.AddInteger(unsigned(Operator::Op_RegClass));
   ID.AddPointer(RC);
@@ -1381,7 +1382,7 @@ void BURSTableGenerator::dump(raw_ostream &OS) {
 
 class GlobalISelBURGEmitter {
 public:
-  explicit GlobalISelBURGEmitter(RecordKeeper &RK);
+  explicit GlobalISelBURGEmitter(const RecordKeeper &RK);
 
   const CodeGenTarget &getTarget() const { return Target; }
   StringRef getClassName() const { return ClassName; }
@@ -1389,8 +1390,8 @@ public:
   void gatherOpcodeValues();
   void gatherNodeEquivs();
 
-  Record *findNodeEquiv(Record *N) const;
-  const CodeGenInstruction *getEquivNode(Record &Equiv,
+  const Record *findNodeEquiv(const Record *N) const;
+  const CodeGenInstruction *getEquivNode(const Record &Equiv,
                                          const TreePatternNode &N) const;
 
   Expected<CGLowLevelType *> getLLT(const TypeSetByHwMode &VTy,
@@ -1411,7 +1412,7 @@ private:
   const CodeGenTarget &Target;
   CodeGenRegBank &CGRegs;
 
-  std::vector<Record *> AllPatFrags;
+  std::vector<const Record *> AllPatFrags;
 
   DenseMap<const CodeGenInstruction *, unsigned> OpcodeValues;
 
@@ -1419,7 +1420,7 @@ private:
   /// SDNodes to the GINodeEquiv mapping. We need to map to the GINodeEquiv to
   /// check for attributes on the relation such as CheckMMOIsNonAtomic.
   /// This is defined using 'GINodeEquiv' in the target description.
-  DenseMap<Record *, Record *> NodeEquivs;
+  DenseMap<const Record *, const Record *> NodeEquivs;
 
   /// Keep track of the equivalence between ComplexPattern's and
   /// GIComplexOperandMatcher. Map entries are specified by subclassing
@@ -1438,7 +1439,7 @@ private:
 
 //===- Copied parts BEGIN -------------------------------------------------===//
 
-GlobalISelBURGEmitter::GlobalISelBURGEmitter(RecordKeeper &RK)
+GlobalISelBURGEmitter::GlobalISelBURGEmitter(const RecordKeeper &RK)
     : RK(RK), CGP(RK), Target(CGP.getTargetInfo()),
       CGRegs(Target.getRegBank()) {
   ClassName = Target.getName().str() + "BURGInstructionSelector";
@@ -1451,32 +1452,34 @@ void GlobalISelBURGEmitter::gatherOpcodeValues() {
 
 void GlobalISelBURGEmitter::gatherNodeEquivs() {
   assert(NodeEquivs.empty());
-  for (Record *Equiv : RK.getAllDerivedDefinitions("GINodeEquiv"))
+  for (const Record *Equiv : RK.getAllDerivedDefinitions("GINodeEquiv"))
     NodeEquivs[Equiv->getValueAsDef("Node")] = Equiv;
 
   assert(ComplexPatternEquivs.empty());
-  for (Record *Equiv : RK.getAllDerivedDefinitions("GIComplexPatternEquiv")) {
-    Record *SelDAGEquiv = Equiv->getValueAsDef("SelDAGEquivalent");
+  for (const Record *Equiv :
+       RK.getAllDerivedDefinitions("GIComplexPatternEquiv")) {
+    const Record *SelDAGEquiv = Equiv->getValueAsDef("SelDAGEquivalent");
     if (!SelDAGEquiv)
       continue;
     ComplexPatternEquivs[SelDAGEquiv] = Equiv;
   }
 
   assert(SDNodeXFormEquivs.empty());
-  for (Record *Equiv : RK.getAllDerivedDefinitions("GISDNodeXFormEquiv")) {
-    Record *SelDAGEquiv = Equiv->getValueAsDef("SelDAGEquivalent");
+  for (const Record *Equiv :
+       RK.getAllDerivedDefinitions("GISDNodeXFormEquiv")) {
+    const Record *SelDAGEquiv = Equiv->getValueAsDef("SelDAGEquivalent");
     if (!SelDAGEquiv)
       continue;
     SDNodeXFormEquivs[SelDAGEquiv] = Equiv;
   }
 }
 
-Record *GlobalISelBURGEmitter::findNodeEquiv(Record *N) const {
+const Record *GlobalISelBURGEmitter::findNodeEquiv(const Record *N) const {
   return NodeEquivs.lookup(N);
 }
 
 const CodeGenInstruction *
-GlobalISelBURGEmitter::getEquivNode(Record &Equiv,
+GlobalISelBURGEmitter::getEquivNode(const Record &Equiv,
                                     const TreePatternNode &N) const {
   if (N.getNumChildren() >= 1) {
     // setcc operation maps to two different G_* instructions based on the type.
@@ -1532,7 +1535,7 @@ GlobalISelBURGEmitter::patternToRule(BURSTableGenerator &BURS,
                                      const TreePatternNode &Src) {
   if (!Src.isLeaf()) {
     // Look up the operator.
-    Record *SrcGIEquivOrNull = nullptr;
+    const Record *SrcGIEquivOrNull = nullptr;
     const CodeGenInstruction *SrcGIOrNull = nullptr;
     SrcGIEquivOrNull = findNodeEquiv(Src.getOperator());
     if (!SrcGIEquivOrNull)
@@ -1594,7 +1597,7 @@ GlobalISelBURGEmitter::patternToRule(BURSTableGenerator &BURS,
     return ChildType.takeError();
 
   // Handle leafs, like int and register classes, etc.
-  Init *SrcLeaf = Src.getLeafValue();
+  const Init *SrcLeaf = Src.getLeafValue();
   if (auto *ChildInt = dyn_cast<IntInit>(SrcLeaf)) {
     // TODO What about the RegisterBank?
     return BURS.createInstRule(
@@ -1641,7 +1644,7 @@ GlobalISelBURGEmitter::importPatternToMatch(BURSTableGenerator &BURS,
   Rule *R;
   // Handle the leaf case first.
   if (Src.isLeaf()) {
-    Init *SrcInit = Src.getLeafValue();
+    const Init *SrcInit = Src.getLeafValue();
     if (isa<IntInit>(SrcInit)) {
       dbgs() << "  ---> Leaf is INT value\n";
       dbgs() << "       " << llvm::to_string(Src) << "\n";
