@@ -15,9 +15,9 @@
 
 #include "M88kSubtarget.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/CodeGen/CodeGenTargetMachineImpl.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
-#include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include <memory>
 #include <optional>
@@ -25,7 +25,7 @@
 namespace llvm {
 class Triple;
 
-class M88kTargetMachine : public LLVMTargetMachine {
+class M88kTargetMachine : public CodeGenTargetMachineImpl {
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
   mutable StringMap<std::unique_ptr<M88kSubtarget>> SubtargetMap;
 
