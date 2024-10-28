@@ -112,7 +112,7 @@ M88kFrameLowering::M88kFrameLowering(const M88kSubtarget &Subtarget)
                           /*StackRealignable=*/false),
       STI(Subtarget) {}
 
-bool M88kFrameLowering::hasFP(const MachineFunction &MF) const {
+bool M88kFrameLowering::hasFPImpl(const MachineFunction &MF) const {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
 
   // ABI-required frame pointer.

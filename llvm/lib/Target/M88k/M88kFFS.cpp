@@ -117,7 +117,7 @@ bool M88kFFS::runOnBasicBlock(BasicBlock &BB) {
     if (!Cttz)
       continue;
 
-    ICmpInst::Predicate Pred = ICmpInst::ICMP_EQ;
+    CmpPredicate Pred = CmpPredicate(ICmpInst::ICMP_EQ);
     if (match(&(*I),
               m_Select(m_OneUse(m_c_ICmp(Pred, m_Specific(Input), m_ZeroInt())),
                        m_ZeroInt(),

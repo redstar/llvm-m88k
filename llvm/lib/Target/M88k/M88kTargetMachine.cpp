@@ -125,9 +125,10 @@ M88kTargetMachine::M88kTargetMachine(const Target &T, const Triple &TT,
                                      std::optional<Reloc::Model> RM,
                                      std::optional<CodeModel::Model> CM,
                                      CodeGenOptLevel OL, bool JIT)
-    : LLVMTargetMachine(T, computeDataLayout(TT, CPU, FS), TT, CPU, FS, Options,
-                        getEffectiveRelocModel(RM),
-                        getEffectiveCodeModel(CM, CodeModel::Medium), OL),
+    : CodeGenTargetMachineImpl(T, computeDataLayout(TT, CPU, FS), TT, CPU, FS,
+                               Options, getEffectiveRelocModel(RM),
+                               getEffectiveCodeModel(CM, CodeModel::Medium),
+                               OL),
       TLOF(std::make_unique<TargetLoweringObjectFileELF>()) {
   initAsmInfo();
 
