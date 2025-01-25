@@ -34,6 +34,12 @@ def ubfx : SDNode<"M88kISD::UBFX", SDTBitfieldExtract>;
 def m88k_hi : SDNode<"M88kISD::Hi16", SDTIntUnaryOp>;
 def m88k_lo : SDNode<"M88kISD::Lo16", SDTIntUnaryOp>;
 
+// SD node for frameindex.
+def FRAMEINDEX : SDNodeXForm<frameindex, [{}]>;
+
+def : GICustomOperandRenderer<"renderFrameIndex">,
+      GISDNodeXFormEquiv<FRAMEINDEX>;
+
 // ---------------------------------------------------------------------------//
 // Generic instructions.
 // ---------------------------------------------------------------------------//
@@ -447,7 +453,7 @@ def : Pat<(ptradd GPROpnd:$rs1, uimm16:$imm),
 def : Pat<(ptradd GPROpnd:$rs1, GPROpnd:$rs2),
           (ADDUrr GPROpnd:$rs1, GPROpnd:$rs2)>;
 
-def : Pat<(p0 frameindex:$fi), (ADDri tframeindex:$fi, 0)>;
+def : Pat<(frameindex:$fi), (ADDri (i32 (FRAMEINDEX $fi)), 0)>;
 
 // ---------------------------------------------------------------------------//
 // Materialize immediates & constants.
