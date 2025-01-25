@@ -335,17 +335,19 @@ bool M88kCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
 
   if (F.isVarArg()) {
     // TODO Is there a better place for this array?
-    static const ArrayRef<MCPhysReg> ArgRegs = {M88k::R2, M88k::R3, M88k::R4,
-                                                M88k::R5, M88k::R6, M88k::R7,
-                                                M88k::R8, M88k::R9};
-    static const ArrayRef<MCPhysReg> ArgPairRegs = {M88k::R2_R3, M88k::R4_R5,
-                                                    M88k::R6_R7, M88k::R8_R9};
+    static constexpr size_t ArgRegsSize = 8;
+    static const MCPhysReg ArgRegs[ArgRegsSize] = {M88k::R2, M88k::R3, M88k::R4,
+                                                   M88k::R5, M88k::R6, M88k::R7,
+                                                   M88k::R8, M88k::R9};
+    static constexpr size_t ArgPairRegsSize = 4;
+    static const MCPhysReg ArgPairRegs[ArgPairRegsSize] = {
+        M88k::R2_R3, M88k::R4_R5, M88k::R6_R7, M88k::R8_R9};
 
     M88kMachineFunctionInfo *FuncInfo = MF.getInfo<M88kMachineFunctionInfo>();
     MachineFrameInfo &MFI = MF.getFrameInfo();
 
     unsigned FirstVariadicReg = CCInfo.getFirstUnallocated(ArgRegs);
-    unsigned GPRSaveSize = 4 * (ArgRegs.size() - FirstVariadicReg);
+    unsigned GPRSaveSize = 4 * (ArgRegsSize - FirstVariadicReg);
     if (GPRSaveSize != 0) {
       const LLT P0 = LLT::pointer(0, 32);
       const LLT S32 = LLT::scalar(32);
@@ -378,7 +380,7 @@ bool M88kCallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
         FIN = MIRBuilder.buildPtrAdd(MRI.createGenericVirtualRegister(P0),
                                      FIN.getReg(0), Offset);
       }
-      for (unsigned I = FirstVariadicPairReg, E = ArgPairRegs.size(); I < E;
+      for (unsigned I = FirstVariadicPairReg, E = ArgPairRegsSize; I < E;
            ++I) {
         Register Val = MRI.createGenericVirtualRegister(S64);
         ArgHandler.assignValueToReg(
