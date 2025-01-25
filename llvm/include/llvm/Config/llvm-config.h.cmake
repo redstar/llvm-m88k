@@ -90,6 +90,9 @@
 /* Define if the M68k target is built in */
 #cmakedefine01 LLVM_HAS_M68K_TARGET
 
+/* Define if the M88k target is built in */
+#cmakedefine01 LLVM_HAS_M88K_TARGET
+
 /* Define if the Mips target is built in */
 #cmakedefine01 LLVM_HAS_MIPS_TARGET
 
