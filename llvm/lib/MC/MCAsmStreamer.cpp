@@ -1531,7 +1531,7 @@ void MCAsmStreamer::emitAlignmentDirective(uint64_t ByteAlignment,
                                            std::optional<int64_t> Value,
                                            unsigned ValueSize,
                                            unsigned MaxBytesToEmit) {
-  if (MAI->isAIX()) {
+  if (MAI->isAIX() || getContext().getTargetTriple().isM88k()) {
     if (!isPowerOf2_64(ByteAlignment))
       report_fatal_error("Only power-of-two alignments are supported "
                          "with .align.");

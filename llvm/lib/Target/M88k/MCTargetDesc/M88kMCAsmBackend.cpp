@@ -98,7 +98,7 @@ public:
   bool fixupNeedsRelaxation(const MCFixup &Fixup,
                             uint64_t Value) const override;
   bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup,
-                             const MCValue &Target,
+                             const MCValue &Target, const uint64_t Value,
                              const MCSubtargetInfo *STI) override;
   bool writeNopData(raw_ostream &OS, uint64_t Count,
                     const MCSubtargetInfo *STI) const override;
@@ -184,6 +184,7 @@ bool M88kMCAsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup,
 bool M88kMCAsmBackend::shouldForceRelocation(const MCAssembler &Asm,
                                              const MCFixup &Fixup,
                                              const MCValue &Target,
+                                             const uint64_t Value,
                                              const MCSubtargetInfo *STI) {
   unsigned Kind = Fixup.getKind();
   return Kind == M88k::FK_88K_DISP16 || Kind == M88k::FK_88K_DISP26;
