@@ -16,7 +16,6 @@ M88kMCAsmInfo::M88kMCAsmInfo(const Triple &TT) {
   CodePointerSize = 4;
   CalleeSaveStackSlotSize = 4;
   IsLittleEndian = false;
-  UseDotAlignForAlignment = true;
   MinInstAlignment = 4;
 
   CommentString = "|"; // # as comment delimiter is only allowed at first column
