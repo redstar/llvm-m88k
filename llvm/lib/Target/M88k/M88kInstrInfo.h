@@ -80,15 +80,15 @@ public:
 
   void storeRegToStackSlot(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MBBI, Register SrcReg,
-                           bool isKill, int FrameIndex,
+                           bool IsKill, int FrameIndex,
                            const TargetRegisterClass *RC,
-                           const TargetRegisterInfo *TRI,
-                           Register VReg) const override;
+                           const TargetRegisterInfo *TRI, Register VReg,
+                           MachineInstr::MIFlag Flags) const override;
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI, Register DestReg,
                             int FrameIndex, const TargetRegisterClass *RC,
-                            const TargetRegisterInfo *TRI,
-                            Register VReg) const override;
+                            const TargetRegisterInfo *TRI, Register VReg,
+                            MachineInstr::MIFlag Flags) const override;
 
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
 

@@ -451,7 +451,8 @@ Register M88kInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
 void M88kInstrInfo::storeRegToStackSlot(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI, Register SrcReg,
     bool IsKill, int FrameIndex, const TargetRegisterClass *RC,
-    const TargetRegisterInfo *TRI, Register VReg) const {
+    const TargetRegisterInfo *TRI, Register VReg,
+    MachineInstr::MIFlag Flags) const {
   DebugLoc DL;
   MachineMemOperand *MMO =
       getMachineMemOperand(MBB, FrameIndex, MachineMemOperand::MOStore);
@@ -491,7 +492,8 @@ void M88kInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                          Register DestReg, int FrameIndex,
                                          const TargetRegisterClass *RC,
                                          const TargetRegisterInfo *TRI,
-                                         Register VReg) const {
+                                         Register VReg,
+                                         MachineInstr::MIFlag Flags) const {
   DebugLoc DL;
   MachineMemOperand *MMO =
       getMachineMemOperand(MBB, FrameIndex, MachineMemOperand::MOLoad);
