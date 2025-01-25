@@ -27,6 +27,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/IR/IntrinsicsM88k.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
@@ -71,6 +72,8 @@ private:
                                         const TargetRegisterInfo &TRI,
                                         const RegisterBankInfo &RBI) const;
 
+  void renderFrameIndex(MachineInstrBuilder &MIB, const MachineInstr &I,
+                        int OpIdx = -1) const;
   void renderLO16(MachineInstrBuilder &MIB, const MachineInstr &I,
                   int OpIdx = -1) const;
   void renderHI16(MachineInstrBuilder &MIB, const MachineInstr &I,
@@ -245,6 +248,15 @@ bool M88kInstructionSelector::constrainSelectedInstRegOperands(
       OP.setReg(M88k::R0);
   }
   return ::constrainSelectedInstRegOperands(I, TII, TRI, RBI);
+}
+
+void M88kInstructionSelector::renderFrameIndex(MachineInstrBuilder &MIB,
+                                               const MachineInstr &I,
+                                               int OpIdx) const {
+  assert(I.getOpcode() == TargetOpcode::G_FRAME_INDEX && OpIdx == -1 &&
+         "Expected G_FRAME_INDEX");
+  unsigned FI = I.getOperand(1).getIndex();
+  MIB.addFrameIndex(FI);
 }
 
 void M88kInstructionSelector::renderLO16(MachineInstrBuilder &MIB,
